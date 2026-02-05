@@ -1,0 +1,203 @@
+/* サイドバー専用スタイルシート */
+
+/* レイアウト */
+.app-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* サイドバー */
+.sidebar {
+    width: 280px;
+    background-color: #1e293b;
+    color: #e2e8f0;
+    overflow-y: auto;
+    position: fixed;
+    height: 100vh;
+    left: 0;
+    top: 0;
+    z-index: 1000;
+}
+
+.sidebar-header {
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid #334155;
+    background-color: #0f172a;
+}
+
+.sidebar-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: #f1f5f9;
+    margin: 0;
+}
+
+.sidebar-subtitle {
+    font-size: var(--font-size-sm);
+    color: #94a3b8;
+    margin-top: var(--spacing-xs);
+}
+
+/* メニュー */
+.sidebar-menu {
+    padding: var(--spacing-md) 0;
+}
+
+.menu-item {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: #cbd5e1;
+    text-decoration: none;
+}
+
+.menu-item:hover {
+    background-color: #334155;
+}
+
+.menu-item.active {
+    background-color: #2563eb;
+    color: white;
+}
+
+.menu-item-icon {
+    font-size: 1.25rem;
+}
+
+/* アコーディオン */
+.accordion-item {
+    border-bottom: 1px solid #334155;
+}
+
+.accordion-header {
+    padding: var(--spacing-md) var(--spacing-lg);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s;
+    user-select: none;
+}
+
+.accordion-header:hover {
+    background-color: #334155;
+}
+
+.accordion-title {
+    font-weight: 500;
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.accordion-icon {
+    transition: transform 0.3s;
+    color: #94a3b8;
+}
+
+.accordion-item.open .accordion-icon {
+    transform: rotate(180deg);
+}
+
+.accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    background-color: #0f172a;
+}
+
+.accordion-item.open .accordion-content {
+    max-height: 1000px;
+}
+
+.accordion-submenu {
+    padding: var(--spacing-xs) 0;
+}
+
+.submenu-item {
+    padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-sm) calc(var(--spacing-lg) * 2.5);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    color: #94a3b8;
+    font-size: var(--font-size-sm);
+}
+
+.submenu-item:hover {
+    background-color: #1e293b;
+    color: #e2e8f0;
+}
+
+.submenu-item.active {
+    background-color: #1e40af;
+    color: white;
+}
+
+.submenu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.submenu-item.disabled:hover {
+    background-color: transparent;
+}
+
+/* 実装状況バッジ */
+.status-badge-menu {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: auto;
+}
+
+.status-implemented {
+    background-color: #10b981;
+    color: white;
+}
+
+.status-planned {
+    background-color: #64748b;
+    color: white;
+}
+
+/* メインコンテンツ */
+.main-content {
+    margin-left: 280px;
+    flex: 1;
+    background-color: var(--background-color);
+    min-height: 100vh;
+}
+
+.main-header {
+    background-color: var(--surface-color);
+    border-bottom: 1px solid var(--border-color);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.main-body {
+    padding: var(--spacing-lg);
+}
+
+/* レスポンシブ */
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+    }
+
+    .sidebar.mobile-open {
+        transform: translateX(0);
+    }
+
+    .main-content {
+        margin-left: 0;
+    }
+
+    .mobile-menu-toggle {
+        display: block;
+    }
+}

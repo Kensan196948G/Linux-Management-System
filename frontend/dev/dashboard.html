@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【開発】Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- 左側サイドバー -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="sidebar-title">🖥️ Linux管理運用</h1>
+                <p class="sidebar-subtitle">
+                    <span class="env-badge dev">【開発】</span>
+                </p>
+            </div>
+
+            <nav class="sidebar-menu">
+                <!-- ダッシュボード -->
+                <div class="menu-item active" onclick="showPage('dashboard')">
+                    <span class="menu-item-icon">📊</span>
+                    <span>ダッシュボード</span>
+                </div>
+
+                <!-- Linux Management System カテゴリ -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>⚙️</span>
+                            <span>Linux Management System</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item disabled">System Configuration <span class="status-badge-menu status-planned">計画中</span></div>
+                            <div class="submenu-item disabled">System Users <span class="status-badge-menu status-planned">計画中</span></div>
+                            <div class="submenu-item" onclick="showPage('services')">System Servers <span class="status-badge-menu status-implemented">実装済み</span></div>
+                            <div class="submenu-item" onclick="showPage('audit-log')">System Actions Log <span class="status-badge-menu status-implemented">実装済み</span></div>
+                            <div class="submenu-item disabled">System Themes <span class="status-badge-menu status-planned">計画中</span></div>
+                            <div class="submenu-item disabled">System Modules <span class="status-badge-menu status-planned">計画中</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System カテゴリ -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>💻</span>
+                            <span>System</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item disabled">Bootup and Shutdown <span class="status-badge-menu status-planned">v0.2</span></div>
+                            <div class="submenu-item disabled">Disk and Network Filesystems <span class="status-badge-menu status-planned">v0.2</span></div>
+                            <div class="submenu-item disabled">Disk Quotas <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item" onclick="showPage('disk')">Local Disk <span class="status-badge-menu status-implemented">実装済み</span></div>
+                            <div class="submenu-item disabled">Users and Groups <span class="status-badge-menu status-planned">v0.2</span></div>
+                            <div class="submenu-item disabled">Software Package Updates <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item disabled">Cron Jobs <span class="status-badge-menu status-planned">v0.2</span></div>
+                            <div class="submenu-item" onclick="showPage('logs')">System Logs <span class="status-badge-menu status-implemented">実装済み</span></div>
+                            <div class="submenu-item disabled">Running Processes <span class="status-badge-menu status-planned">v0.2</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Servers カテゴリ -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>🖥️</span>
+                            <span>Servers</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item disabled">Apache Webserver <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item disabled">BIND DNS Server <span class="status-badge-menu status-planned">v0.4</span></div>
+                            <div class="submenu-item disabled">Postfix / Sendmail <span class="status-badge-menu status-planned">v0.4</span></div>
+                            <div class="submenu-item disabled">MySQL / MariaDB <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item disabled">PostgreSQL <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item disabled">SSH Server <span class="status-badge-menu status-planned">v0.2</span></div>
+                            <div class="submenu-item disabled">ProFTPD / WU-FTP <span class="status-badge-menu status-planned">v0.4</span></div>
+                            <div class="submenu-item disabled">Squid Proxy <span class="status-badge-menu status-planned">v0.4</span></div>
+                            <div class="submenu-item disabled">DHCP Server <span class="status-badge-menu status-planned">v0.4</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Networking カテゴリ -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>🌐</span>
+                            <span>Networking</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item disabled">Linux Firewall <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item disabled">Network Configuration <span class="status-badge-menu status-planned">v0.2</span></div>
+                            <div class="submenu-item disabled">Routing and Gateways <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item disabled">Netstat <span class="status-badge-menu status-planned">v0.2</span></div>
+                            <div class="submenu-item disabled">Bandwidth Monitoring <span class="status-badge-menu status-planned">v0.3</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hardware カテゴリ -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>🔧</span>
+                            <span>Hardware</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item disabled">Partitions on Local Disks <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item disabled">System Time <span class="status-badge-menu status-planned">v0.2</span></div>
+                            <div class="submenu-item disabled">SMART Drive Status <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item disabled">Sensors (lm-sensors) <span class="status-badge-menu status-planned">v0.3</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cluster / Tools カテゴリ -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>🔗</span>
+                            <span>Cluster / Tools</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item disabled">Cluster SSH <span class="status-badge-menu status-planned">v0.5</span></div>
+                            <div class="submenu-item disabled">Cluster Cron Jobs <span class="status-badge-menu status-planned">v0.5</span></div>
+                            <div class="submenu-item disabled">Cluster Users <span class="status-badge-menu status-planned">v0.5</span></div>
+                            <div class="submenu-item disabled" style="text-decoration: line-through;">Command Shell <span class="status-badge-menu status-planned" style="background-color: #ef4444;">禁止</span></div>
+                            <div class="submenu-item disabled">File Manager <span class="status-badge-menu status-planned">v0.4</span></div>
+                            <div class="submenu-item disabled">Scheduled Commands <span class="status-badge-menu status-planned">v0.3</span></div>
+                            <div class="submenu-item disabled">Custom Commands <span class="status-badge-menu status-planned">v0.3</span></div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- サイドバーフッター -->
+            <div style="padding: var(--spacing-lg); border-top: 1px solid #334155; margin-top: auto;">
+                <div style="font-size: var(--font-size-sm); color: #64748b;">
+                    <p>ユーザー: <strong id="sidebar-username" style="color: #e2e8f0;">-</strong></p>
+                    <p>ロール: <span id="sidebar-role" style="color: #94a3b8;">-</span></p>
+                    <button class="btn btn-danger" onclick="logout()" style="width: 100%; margin-top: var(--spacing-sm); font-size: var(--font-size-sm);">ログアウト</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <div class="main-header">
+                <h2 id="page-title">ダッシュボード</h2>
+            </div>
+
+            <div class="main-body" id="main-body">
+                <!-- ページコンテンツがここに表示される -->
+            </div>
+        </main>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="../js/api.js"></script>
+    <script src="../js/components.js"></script>
+    <script src="../js/sidebar.js"></script>
+    <script src="../js/pages.js"></script>
+    <script src="../js/app-dashboard.js"></script>
+</body>
+</html>
