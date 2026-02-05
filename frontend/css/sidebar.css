@@ -9,32 +9,34 @@
 /* サイドバー */
 .sidebar {
     width: 280px;
-    background-color: #1e293b;
-    color: #e2e8f0;
+    background-color: #ffffff;
+    color: #1e293b;
     overflow-y: auto;
     position: fixed;
     height: 100vh;
     left: 0;
     top: 0;
     z-index: 1000;
+    border-right: 2px solid #e2e8f0;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
 }
 
 .sidebar-header {
     padding: var(--spacing-lg);
-    border-bottom: 1px solid #334155;
-    background-color: #0f172a;
+    border-bottom: 2px solid #e2e8f0;
+    background-color: #f8fafc;
 }
 
 .sidebar-title {
     font-size: var(--font-size-lg);
     font-weight: 600;
-    color: #f1f5f9;
+    color: #1e293b;
     margin: 0;
 }
 
 .sidebar-subtitle {
     font-size: var(--font-size-sm);
-    color: #94a3b8;
+    color: #64748b;
     margin-top: var(--spacing-xs);
 }
 
@@ -46,21 +48,25 @@
 .menu-item {
     padding: var(--spacing-sm) var(--spacing-lg);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    color: #cbd5e1;
+    color: #475569;
     text-decoration: none;
+    border-left: 3px solid transparent;
 }
 
 .menu-item:hover {
-    background-color: #334155;
+    background-color: #f1f5f9;
+    color: #1e293b;
 }
 
 .menu-item.active {
-    background-color: #2563eb;
-    color: white;
+    background-color: #dbeafe;
+    color: #1e40af;
+    border-left-color: #2563eb;
+    font-weight: 600;
 }
 
 .menu-item-icon {
@@ -69,7 +75,7 @@
 
 /* アコーディオン */
 .accordion-item {
-    border-bottom: 1px solid #334155;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .accordion-header {
@@ -78,17 +84,17 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
     user-select: none;
 }
 
 .accordion-header:hover {
-    background-color: #334155;
+    background-color: #f1f5f9;
 }
 
 .accordion-title {
     font-weight: 500;
-    color: #f1f5f9;
+    color: #1e293b;
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
@@ -96,7 +102,8 @@
 
 .accordion-icon {
     transition: transform 0.3s;
-    color: #94a3b8;
+    color: #64748b;
+    font-size: 0.875rem;
 }
 
 .accordion-item.open .accordion-icon {
@@ -107,7 +114,7 @@
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.3s ease-out;
-    background-color: #0f172a;
+    background-color: #f8fafc;
 }
 
 .accordion-item.open .accordion-content {
@@ -121,28 +128,33 @@
 .submenu-item {
     padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-sm) calc(var(--spacing-lg) * 2.5);
     cursor: pointer;
-    transition: background-color 0.2s;
-    color: #94a3b8;
+    transition: all 0.2s;
+    color: #475569;
     font-size: var(--font-size-sm);
+    border-left: 3px solid transparent;
 }
 
 .submenu-item:hover {
-    background-color: #1e293b;
-    color: #e2e8f0;
+    background-color: #e0f2fe;
+    color: #0c4a6e;
 }
 
 .submenu-item.active {
-    background-color: #1e40af;
-    color: white;
+    background-color: #bae6fd;
+    color: #0c4a6e;
+    border-left-color: #0ea5e9;
+    font-weight: 600;
 }
 
 .submenu-item.disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
+    color: #94a3b8;
 }
 
 .submenu-item.disabled:hover {
     background-color: transparent;
+    color: #94a3b8;
 }
 
 /* 実装状況バッジ */

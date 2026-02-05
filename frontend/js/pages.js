@@ -24,8 +24,18 @@ function showDashboardPage(container) {
             </div>
 
             <div class="card">
-                <h3 class="card-title">最近の操作</h3>
-                <p class="text-secondary">監査ログから最近の操作を表示（今後実装）</p>
+                <h3 class="card-title">最近の操作（サンプル）</h3>
+                <ul style="font-size: 0.875rem; list-style: none; padding: 0;">
+                    <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                        <strong>13:20</strong> - operator が nginx を再起動
+                    </li>
+                    <li style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                        <strong>13:18</strong> - operator がログを閲覧
+                    </li>
+                    <li style="padding: 0.5rem 0;">
+                        <strong>13:15</strong> - viewer がログイン
+                    </li>
+                </ul>
             </div>
         </div>
 
@@ -85,8 +95,51 @@ function showServicesPage(container) {
         </div>
 
         <div class="card">
-            <h3 class="card-title">サービス状態</h3>
-            <p class="text-secondary">サービス状態の一覧表示（今後実装）</p>
+            <h3 class="card-title">サービス状態（サンプルデータ）</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>サービス名</th>
+                        <th>状態</th>
+                        <th>稼働時間</th>
+                        <th>メモリ使用</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>nginx</strong></td>
+                        <td><span class="status-badge status-active">実行中</span></td>
+                        <td>2日 3時間</td>
+                        <td>45.2 MB</td>
+                        <td><button class="btn btn-warning" style="padding: 4px 12px; font-size: 0.875rem;" onclick="restartService('nginx')">再起動</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>postgresql</strong></td>
+                        <td><span class="status-badge status-active">実行中</span></td>
+                        <td>5日 12時間</td>
+                        <td>128.5 MB</td>
+                        <td><button class="btn btn-warning" style="padding: 4px 12px; font-size: 0.875rem;" onclick="restartService('postgresql')">再起動</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>redis</strong></td>
+                        <td><span class="status-badge status-active">実行中</span></td>
+                        <td>1日 8時間</td>
+                        <td>32.1 MB</td>
+                        <td><button class="btn btn-warning" style="padding: 4px 12px; font-size: 0.875rem;" onclick="restartService('redis')">再起動</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>apache2</strong></td>
+                        <td><span class="status-badge status-inactive">停止中</span></td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td><button class="btn btn-primary" style="padding: 4px 12px; font-size: 0.875rem;" disabled>起動（未実装）</button></td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="text-secondary" style="margin-top: 1rem; font-size: 0.875rem;">
+                ℹ️ これはサンプルデータです。実際のサービス状態は systemctl から取得予定（v0.2実装）
+            </p>
         </div>
     `;
 }
@@ -97,16 +150,89 @@ function showServicesPage(container) {
 function showAuditLogPage(container) {
     container.innerHTML = `
         <div class="card">
-            <h3 class="card-title">操作ログ（監査証跡）</h3>
-            <p class="text-secondary">全操作の監査ログを表示（今後実装）</p>
-            <p>実装予定の機能:</p>
-            <ul>
-                <li>全操作の履歴表示</li>
-                <li>ユーザー別フィルタ</li>
-                <li>操作種別フィルタ</li>
-                <li>日時範囲指定</li>
-                <li>CSV/JSON エクスポート</li>
-            </ul>
+            <h3 class="card-title">操作ログ（監査証跡）- サンプルデータ</h3>
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                <select class="form-input" style="width: 150px;">
+                    <option value="">全ユーザー</option>
+                    <option value="operator">operator</option>
+                    <option value="admin">admin</option>
+                    <option value="viewer">viewer</option>
+                </select>
+                <select class="form-input" style="width: 150px;">
+                    <option value="">全操作</option>
+                    <option value="login">ログイン</option>
+                    <option value="service_restart">サービス再起動</option>
+                    <option value="log_view">ログ閲覧</option>
+                </select>
+                <button class="btn btn-primary">検索</button>
+                <button class="btn btn-success" style="margin-left: auto;">CSV エクスポート</button>
+            </div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>日時</th>
+                        <th>ユーザー</th>
+                        <th>操作</th>
+                        <th>対象</th>
+                        <th>結果</th>
+                        <th>詳細</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2026-02-05 13:20:15</td>
+                        <td><strong>operator</strong></td>
+                        <td>ログイン</td>
+                        <td>system</td>
+                        <td><span class="status-badge status-active">成功</span></td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2026-02-05 13:19:42</td>
+                        <td><strong>operator</strong></td>
+                        <td>サービス再起動</td>
+                        <td>nginx</td>
+                        <td><span class="status-badge status-active">成功</span></td>
+                        <td>before: active, after: active</td>
+                    </tr>
+                    <tr>
+                        <td>2026-02-05 13:18:30</td>
+                        <td><strong>operator</strong></td>
+                        <td>ログ閲覧</td>
+                        <td>nginx</td>
+                        <td><span class="status-badge status-active">成功</span></td>
+                        <td>100行取得</td>
+                    </tr>
+                    <tr>
+                        <td>2026-02-05 13:15:10</td>
+                        <td><strong>viewer</strong></td>
+                        <td>サービス再起動</td>
+                        <td>nginx</td>
+                        <td><span class="status-badge status-error">拒否</span></td>
+                        <td>権限不足（Viewer ロール）</td>
+                    </tr>
+                    <tr>
+                        <td>2026-02-05 13:10:05</td>
+                        <td><strong>admin</strong></td>
+                        <td>ログイン</td>
+                        <td>system</td>
+                        <td><span class="status-badge status-active">成功</span></td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2026-02-05 13:05:22</td>
+                        <td><strong>operator</strong></td>
+                        <td>システム状態閲覧</td>
+                        <td>system</td>
+                        <td><span class="status-badge status-active">成功</span></td>
+                        <td>CPU: 25%, Memory: 36%</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="text-secondary" style="margin-top: 1rem; font-size: 0.875rem;">
+                ℹ️ これはサンプルデータです。実際の監査ログは logs/dev/audit/ から取得予定（v0.2実装）
+            </p>
         </div>
     `;
 }
