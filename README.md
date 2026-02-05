@@ -285,11 +285,23 @@ uvicorn api.main:app --reload
 
 ## 📚 ドキュメント
 
-- [CLAUDE.md](./CLAUDE.md) - ClaudeCode開発仕様
-- [ENVIRONMENT.md](./ENVIRONMENT.md) - 開発環境セットアップ
+### プロジェクト概要・開発
+- [README.md](./README.md) - プロジェクト概要（本ファイル）
+- [CLAUDE.md](./CLAUDE.md) - ClaudeCode開発仕様・セキュリティ原則
+- [ENVIRONMENT.md](./ENVIRONMENT.md) - 開発環境セットアップガイド
+- [CONTRIBUTING.md](./CONTRIBUTING.md) - コントリビューションガイドライン
+- [CHANGELOG.md](./CHANGELOG.md) - 変更履歴
+
+### セキュリティ・設計
 - [SECURITY.md](./SECURITY.md) - セキュリティポリシー
-- [docs/要件定義書_詳細設計仕様書.md](./docs/要件定義書_詳細設計仕様書.md) - 詳細要件・設計
+- [docs/要件定義書_詳細設計仕様書.md](./docs/要件定義書_詳細設計仕様書.md) - 詳細要件・設計仕様
 - [docs/開発環境仕様書.md](./docs/開発環境仕様書.md) - 開発環境詳細
+
+### API・技術仕様
+- [docs/api-reference.md](./docs/api-reference.md) - REST API リファレンス
+- [docs/openapi.json](./docs/openapi.json) - OpenAPI 仕様 (v3.1.0)
+- `/api/docs` - Swagger UI（開発環境のみ）
+- `/api/redoc` - ReDoc UI（開発環境のみ）
 
 ---
 
@@ -308,7 +320,7 @@ uvicorn api.main:app --reload
 3. **監査証跡** - 全ての操作を記録
 4. **テストカバレッジ** - 新機能には必ずテストを追加
 
-Pull Request を送る前に、[CLAUDE.md](./CLAUDE.md) の開発ポリシーを確認してください。
+詳細は [CONTRIBUTING.md](./CONTRIBUTING.md) を参照してください。
 
 ---
 
