@@ -28,6 +28,10 @@
     "max_login_attempts": 3,
     "require_https": true
   },
+  "cors_origins": [
+    "https://yourdomain.com",
+    "https://admin.yourdomain.com"
+  ],
   "features": {
     "demo_data_enabled": false,
     "debug_mode": false,

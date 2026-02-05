@@ -173,6 +173,9 @@ async def startup_event():
     logger.info(f"API Docs: {settings.features.api_docs_enabled}")
     logger.info("=" * 60)
 
+    # Production環境のセキュリティ検証
+    await validate_production_config()
+
     # ログディレクトリの作成
     log_file = Path(settings.logging.file)
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -182,6 +185,46 @@ async def startup_event():
     audit_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("✅ Backend started successfully")
+
+
+async def validate_production_config():
+    """
+    Production環境のセキュリティ設定を検証
+
+    Raises:
+        RuntimeError: クリティカルなセキュリティ設定が不正な場合
+    """
+    if settings.environment == "production":
+        # JWT秘密鍵の検証
+        if settings.jwt_secret_key == "change-this-in-production":
+            raise RuntimeError(
+                "CRITICAL: JWT_SECRET not configured for production! "
+                "Set SESSION_SECRET environment variable."
+            )
+
+        # HTTPS必須の検証
+        if not settings.security.require_https:
+            raise RuntimeError("CRITICAL: HTTPS must be required in production!")
+
+        # デバッグモードの検証
+        if settings.features.debug_mode:
+            raise RuntimeError("CRITICAL: Debug mode must be disabled in production!")
+
+        # API ドキュメントの警告
+        if settings.features.api_docs_enabled:
+            logger.warning(
+                "WARNING: API docs are enabled in production. "
+                "Consider disabling for security."
+            )
+
+        # CORS設定の検証
+        if "*" in settings.cors_origins:
+            raise RuntimeError(
+                "CRITICAL: Wildcard CORS origin (*) is not allowed in production! "
+                "Specify explicit domains in prod.json."
+            )
+
+        logger.info("✅ Production security configuration validated")
 
 
 @app.on_event("shutdown")

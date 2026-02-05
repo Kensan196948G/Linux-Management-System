@@ -81,6 +81,8 @@ class AuditLog:
 
     def query(
         self,
+        user_role: str,
+        requesting_user_id: str,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         user_id: Optional[str] = None,
@@ -89,9 +91,11 @@ class AuditLog:
         limit: int = 100,
     ) -> list[Dict[str, Any]]:
         """
-        監査ログを検索
+        監査ログを検索（RBAC適用）
 
         Args:
+            user_role: リクエストユーザーのロール（Admin/Operator/Approver/Viewer）
+            requesting_user_id: リクエストユーザーのID
             start_date: 開始日時
             end_date: 終了日時
             user_id: ユーザーID（フィルタ）
@@ -101,7 +105,14 @@ class AuditLog:
 
         Returns:
             監査ログエントリのリスト
+
+        Raises:
+            PermissionError: Viewerロールの場合（監査ログアクセス不可）
         """
+        # RBAC: Viewerは監査ログにアクセス不可
+        if user_role == "Viewer":
+            raise PermissionError("Viewer role cannot access audit logs")
+
         results = []
 
         # 全ログファイルを走査
@@ -110,6 +121,13 @@ class AuditLog:
                 with open(log_file, "r", encoding="utf-8") as f:
                     for line in f:
                         entry = json.loads(line.strip())
+
+                        # RBAC: Operator/Approverは自分のログのみ閲覧可能
+                        if user_role in ["Operator", "Approver"]:
+                            if entry.get("user_id") != requesting_user_id:
+                                continue
+
+                        # Admin は全てのログを閲覧可能（RBACフィルタなし）
 
                         # フィルタ適用
                         if user_id and entry.get("user_id") != user_id:
