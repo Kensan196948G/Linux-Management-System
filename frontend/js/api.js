@@ -5,7 +5,7 @@
 
 class APIClient {
     constructor(baseURL) {
-        this.baseURL = baseURL || 'http://localhost:3000';
+        this.baseURL = baseURL || 'http://localhost:5012';
         this.token = localStorage.getItem('access_token');
     }
 

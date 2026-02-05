@@ -2,8 +2,8 @@
   "environment": "development",
   "server": {
     "host": "0.0.0.0",
-    "http_port": 3000,
-    "https_port": 3443,
+    "http_port": 5012,
+    "https_port": 5443,
     "ssl_enabled": true,
     "ssl_cert": "./certs/dev/cert.pem",
     "ssl_key": "./certs/dev/key.pem"
@@ -38,6 +38,6 @@
   "frontend": {
     "title": "【開発】Linux Management System",
     "show_env_badge": true,
-    "api_base_url": "http://localhost:3000/api"
+    "api_base_url": "http://localhost:5012/api"
   }
 }

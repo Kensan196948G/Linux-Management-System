@@ -95,29 +95,40 @@ ROLES = {
 # デモユーザー（開発環境のみ）
 # ===================================================================
 
-DEMO_USERS = {
-    "viewer@example.com": User(
-        user_id="user_001",
-        username="viewer",
-        email="viewer@example.com",
-        role="Viewer",
-        hashed_password=pwd_context.hash("viewer123"),
-    ),
-    "operator@example.com": User(
-        user_id="user_002",
-        username="operator",
-        email="operator@example.com",
-        role="Operator",
-        hashed_password=pwd_context.hash("operator123"),
-    ),
-    "admin@example.com": User(
-        user_id="user_003",
-        username="admin",
-        email="admin@example.com",
-        role="Admin",
-        hashed_password=pwd_context.hash("admin123"),
-    ),
-}
+# 遅延初期化（モジュールロード時のハッシュ化を避ける）
+_DEMO_USERS_CACHE = None
+
+
+def get_demo_users():
+    """デモユーザーを取得（遅延初期化）"""
+    global _DEMO_USERS_CACHE
+
+    if _DEMO_USERS_CACHE is None:
+        _DEMO_USERS_CACHE = {
+            "viewer@example.com": User(
+                user_id="user_001",
+                username="viewer",
+                email="viewer@example.com",
+                role="Viewer",
+                hashed_password=pwd_context.hash("viewer123"),
+            ),
+            "operator@example.com": User(
+                user_id="user_002",
+                username="operator",
+                email="operator@example.com",
+                role="Operator",
+                hashed_password=pwd_context.hash("operator123"),
+            ),
+            "admin@example.com": User(
+                user_id="user_003",
+                username="admin",
+                email="admin@example.com",
+                role="Admin",
+                hashed_password=pwd_context.hash("admin123"),
+            ),
+        }
+
+    return _DEMO_USERS_CACHE
 
 
 # ===================================================================
@@ -174,7 +185,8 @@ def authenticate_user(email: str, password: str) -> Optional[User]:
         認証成功時は User オブジェクト、失敗時は None
     """
     # デモユーザーから検索（本番環境ではデータベースから取得）
-    user = DEMO_USERS.get(email)
+    demo_users = get_demo_users()
+    user = demo_users.get(email)
 
     if not user:
         logger.warning(f"Authentication failed: user not found - {email}")

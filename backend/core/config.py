@@ -89,9 +89,11 @@ class Settings(BaseSettings):
     # CORS 設定
     cors_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "https://localhost:3443"])
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "extra": "ignore",  # JSON から余分なフィールドを無視
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+    }
 
 
 def load_config(env: Literal["dev", "prod"] = "dev") -> Settings:
@@ -130,7 +132,20 @@ def load_config(env: Literal["dev", "prod"] = "dev") -> Settings:
     return settings
 
 
-# デフォルト設定のインスタンス
-# 環境変数 ENV が設定されていればそれを使用、なければ dev
-current_env = os.getenv("ENV", "dev")
-settings = load_config(current_env)
+# デフォルト設定のインスタンス（遅延初期化）
+_settings_cache = None
+
+
+def get_settings() -> Settings:
+    """設定を取得（遅延初期化）"""
+    global _settings_cache
+
+    if _settings_cache is None:
+        current_env = os.getenv("ENV", "dev")
+        _settings_cache = load_config(current_env)
+
+    return _settings_cache
+
+
+# 後方互換性のため
+settings = get_settings()
