@@ -1,0 +1,510 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Linux Management System API",
+    "description": "Secure Linux Management WebUI with sudo allowlist control",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Login",
+        "description": "ログイン\n\nArgs:\n    request: ログインリクエスト\n\nReturns:\n    JWT アクセストークン\n\nRaises:\n    HTTPException: 認証失敗時",
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Get Me",
+        "description": "現在のユーザー情報を取得\n\nArgs:\n    current_user: 現在のユーザー（JWT から取得）\n\nReturns:\n    ユーザー情報",
+        "operationId": "get_me_api_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfoResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Logout",
+        "description": "ログアウト\n\nNote: JWT はステートレスなため、クライアント側でトークンを削除する",
+        "operationId": "logout_api_auth_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/system/status": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get System Status",
+        "description": "システム状態を取得\n\nArgs:\n    current_user: 現在のユーザー（read:status 権限必須）\n\nReturns:\n    システム状態（CPU, メモリ, ディスク, 稼働時間）",
+        "operationId": "get_system_status_api_system_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/services/restart": {
+      "post": {
+        "tags": [
+          "services"
+        ],
+        "summary": "Restart Service",
+        "description": "サービスを再起動\n\nArgs:\n    request: サービス再起動リクエスト\n    current_user: 現在のユーザー（execute:service_restart 権限必須）\n\nReturns:\n    再起動結果\n\nRaises:\n    HTTPException: 再起動失敗時",
+        "operationId": "restart_service_api_services_restart_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceRestartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceRestartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/logs/{service_name}": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Get Service Logs",
+        "description": "サービスのログを取得\n\nArgs:\n    service_name: サービス名\n    lines: 取得行数（1-1000）\n    current_user: 現在のユーザー（read:logs 権限必須）\n\nReturns:\n    ログデータ\n\nRaises:\n    HTTPException: ログ取得失敗時",
+        "operationId": "get_service_logs_api_logs__service_name__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "service_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Service Name"
+            }
+          },
+          {
+            "name": "lines",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "取得行数（1-1000）",
+              "default": 100,
+              "title": "Lines"
+            },
+            "description": "取得行数（1-1000）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "ヘルスチェックエンドポイント\n\n監視システムやロードバランサーから使用",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "description": "ルートエンドポイント",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "description": "ログインリクエスト"
+      },
+      "LoginResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "user_id",
+          "username",
+          "role"
+        ],
+        "title": "LoginResponse",
+        "description": "ログインレスポンス"
+      },
+      "LogsResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "lines_requested": {
+            "type": "integer",
+            "title": "Lines Requested"
+          },
+          "lines_returned": {
+            "type": "integer",
+            "title": "Lines Returned"
+          },
+          "logs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Logs"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "service",
+          "lines_requested",
+          "lines_returned",
+          "logs",
+          "timestamp"
+        ],
+        "title": "LogsResponse",
+        "description": "ログレスポンス"
+      },
+      "ServiceRestartRequest": {
+        "properties": {
+          "service_name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "title": "Service Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_name"
+        ],
+        "title": "ServiceRestartRequest",
+        "description": "サービス再起動リクエスト"
+      },
+      "ServiceRestartResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "before": {
+            "type": "string",
+            "title": "Before"
+          },
+          "after": {
+            "type": "string",
+            "title": "After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "service",
+          "before",
+          "after"
+        ],
+        "title": "ServiceRestartResponse",
+        "description": "サービス再起動レスポンス"
+      },
+      "UserInfoResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Permissions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "email",
+          "role",
+          "permissions"
+        ],
+        "title": "UserInfoResponse",
+        "description": "ユーザー情報レスポンス"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
