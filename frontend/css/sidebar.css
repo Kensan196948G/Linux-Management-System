@@ -8,7 +8,7 @@
 
 /* サイドバー */
 .sidebar {
-    width: 280px;
+    width: 420px;
     background-color: #ffffff;
     color: #1e293b;
     overflow-y: auto;
@@ -178,7 +178,7 @@
 
 /* メインコンテンツ */
 .main-content {
-    margin-left: 280px;
+    margin-left: 420px;
     flex: 1;
     background-color: var(--background-color);
     min-height: 100vh;
