@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【開発】Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="header">
+        <h1 class="header-title">
+            Linux Management System
+            <span class="env-badge dev">【開発】</span>
+        </h1>
+        <p style="color: var(--text-secondary); margin-top: 0.5rem;">
+            現在時刻: <span id="current-time"></span>
+        </p>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <div class="container">
+        <!-- ログインセクション -->
+        <div id="login-section" class="hidden">
+            <div class="card" style="max-width: 400px; margin: 2rem auto;">
+                <h2 class="card-title">ログイン</h2>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label class="form-label" for="email">メールアドレス</label>
+                        <input type="email" class="form-input" id="email" value="operator@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="password">パスワード</label>
+                        <input type="password" class="form-input" id="password" value="operator123" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">ログイン</button>
+                </form>
+
+                <div style="margin-top: 1.5rem; padding: 1rem; background-color: #f1f5f9; border-radius: 6px;">
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 600;">開発環境用デモアカウント:</p>
+                    <ul style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem; list-style: none;">
+                        <li>👁️ viewer@example.com / viewer123 (Viewer)</li>
+                        <li>⚙️ operator@example.com / operator123 (Operator)</li>
+                        <li>🔧 admin@example.com / admin123 (Admin)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- メインダッシュボード -->
+        <div id="dashboard-section" class="hidden">
+            <!-- ユーザー情報 -->
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <p>ログインユーザー: <strong id="user-name"></strong> (<span id="user-role"></span>)</p>
+                    </div>
+                    <button class="btn btn-danger" onclick="logout()">ログアウト</button>
+                </div>
+            </div>
+
+            <!-- システム状態 -->
+            <div class="card">
+                <h2 class="card-title">システム状態</h2>
+                <button class="btn btn-primary mb-1" onclick="loadSystemStatus()">更新</button>
+                <div id="system-status"></div>
+            </div>
+
+            <!-- ディスク使用状況 -->
+            <div class="card">
+                <h2 class="card-title">ディスク使用状況</h2>
+                <div id="disk-usage"></div>
+            </div>
+
+            <!-- サービス操作 -->
+            <div class="card" id="service-operations">
+                <h2 class="card-title">サービス操作</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                    許可されたサービスのみ操作可能です
+                </p>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <button class="btn btn-warning" onclick="restartService('nginx')">nginx を再起動</button>
+                    <button class="btn btn-warning" onclick="restartService('postgresql')">postgresql を再起動</button>
+                    <button class="btn btn-warning" onclick="restartService('redis')">redis を再起動</button>
+                </div>
+                <div id="service-result" style="margin-top: 1rem;"></div>
+            </div>
+
+            <!-- ログ閲覧 -->
+            <div class="card">
+                <h2 class="card-title">ログ閲覧</h2>
+                <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                    <select class="form-input" id="log-service" style="width: 200px;">
+                        <option value="nginx">nginx</option>
+                        <option value="postgresql">postgresql</option>
+                        <option value="redis">redis</option>
+                        <option value="sshd">sshd</option>
+                        <option value="systemd">systemd</option>
+                    </select>
+                    <input type="number" class="form-input" id="log-lines" value="100" min="1" max="1000" style="width: 100px;">
+                    <button class="btn btn-primary" onclick="loadLogs()">ログ取得</button>
+                </div>
+                <div id="logs-display"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="../js/api.js"></script>
+    <script src="../js/components.js"></script>
+    <script src="../js/app.js"></script>
+</body>
+</html>
