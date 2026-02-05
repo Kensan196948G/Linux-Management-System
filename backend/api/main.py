@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
 from .routes import auth, logs, services, system
@@ -54,6 +55,21 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(services.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
+
+# ===================================================================
+# 静的ファイル配信
+# ===================================================================
+
+# フロントエンドディレクトリ
+frontend_dir = Path(__file__).parent.parent.parent / "frontend"
+
+# CSS, JS ファイルの配信
+app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
+app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
+
+# dev, prod ディレクトリの配信
+app.mount("/dev", StaticFiles(directory=str(frontend_dir / "dev"), html=True), name="dev")
+app.mount("/prod", StaticFiles(directory=str(frontend_dir / "prod"), html=True), name="prod")
 
 # ===================================================================
 # ミドルウェア
