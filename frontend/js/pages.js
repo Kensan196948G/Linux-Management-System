@@ -328,3 +328,177 @@ async function loadLogsForPage() {
         logsEl.innerHTML = '<p class="text-secondary">ログの取得に失敗しました</p>';
     }
 }
+
+// ===================================================================
+// Networking カテゴリのページ
+// ===================================================================
+
+function showFirewallPage(container) {
+    container.innerHTML = `
+        <div class="card">
+            <h3 class="card-title">Linux Firewall - サンプルデータ</h3>
+            <div class="grid grid-2">
+                <div class="card" style="background-color: #f0fdf4;">
+                    <h4 style="color: #166534;">✅ 許可ルール</h4>
+                    <ul style="font-size: 0.875rem; list-style: none; padding: 0;">
+                        <li style="padding: 0.25rem 0;">SSH (22) from 192.168.0.0/24</li>
+                        <li style="padding: 0.25rem 0;">HTTP (80) from any</li>
+                        <li style="padding: 0.25rem 0;">HTTPS (443) from any</li>
+                    </ul>
+                </div>
+                <div class="card" style="background-color: #fef2f2;">
+                    <h4 style="color: #991b1b;">🚫 拒否ルール</h4>
+                    <ul style="font-size: 0.875rem; list-style: none; padding: 0;">
+                        <li style="padding: 0.25rem 0;">Telnet (23) - 全拒否</li>
+                        <li style="padding: 0.25rem 0;">FTP (21) - 全拒否</li>
+                    </ul>
+                </div>
+            </div>
+            <p class="text-secondary" style="margin-top: 1rem; font-size: 0.875rem;">
+                ℹ️ サンプルデータ（v0.3実装予定）
+            </p>
+        </div>
+    `;
+}
+
+function showNetworkConfigPage(container) {
+    container.innerHTML = `
+        <div class="card">
+            <h3 class="card-title">Network Configuration - サンプルデータ</h3>
+            <table class="table">
+                <thead>
+                    <tr><th>IF</th><th>IP</th><th>状態</th><th>速度</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>eth0</td><td>192.168.0.185</td><td><span class="status-badge status-active">UP</span></td><td>1000Mbps</td></tr>
+                    <tr><td>lo</td><td>127.0.0.1</td><td><span class="status-badge status-active">UP</span></td><td>-</td></tr>
+                </tbody>
+            </table>
+            <p class="text-secondary" style="font-size: 0.875rem;">ℹ️ サンプルデータ（v0.2実装予定）</p>
+        </div>
+    `;
+}
+
+function showRoutingPage(container) {
+    container.innerHTML = `
+        <div class="card">
+            <h3 class="card-title">Routing - サンプルデータ</h3>
+            <table class="table">
+                <thead>
+                    <tr><th>宛先</th><th>ゲートウェイ</th><th>IF</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>default</td><td>192.168.0.1</td><td>eth0</td></tr>
+                    <tr><td>192.168.0.0/24</td><td>0.0.0.0</td><td>eth0</td></tr>
+                </tbody>
+            </table>
+            <p class="text-secondary" style="font-size: 0.875rem;">ℹ️ サンプルデータ（v0.3実装予定）</p>
+        </div>
+    `;
+}
+
+function showNetstatPage(container) {
+    container.innerHTML = `
+        <div class="card">
+            <h3 class="card-title">Netstat - サンプルデータ</h3>
+            <table class="table">
+                <thead>
+                    <tr><th>Proto</th><th>Local</th><th>Remote</th><th>State</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>tcp</td><td>0.0.0.0:22</td><td>*</td><td><span class="status-badge status-active">LISTEN</span></td></tr>
+                    <tr><td>tcp</td><td>0.0.0.0:80</td><td>*</td><td><span class="status-badge status-active">LISTEN</span></td></tr>
+                </tbody>
+            </table>
+            <p class="text-secondary" style="font-size: 0.875rem;">ℹ️ サンプルデータ（v0.2実装予定）</p>
+        </div>
+    `;
+}
+
+function showBandwidthPage(container) {
+    container.innerHTML = `
+        <div class="card">
+            <h3 class="card-title">Bandwidth Monitoring - サンプルデータ</h3>
+            <div class="grid grid-2">
+                <div class="card">
+                    <h4>受信</h4>
+                    <p style="font-size: 2rem; font-weight: 600; color: #2563eb;">125.5 MB/s</p>
+                    <div class="progress-bar mt-1"><div class="progress-fill" style="width: 45%;"></div></div>
+                </div>
+                <div class="card">
+                    <h4>送信</h4>
+                    <p style="font-size: 2rem; font-weight: 600; color: #10b981;">82.3 MB/s</p>
+                    <div class="progress-bar mt-1"><div class="progress-fill" style="width: 30%; background-color: #10b981;"></div></div>
+                </div>
+            </div>
+            <p class="text-secondary" style="font-size: 0.875rem;">ℹ️ サンプルデータ（v0.3実装予定）</p>
+        </div>
+    `;
+}
+
+// Hardware カテゴリ
+function showPartitionsPage(container) {
+    container.innerHTML = `
+        <div class="card">
+            <h3 class="card-title">Partitions - サンプルデータ</h3>
+            <table class="table">
+                <thead>
+                    <tr><th>Device</th><th>Mount</th><th>FS</th><th>Size</th><th>Used</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>/dev/sda1</td><td>/</td><td>ext4</td><td>98GB</td><td><span class="status-badge status-error">84%</span></td></tr>
+                    <tr><td>/dev/sda2</td><td>/home</td><td>ext4</td><td>200GB</td><td><span class="status-badge status-active">45%</span></td></tr>
+                </tbody>
+            </table>
+            <p class="text-secondary" style="font-size: 0.875rem;">ℹ️ サンプルデータ（v0.3実装予定）</p>
+        </div>
+    `;
+}
+
+function showSystemTimePage(container) {
+    const now = new Date().toLocaleString('ja-JP');
+    container.innerHTML = `
+        <div class="card">
+            <h3 class="card-title">System Time - サンプルデータ</h3>
+            <p style="font-size: 2rem; font-weight: 600; color: #2563eb;" id="live-time">${now}</p>
+            <p class="text-secondary">タイムゾーン: Asia/Tokyo</p>
+            <p class="text-secondary" style="font-size: 0.875rem;">ℹ️ サンプルデータ（v0.2実装予定）</p>
+        </div>
+    `;
+    setInterval(() => {
+        const el = document.getElementById('live-time');
+        if (el) el.textContent = new Date().toLocaleString('ja-JP');
+    }, 1000);
+}
+
+function showSmartStatusPage(container) {
+    container.innerHTML = `
+        <div class="card">
+            <h3 class="card-title">SMART Status - サンプルデータ</h3>
+            <table class="table">
+                <thead>
+                    <tr><th>Drive</th><th>Model</th><th>Health</th><th>Temp</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>/dev/sda</td><td>Samsung SSD 970</td><td><span class="status-badge status-active">正常</span></td><td>42°C</td></tr>
+                    <tr><td>/dev/sdb</td><td>WD Red 1TB</td><td><span class="status-badge status-active">正常</span></td><td>38°C</td></tr>
+                </tbody>
+            </table>
+            <p class="text-secondary" style="font-size: 0.875rem;">ℹ️ サンプルデータ（v0.3実装予定）</p>
+        </div>
+    `;
+}
+
+function showSensorsPage(container) {
+    container.innerHTML = `
+        <div class="card">
+            <h3 class="card-title">Sensors - サンプルデータ</h3>
+            <div class="grid grid-3">
+                <div class="card"><h4>CPU温度</h4><p style="font-size: 2rem; color: #10b981;">52°C</p></div>
+                <div class="card"><h4>MB温度</h4><p style="font-size: 2rem; color: #10b981;">45°C</p></div>
+                <div class="card"><h4>ファン</h4><p style="font-size: 2rem; color: #2563eb;">1850RPM</p></div>
+            </div>
+            <p class="text-secondary" style="font-size: 0.875rem;">ℹ️ サンプルデータ（v0.3実装予定）</p>
+        </div>
+    `;
+}

@@ -7,19 +7,7 @@
  */
 function toggleAccordion(element) {
     const accordionItem = element.parentElement;
-    const wasOpen = accordionItem.classList.contains('open');
-
-    // 他の開いているアコーディオンを閉じる（オプション）
-    // document.querySelectorAll('.accordion-item.open').forEach(item => {
-    //     item.classList.remove('open');
-    // });
-
-    // クリックされたアコーディオンを開閉
-    if (wasOpen) {
-        accordionItem.classList.remove('open');
-    } else {
-        accordionItem.classList.add('open');
-    }
+    accordionItem.classList.toggle('open');
 }
 
 /**
@@ -35,6 +23,15 @@ function showPage(pageName) {
         'audit-log': 'System Actions Log - 操作ログ',
         'disk': 'Local Disk - ディスク使用状況',
         'logs': 'System Logs - ログ閲覧',
+        'firewall': 'Linux Firewall - ファイアウォール管理',
+        'network-config': 'Network Configuration - ネットワーク設定',
+        'routing': 'Routing and Gateways - ルーティング',
+        'netstat': 'Netstat - ネットワーク統計',
+        'bandwidth': 'Bandwidth Monitoring - 帯域幅監視',
+        'partitions': 'Partitions - パーティション管理',
+        'system-time': 'System Time - システム時刻',
+        'smart-status': 'SMART Drive Status - ドライブ健全性',
+        'sensors': 'Sensors - ハードウェアセンサー',
     };
 
     document.getElementById('page-title').textContent = titles[pageName] || pageName;
@@ -62,6 +59,33 @@ function showPage(pageName) {
             break;
         case 'logs':
             showLogsPage(mainBody);
+            break;
+        case 'firewall':
+            showFirewallPage(mainBody);
+            break;
+        case 'network-config':
+            showNetworkConfigPage(mainBody);
+            break;
+        case 'routing':
+            showRoutingPage(mainBody);
+            break;
+        case 'netstat':
+            showNetstatPage(mainBody);
+            break;
+        case 'bandwidth':
+            showBandwidthPage(mainBody);
+            break;
+        case 'partitions':
+            showPartitionsPage(mainBody);
+            break;
+        case 'system-time':
+            showSystemTimePage(mainBody);
+            break;
+        case 'smart-status':
+            showSmartStatusPage(mainBody);
+            break;
+        case 'sensors':
+            showSensorsPage(mainBody);
             break;
         default:
             mainBody.innerHTML = `
