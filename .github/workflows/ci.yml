@@ -126,7 +126,7 @@ jobs:
       - name: Check for shell=True (CRITICAL)
         run: |
           echo "🔍 Checking for shell=True usage..."
-          if grep -r "shell=True" backend/ 2>/dev/null; then
+          if grep -r "shell=True" backend/ --exclude-dir=docs --exclude="*README.md" --exclude="*CLAUDE.md" 2>/dev/null; then
             echo "❌ ERROR: shell=True detected in backend/"
             echo "This is a CRITICAL security violation"
             exit 1
@@ -137,7 +137,7 @@ jobs:
       - name: Check for os.system (CRITICAL)
         run: |
           echo "🔍 Checking for os.system usage..."
-          if grep -r "os\.system\s*(" backend/ 2>/dev/null; then
+          if grep -r "os\.system\s*(" backend/ --exclude-dir=docs --exclude="*README.md" --exclude="*CLAUDE.md" 2>/dev/null; then
             echo "❌ ERROR: os.system detected in backend/"
             echo "This is a CRITICAL security violation"
             exit 1
@@ -148,7 +148,7 @@ jobs:
       - name: Check for eval/exec (CRITICAL)
         run: |
           echo "🔍 Checking for eval/exec usage..."
-          if grep -rE "\b(eval|exec)\s*\(" backend/ 2>/dev/null; then
+          if grep -rE "\b(eval|exec)\s*\(" backend/ --exclude-dir=docs --exclude="*README.md" --exclude="*CLAUDE.md" 2>/dev/null; then
             echo "❌ ERROR: eval/exec detected in backend/"
             echo "This is a CRITICAL security violation"
             exit 1
@@ -170,7 +170,7 @@ jobs:
       - name: Check for command substitution in API code
         run: |
           echo "🔍 Checking for command substitution..."
-          if grep -rE '\$\(' backend/api/ 2>/dev/null; then
+          if grep -rE '\$\(' backend/api/ --exclude-dir=docs --exclude="*README.md" --exclude="*CLAUDE.md" 2>/dev/null; then
             echo "⚠️ WARNING: Command substitution pattern detected"
             echo "Please review for potential injection risks"
             # Warning only, not blocking

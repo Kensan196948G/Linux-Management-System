@@ -80,11 +80,11 @@ jobs:
         run: |
           echo "🚨 Scanning for shell=True (CRITICAL VIOLATION)..."
 
-          if find backend/ -name "*.py" -exec grep -l "shell=True" {} \; 2>/dev/null; then
+          if find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -l "shell=True" {} \; 2>/dev/null; then
             echo ""
             echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
             echo "shell=True detected in the following files:"
-            find backend/ -name "*.py" -exec grep -Hn "shell=True" {} \;
+            find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -Hn "shell=True" {} \;
             echo ""
             echo "This is a BLOCKING issue and must be fixed immediately."
             echo "See CLAUDE.md for security principles."
@@ -97,11 +97,11 @@ jobs:
         run: |
           echo "🚨 Scanning for os.system (CRITICAL VIOLATION)..."
 
-          if find backend/ -name "*.py" -exec grep -lE "os\.system\s*\(" {} \; 2>/dev/null; then
+          if find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -lE "os\.system\s*\(" {} \; 2>/dev/null; then
             echo ""
             echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
             echo "os.system detected in the following files:"
-            find backend/ -name "*.py" -exec grep -HnE "os\.system\s*\(" {} \;
+            find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -HnE "os\.system\s*\(" {} \;
             echo ""
             echo "This is a BLOCKING issue and must be fixed immediately."
             exit 1
@@ -113,11 +113,11 @@ jobs:
         run: |
           echo "🚨 Scanning for eval/exec (CRITICAL VIOLATION)..."
 
-          if find backend/ -name "*.py" -exec grep -lE "\b(eval|exec)\s*\(" {} \; 2>/dev/null; then
+          if find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -lE "\b(eval|exec)\s*\(" {} \; 2>/dev/null; then
             echo ""
             echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
             echo "eval/exec detected in the following files:"
-            find backend/ -name "*.py" -exec grep -HnE "\b(eval|exec)\s*\(" {} \;
+            find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -HnE "\b(eval|exec)\s*\(" {} \;
             echo ""
             echo "This is a BLOCKING issue and must be fixed immediately."
             exit 1

@@ -14,6 +14,7 @@ log() {
 }
 
 # エラーログ
+# shellcheck disable=SC2317
 error() {
     logger -t adminui-status -p user.err "ERROR: $*"
     echo "[$(date -Iseconds)] ERROR: $*" >&2
@@ -72,13 +73,14 @@ echo '  ],'
 # システム稼働時間
 echo '  "uptime": {'
 UPTIME=$(uptime -p | sed 's/up //')
-UPTIME_SECONDS=$(cat /proc/uptime | awk '{print int($1)}')
+UPTIME_SECONDS=$(awk '{print int($1)}' /proc/uptime)
 echo "    \"human_readable\": \"$UPTIME\","
 echo "    \"seconds\": $UPTIME_SECONDS"
 echo '  },'
 
 # タイムスタンプ
-echo '  "timestamp": "'$(date -Iseconds)'"'
+TIMESTAMP=$(date -Iseconds)
+echo "  \"timestamp\": \"$TIMESTAMP\""
 
 # JSON 出力終了
 echo "}"
