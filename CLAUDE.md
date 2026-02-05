@@ -571,5 +571,132 @@ CLAUDE.md のセキュリティ原則を厳守してください。
 
 ---
 
+## 📦 モジュール実装ガイドライン（100+モジュール対応）
+
+### 対象範囲
+
+本システムは Webmin 互換の包括的な Linux 管理を目指し、**100個以上のモジュール**を段階的に実装します。
+
+**対象OS**: Ubuntu Linux
+
+### モジュールカテゴリ
+
+1. **Linux Management System** - システム全体設定
+2. **System** - 基幹機能（Users, Cron, Logs, Processes, etc.）
+3. **Servers** - サービス管理（Apache, MySQL, PostgreSQL, etc.）
+4. **Networking** - ネットワーク（Firewall, Routing, etc.）
+5. **Hardware** - ハードウェア（Disk, SMART, Sensors, etc.）
+6. **Cluster / Tools** - クラスタ・ツール
+
+### 新モジュール実装時の必須ルール
+
+#### 1. セキュリティ評価（最優先）
+
+```
+新モジュール実装前に必ず確認:
+- ❓ root 権限が必要か？
+- ❓ 既存の sudo ラッパーで対応可能か？
+- ❓ 新しいラッパーが必要か？
+- ❓ allowlist に追加すべきコマンドは？
+- ❓ 特殊文字を含む入力があるか？
+- ❓ ファイル操作は安全か（パストラバーサル対策）？
+```
+
+#### 2. 禁止モジュール（実装不可）
+
+```
+❌ Command Shell - 任意コマンド実行
+❌ Direct /etc editing - 直接編集
+❌ User/sudo 追加 - セキュリティリスク
+❌ Package removal - システム破壊リスク
+```
+
+#### 3. 制限付きモジュール（人間承認必須）
+
+```
+⚠️ Custom Commands - 事前定義のみ
+⚠️ File Manager - 特定ディレクトリのみ
+⚠️ Scheduled Commands - allowlist のみ
+⚠️ Firewall Settings - 誤設定防止
+```
+
+#### 4. 実装テンプレート
+
+新モジュール実装時は以下の順序で進める：
+
+```
+1. @spec-planner: モジュール要件定義
+   - 目的・スコープ
+   - セキュリティ評価
+   - allowlist 定義
+
+2. @arch-reviewer: 設計レビュー
+   - sudo ラッパー設計
+   - 入力検証設計
+   - エラーハンドリング
+
+3. @code-implementer: 実装
+   - ラッパースクリプト作成
+   - API エンドポイント追加
+   - フロントエンド UI 追加
+
+4. @code-reviewer: レビュー
+   - セキュリティ原則遵守確認
+   - テストカバレッジ確認
+
+5. @test-designer: テスト作成
+   - 正常系・異常系
+   - セキュリティテスト
+   - allowlist 検証
+
+6. @ci-specialist: CI 統合
+```
+
+### モジュール優先度
+
+```
+Phase 1 (v0.1) - 完了済み:
+  ✅ System Status
+  ✅ Service Restart
+  ✅ Log Viewing
+
+Phase 2 (v0.2) - 次の実装:
+  🔴 Users and Groups
+  🔴 Cron Jobs
+  🔴 Network Configuration
+  🟡 Running Processes
+
+Phase 3 (v0.3):
+  🟡 MySQL/PostgreSQL
+  🟡 Firewall
+  🟡 Package Updates
+  🟡 Approval Workflow
+
+Phase 4-5 (v0.4-v0.5):
+  🟢 Advanced Server Management
+  🟢 Cluster Management
+```
+
+### 例：新モジュール実装チェックリスト
+
+```yaml
+module_name: Users and Groups Management
+category: System
+security_risk: HIGH（ユーザー追加・削除）
+
+implementation_checklist:
+  - [ ] sudo ラッパー作成（adminui-user-*.sh）
+  - [ ] allowlist 定義（追加可能ユーザー、グループ）
+  - [ ] 入力検証（ユーザー名、パスワード強度）
+  - [ ] API エンドポイント実装
+  - [ ] フロントエンド UI 実装
+  - [ ] セキュリティテスト（15+ テスト）
+  - [ ] 監査ログ記録
+  - [ ] 承認フロー（Admin のみ実行可能）
+  - [ ] 人間レビュー・承認
+```
+
+---
+
 **📌 本ドキュメントは ClaudeCode の全セッションで参照されます。**
 **変更時は必ず Git管理し、変更履歴を残してください。**
