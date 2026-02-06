@@ -111,7 +111,7 @@ class ProcessManager {
                 params.append('min_mem', this.currentFilters.minMem);
             }
 
-            const response = await api.request('GET', `/api/v1/processes?${params.toString()}`);
+            const response = await api.request('GET', `/api/processes?${params.toString()}`);
 
             console.log('ProcessManager: Processes loaded', response);
 
@@ -272,7 +272,7 @@ class ProcessManager {
 
         try {
             // API呼び出し（プロセス詳細取得 - 将来実装）
-            // const response = await api.request('GET', `/api/v1/processes/${pid}`);
+            // const response = await api.request('GET', `/api/processes/${pid}`);
 
             // 現在は一覧データから表示
             const proc = this.processes.find(p => p.pid === pid);
