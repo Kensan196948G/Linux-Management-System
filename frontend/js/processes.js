@@ -174,26 +174,28 @@ class ProcessManager {
             userCell.textContent = proc.user;
             row.appendChild(userCell);
 
-            // CPU %
+            // CPU % (ps aux returns integer in 0.1% units, convert to percentage)
             const cpuCell = document.createElement('td');
             cpuCell.className = 'cpu-usage';
-            cpuCell.textContent = proc.cpu_percent.toFixed(1);
-            if (proc.cpu_percent < 10) {
+            const cpuPercent = proc.cpu_percent / 10.0;
+            cpuCell.textContent = cpuPercent.toFixed(1);
+            if (cpuPercent < 10) {
                 cpuCell.classList.add('cpu-low');
-            } else if (proc.cpu_percent < 50) {
+            } else if (cpuPercent < 50) {
                 cpuCell.classList.add('cpu-medium');
             } else {
                 cpuCell.classList.add('cpu-high');
             }
             row.appendChild(cpuCell);
 
-            // Memory %
+            // Memory % (ps aux returns integer in 0.1% units, convert to percentage)
             const memCell = document.createElement('td');
             memCell.className = 'mem-usage';
-            memCell.textContent = proc.mem_percent.toFixed(1);
-            if (proc.mem_percent < 10) {
+            const memPercent = proc.mem_percent / 10.0;
+            memCell.textContent = memPercent.toFixed(1);
+            if (memPercent < 10) {
                 memCell.classList.add('cpu-low');
-            } else if (proc.mem_percent < 50) {
+            } else if (memPercent < 50) {
                 memCell.classList.add('cpu-medium');
             } else {
                 memCell.classList.add('cpu-high');
