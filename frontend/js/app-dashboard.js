@@ -24,40 +24,83 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    console.log('Token found, fetching user info...');
+    console.log('✅ Token found, fetching user info...');
 
     try {
         // ユーザー情報を取得
+        console.log('Calling api.getCurrentUser()...');
         currentUser = await api.getCurrentUser();
-        console.log('User info loaded:', currentUser);
+        console.log('✅ User info loaded successfully:', currentUser);
+
+        // ユーザー情報の詳細確認
+        if (!currentUser || !currentUser.username) {
+            throw new Error('Invalid user data received: ' + JSON.stringify(currentUser));
+        }
+        console.log('✅ User data validated');
 
         // サイドバーのユーザー情報を更新
-        updateSidebarUserInfo(currentUser);
+        console.log('Updating sidebar user info...');
+        try {
+            updateSidebarUserInfo(currentUser);
+            console.log('✅ Sidebar user info updated');
+        } catch (error) {
+            console.error('❌ Failed to update sidebar:', error);
+            throw error;
+        }
 
         // アコーディオンの状態を復元
+        console.log('Restoring accordion state...');
         if (typeof restoreAccordionState === 'function') {
             restoreAccordionState();
+            console.log('✅ Accordion state restored');
+        } else {
+            console.warn('⚠️ restoreAccordionState function not found');
         }
 
         // URLパラメータからページを取得（なければdashboard）
         const urlParams = new URLSearchParams(window.location.search);
         const targetPage = urlParams.get('page') || 'dashboard';
 
-        console.log('Displaying page:', targetPage);
+        console.log('📄 Displaying page:', targetPage);
 
         // 指定されたページを表示
-        showPage(targetPage);
+        try {
+            if (typeof showPage !== 'function') {
+                throw new Error('showPage function not found!');
+            }
+            showPage(targetPage);
+            console.log('✅ Page displayed successfully');
+        } catch (error) {
+            console.error('❌ Failed to display page:', error);
+            throw error;
+        }
 
     } catch (error) {
-        console.error('Dashboard initialization failed:', error);
-        console.error('Error details:', {
-            message: error.message,
-            stack: error.stack
-        });
+        console.error('❌❌❌ Dashboard initialization FAILED ❌❌❌');
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Error object:', error);
+
+        // エラーの詳細をアラートで表示
+        const errorDetails = `
+ダッシュボードの初期化に失敗しました。
+
+エラー: ${error.message}
+
+詳細はブラウザのコンソール（F12）を確認してください。
+ログイン画面に戻ります...
+        `.trim();
+
+        alert(errorDetails);
+
         // 認証エラー: ログインページにリダイレクト
-        alert('認証エラーが発生しました。ログイン画面に戻ります。\n\nエラー: ' + error.message);
+        console.error('Clearing token and redirecting to login...');
         api.clearToken();
-        window.location.href = '/dev/index.html';
+
+        // 3秒待ってからリダイレクト（ユーザーがエラーを確認できるように）
+        setTimeout(() => {
+            window.location.href = '/dev/index.html';
+        }, 3000);
     }
 });
 
