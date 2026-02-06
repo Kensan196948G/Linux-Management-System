@@ -45,6 +45,10 @@
     <!-- JavaScript -->
     <script src="../js/api.js"></script>
     <script>
+        // ページ読み込み時に古いトークンをクリア（期限切れ対策）
+        console.log('Login page loaded, clearing any existing tokens...');
+        localStorage.removeItem('access_token');
+
         // ログインフォームの処理
         document.getElementById('login-form').addEventListener('submit', async (event) => {
             event.preventDefault();

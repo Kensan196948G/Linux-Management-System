@@ -39,9 +39,14 @@ class APIClient {
 
             if (response.status === 401) {
                 // 認証エラー: トークンをクリアしてログイン画面へ
+                console.error('❌ 401 Unauthorized - Token expired or invalid');
                 this.clearToken();
-                window.location.href = '/dev/index.html';
-                throw new Error('Unauthorized');
+                // ログイン画面にいない場合のみリダイレクト（無限ループ防止）
+                if (!window.location.pathname.includes('index.html')) {
+                    alert('セッションが期限切れです。再度ログインしてください。');
+                    window.location.href = '/dev/index.html';
+                }
+                throw new Error('Token expired or invalid');
             }
 
             const result = await response.json();
