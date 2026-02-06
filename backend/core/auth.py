@@ -63,17 +63,18 @@ class TokenData(BaseModel):
 ROLES = {
     "Viewer": UserRole(
         name="Viewer",
-        permissions=["read:status", "read:logs"],
+        permissions=["read:status", "read:logs", "read:processes"],
     ),
     "Operator": UserRole(
         name="Operator",
-        permissions=["read:status", "read:logs", "execute:service_restart"],
+        permissions=["read:status", "read:logs", "read:processes", "execute:service_restart"],
     ),
     "Approver": UserRole(
         name="Approver",
         permissions=[
             "read:status",
             "read:logs",
+            "read:processes",
             "execute:service_restart",
             "approve:dangerous_operation",
         ],
@@ -83,6 +84,7 @@ ROLES = {
         permissions=[
             "read:status",
             "read:logs",
+            "read:processes",
             "execute:service_restart",
             "approve:dangerous_operation",
             "manage:users",
