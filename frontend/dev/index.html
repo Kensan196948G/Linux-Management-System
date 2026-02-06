@@ -49,9 +49,25 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log('=== Login Page Initialized ===');
 
-            // ページ読み込み時に古いトークンをクリア（期限切れ対策）
-            console.log('Clearing any existing tokens...');
-            localStorage.removeItem('access_token');
+            // 古いトークンがあればクリア（期限切れ対策）
+            // ただし、直前にログインした場合（リダイレクトバック）は保持
+            const existingToken = localStorage.getItem('access_token');
+            if (existingToken) {
+                console.log('Found existing token, checking validity...');
+                // すぐにログイン画面に戻ってきた場合は、トークンをクリア
+                // （期限切れまたは無効なトークン）
+                const lastLoginTime = sessionStorage.getItem('last_login_time');
+                const now = Date.now();
+                if (!lastLoginTime || (now - parseInt(lastLoginTime)) > 5000) {
+                    // 5秒以上経過している、または初回訪問ならクリア
+                    console.log('Clearing old/expired token...');
+                    localStorage.removeItem('access_token');
+                } else {
+                    console.log('Recent login detected, keeping token');
+                }
+            } else {
+                console.log('No existing token found');
+            }
 
             // ログインフォームの処理
             document.getElementById('login-form').addEventListener('submit', async (event) => {
@@ -77,11 +93,28 @@
                 // アラート表示
                 alertsEl.innerHTML = '<div class="alert alert-success">✅ ログインしました。ダッシュボードに移動します...</div>';
 
-                // ダッシュボードにリダイレクト
+                // LocalStorageへの保存を確実にするため、少し待機（Edge対策）
+                console.log('Verifying token storage...');
+                const storedToken = localStorage.getItem('access_token');
+                if (!storedToken) {
+                    console.error('❌ Token not saved to localStorage!');
+                    alertsEl.innerHTML = '<div class="alert alert-error">❌ トークンの保存に失敗しました。再度お試しください。</div>';
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'ログイン';
+                    return;
+                }
+                console.log('✅ Token verified in localStorage (first 50 chars):', storedToken.substring(0, 50));
+
+                // ログイン時刻を記録（リダイレクトバック検知用）
+                sessionStorage.setItem('last_login_time', Date.now().toString());
+                console.log('✅ Login timestamp saved to sessionStorage');
+
+                // ダッシュボードにリダイレクト（Edge対策で1.5秒に延長）
                 setTimeout(() => {
                     console.log('Redirecting to dashboard...');
-                    window.location.href = '/dev/dashboard.html';
-                }, 1000);
+                    // Edge対策: 強制的にページを完全リロード
+                    window.location.replace('/dev/dashboard.html');
+                }, 1500);
 
             } catch (error) {
                 console.error('Login failed:', error);

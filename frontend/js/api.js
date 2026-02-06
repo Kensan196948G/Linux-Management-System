@@ -69,8 +69,19 @@ class APIClient {
      * トークンを設定
      */
     setToken(token) {
+        console.log('Setting token... (length:', token ? token.length : 0, ')');
         this.token = token;
         localStorage.setItem('access_token', token);
+
+        // Edge対策: 保存確認
+        const stored = localStorage.getItem('access_token');
+        if (stored !== token) {
+            console.error('❌ Token storage verification failed!');
+            console.error('Expected:', token.substring(0, 50));
+            console.error('Stored:', stored ? stored.substring(0, 50) : 'NULL');
+        } else {
+            console.log('✅ Token stored and verified in localStorage');
+        }
     }
 
     /**
