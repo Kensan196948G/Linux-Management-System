@@ -11,14 +11,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 認証チェック
     if (!api.isAuthenticated()) {
+        console.warn('No authentication token found, redirecting to login...');
         // ログインページにリダイレクト
         window.location.href = '/dev/index.html';
         return;
     }
 
+    console.log('Token found, fetching user info...');
+
     try {
         // ユーザー情報を取得
         currentUser = await api.getCurrentUser();
+        console.log('User info loaded:', currentUser);
 
         // サイドバーのユーザー情報を更新
         updateSidebarUserInfo(currentUser);
@@ -32,12 +36,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         const targetPage = urlParams.get('page') || 'dashboard';
 
+        console.log('Displaying page:', targetPage);
+
         // 指定されたページを表示
         showPage(targetPage);
 
     } catch (error) {
-        console.error('Authentication failed:', error);
+        console.error('Dashboard initialization failed:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack
+        });
         // 認証エラー: ログインページにリダイレクト
+        alert('認証エラーが発生しました。ログイン画面に戻ります。\n\nエラー: ' + error.message);
         api.clearToken();
         window.location.href = '/dev/index.html';
     }
