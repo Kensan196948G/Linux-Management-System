@@ -52,8 +52,15 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const alertsEl = document.getElementById('login-alerts');
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+
+            // ボタンを無効化
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'ログイン中...';
 
             try {
+                console.log('Attempting login for:', email);
+
                 // ログイン
                 const result = await api.login(email, password);
 
@@ -64,23 +71,35 @@
 
                 // ダッシュボードにリダイレクト
                 setTimeout(() => {
+                    console.log('Redirecting to dashboard...');
                     window.location.href = '/dev/dashboard.html';
                 }, 1000);
 
             } catch (error) {
                 console.error('Login failed:', error);
-                alertsEl.innerHTML = `<div class="alert alert-error">❌ ログインに失敗しました: ${error.message}</div>`;
+                alertsEl.innerHTML = `<div class="alert alert-error">❌ ログインに失敗しました: ${error.message || 'ネットワークエラー'}</div>`;
+
+                // ボタンを再度有効化
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'ログイン';
             }
         });
 
         // 既にログイン済みの場合はダッシュボードにリダイレクト
         if (api.isAuthenticated()) {
-            api.getCurrentUser().then(() => {
+            console.log('Already authenticated, checking token validity...');
+            api.getCurrentUser().then((user) => {
+                console.log('Token valid, redirecting to dashboard...', user);
                 window.location.href = '/dev/dashboard.html';
-            }).catch(() => {
+            }).catch((error) => {
                 // トークンが無効な場合はクリア
+                console.warn('Token invalid, clearing...', error);
                 api.clearToken();
+                // ページをリロードしてログインフォームを表示
+                window.location.reload();
             });
+        } else {
+            console.log('Not authenticated, showing login form');
         }
     </script>
 </body>
