@@ -5,9 +5,11 @@
 
 class APIClient {
     constructor(baseURL) {
-        // 相対パスを使用（現在のホストを自動使用）
-        this.baseURL = baseURL || '';
+        // 現在のオリジンを使用（同一オリジンで動作）
+        // 例: http://192.168.0.185:5012
+        this.baseURL = baseURL || window.location.origin;
         this.token = localStorage.getItem('access_token');
+        console.log('APIClient initialized with baseURL:', this.baseURL);
     }
 
     /**

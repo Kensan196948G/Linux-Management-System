@@ -102,7 +102,7 @@ class ProcessManager {
             params.append('limit', this.currentFilters.limit);
 
             if (this.currentFilters.user) {
-                params.append('user', this.currentFilters.user);
+                params.append('filter_user', this.currentFilters.user);
             }
             if (this.currentFilters.minCpu > 0) {
                 params.append('min_cpu', this.currentFilters.minCpu);
@@ -174,10 +174,10 @@ class ProcessManager {
             userCell.textContent = proc.user;
             row.appendChild(userCell);
 
-            // CPU % (ps aux returns integer in 0.1% units, convert to percentage)
+            // CPU %
             const cpuCell = document.createElement('td');
             cpuCell.className = 'cpu-usage';
-            const cpuPercent = proc.cpu_percent / 10.0;
+            const cpuPercent = proc.cpu_percent;  // Already a percentage
             cpuCell.textContent = cpuPercent.toFixed(1);
             if (cpuPercent < 10) {
                 cpuCell.classList.add('cpu-low');
@@ -188,10 +188,10 @@ class ProcessManager {
             }
             row.appendChild(cpuCell);
 
-            // Memory % (ps aux returns integer in 0.1% units, convert to percentage)
+            // Memory %
             const memCell = document.createElement('td');
             memCell.className = 'mem-usage';
-            const memPercent = proc.mem_percent / 10.0;
+            const memPercent = proc.mem_percent;  // Already a percentage
             memCell.textContent = memPercent.toFixed(1);
             if (memPercent < 10) {
                 memCell.classList.add('cpu-low');
@@ -204,21 +204,21 @@ class ProcessManager {
 
             // RSS (MB)
             const rssCell = document.createElement('td');
-            rssCell.textContent = proc.memory_rss_mb ? proc.memory_rss_mb.toFixed(1) : '-';
+            rssCell.textContent = proc.rss ? proc.rss.toFixed(1) : '-';  // rss not memory_rss_mb
             rssCell.style.textAlign = 'right';
             row.appendChild(rssCell);
 
             // State
             const stateCell = document.createElement('td');
             const stateBadge = document.createElement('span');
-            stateBadge.className = `state-badge state-${proc.state}`;
-            stateBadge.textContent = proc.state;
+            stateBadge.className = `state-badge state-${proc.stat}`;  // stat not state
+            stateBadge.textContent = proc.stat;  // stat not state
             stateCell.appendChild(stateBadge);
             row.appendChild(stateCell);
 
             // Started
             const startedCell = document.createElement('td');
-            startedCell.textContent = this.formatDateTime(proc.started_at);
+            startedCell.textContent = this.formatDateTime(proc.start);  // start not started_at
             startedCell.style.fontSize = '11px';
             row.appendChild(startedCell);
 
