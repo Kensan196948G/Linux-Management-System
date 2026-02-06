@@ -256,11 +256,11 @@
                                 <div class="submenu-item-name">システムユーザー</div>
                                 <div class="submenu-item-badge">計画中</div>
                             </div>
-                            <div class="submenu-item" onclick="location.href='dashboard.html'">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=services'">
                                 <div class="submenu-item-name">システムサーバー</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
-                            <div class="submenu-item" onclick="location.href='dashboard.html'">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=audit-log'">
                                 <div class="submenu-item-name">システム操作ログ</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
@@ -299,7 +299,7 @@
                                 <div class="submenu-item-name">ディスククォータ</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
-                            <div class="submenu-item" onclick="location.href='dashboard.html'">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=disk'">
                                 <div class="submenu-item-name">ローカルディスク</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
@@ -334,7 +334,7 @@
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
-                            <div class="submenu-item" onclick="location.href='dashboard.html'">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=logs'">
                                 <div class="submenu-item-name">システムログ</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
@@ -541,7 +541,7 @@
                                 <div class="submenu-item-name">通知設定</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
-                            <div class="submenu-item" onclick="location.href='dashboard.html'">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=dashboard'">
                                 <div class="submenu-item-name">システム情報</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
@@ -555,14 +555,36 @@
             </nav>
 
             <div class="sidebar-footer">
-                <div class="user-info">
+                <div class="user-info" onclick="toggleUserMenu(event)">
                     <div class="user-avatar">
                         <span class="avatar-icon">👤</span>
-                        <span class="username" id="sidebar-username">-</span>
                     </div>
-                    <div class="role-badge role-viewer" id="sidebar-role">-</div>
+                    <span class="user-menu-indicator">▼</span>
+
+                    <!-- ユーザー詳細ドロップダウン -->
+                    <div class="user-menu" id="user-menu">
+                        <div class="user-menu-header">
+                            <span class="user-menu-icon">👤</span>
+                            <div class="user-menu-info">
+                                <div class="user-menu-name" id="user-menu-username">-</div>
+                                <div class="user-menu-role" id="user-menu-role">-</div>
+                            </div>
+                        </div>
+                        <div class="user-menu-divider"></div>
+                        <div class="user-menu-items">
+                            <div class="user-menu-item">
+                                <span class="user-menu-item-icon">📧</span>
+                                <span class="user-menu-item-text" id="user-menu-email">-</span>
+                            </div>
+                            <div class="user-menu-item">
+                                <span class="user-menu-item-icon">🔑</span>
+                                <span class="user-menu-item-text">権限管理</span>
+                            </div>
+                        </div>
+                        <div class="user-menu-divider"></div>
+                        <button class="btn btn-danger" onclick="logout(); event.stopPropagation();" style="width: 100%; font-size: var(--font-size-sm);">ログアウト</button>
+                    </div>
                 </div>
-                <button class="btn btn-danger" onclick="logout()" style="width: 100%; margin-top: var(--spacing-sm); font-size: var(--font-size-sm);">ログアウト</button>
             </div>
         </aside>
 

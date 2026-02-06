@@ -8,6 +8,40 @@
 function toggleAccordion(element) {
     const accordionItem = element.parentElement;
     accordionItem.classList.toggle('open');
+
+    // 開閉状態をlocalStorageに保存
+    saveAccordionState();
+}
+
+/**
+ * アコーディオンの状態を保存
+ */
+function saveAccordionState() {
+    const openAccordions = [];
+    document.querySelectorAll('.accordion-item.open').forEach((item, index) => {
+        openAccordions.push(index);
+    });
+    localStorage.setItem('accordionState', JSON.stringify(openAccordions));
+}
+
+/**
+ * アコーディオンの状態を復元
+ */
+function restoreAccordionState() {
+    try {
+        const savedState = localStorage.getItem('accordionState');
+        if (savedState) {
+            const openAccordions = JSON.parse(savedState);
+            const accordionItems = document.querySelectorAll('.accordion-item');
+            openAccordions.forEach(index => {
+                if (accordionItems[index]) {
+                    accordionItems[index].classList.add('open');
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Failed to restore accordion state:', error);
+    }
 }
 
 /**
@@ -101,14 +135,16 @@ function showPage(pageName) {
  * サイドバーのユーザー情報を更新
  */
 function updateSidebarUserInfo(user) {
-    document.getElementById('sidebar-username').textContent = user.username;
+    // ユーザーメニュー内の情報を更新
+    document.getElementById('user-menu-username').textContent = user.username || '-';
+    document.getElementById('user-menu-email').textContent = user.email || user.username || '-';
 
-    const roleElement = document.getElementById('sidebar-role');
-    roleElement.textContent = user.role;
+    const roleElement = document.getElementById('user-menu-role');
+    roleElement.textContent = user.role || '-';
 
     // ロールに応じたクラスを適用
-    roleElement.className = 'role-badge';
-    const roleLower = user.role.toLowerCase();
+    roleElement.className = 'user-menu-role';
+    const roleLower = (user.role || '').toLowerCase();
     if (roleLower === 'viewer') {
         roleElement.classList.add('role-viewer');
     } else if (roleLower === 'operator') {
@@ -117,3 +153,28 @@ function updateSidebarUserInfo(user) {
         roleElement.classList.add('role-admin');
     }
 }
+
+/**
+ * ユーザーメニューのトグル
+ */
+function toggleUserMenu(event) {
+    event.stopPropagation();
+    const userInfo = event.currentTarget;
+    const userMenu = document.getElementById('user-menu');
+
+    userInfo.classList.toggle('active');
+    userMenu.classList.toggle('show');
+}
+
+// ページのどこかをクリックしたらメニューを閉じる
+document.addEventListener('click', function(event) {
+    const userMenu = document.getElementById('user-menu');
+    const userInfo = document.querySelector('.user-info');
+
+    if (userMenu && userMenu.classList.contains('show')) {
+        if (!event.target.closest('.user-info')) {
+            userInfo.classList.remove('active');
+            userMenu.classList.remove('show');
+        }
+    }
+});

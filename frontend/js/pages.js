@@ -17,7 +17,7 @@ function showDashboardPage(container) {
             <div class="card">
                 <h3 class="card-title">クイックアクション</h3>
                 <div style="display: flex; flex-direction: column; gap: var(--spacing-sm);">
-                    <button class="btn btn-primary" onclick="showPage('services')">サービス管理</button>
+                    <button class="btn btn-primary" onclick="showPage('services')">システムサーバー</button>
                     <button class="btn btn-primary" onclick="showPage('logs')">ログ閲覧</button>
                     <button class="btn btn-primary" onclick="showPage('disk')">ディスク使用状況</button>
                 </div>
@@ -77,7 +77,7 @@ async function loadDashboardData() {
 }
 
 /**
- * サービス管理ページ
+ * システムサーバー管理ページ
  */
 function showServicesPage(container) {
     container.innerHTML = `

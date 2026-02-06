@@ -344,14 +344,36 @@
 
             <!-- サイドバーフッター -->
             <div class="sidebar-footer">
-                <div class="user-info">
+                <div class="user-info" onclick="toggleUserMenu(event)">
                     <div class="user-avatar">
                         <span class="avatar-icon">👤</span>
-                        <span class="username" id="sidebar-username">-</span>
                     </div>
-                    <div class="role-badge role-viewer" id="sidebar-role">-</div>
+                    <span class="user-menu-indicator">▼</span>
+
+                    <!-- ユーザー詳細ドロップダウン -->
+                    <div class="user-menu" id="user-menu">
+                        <div class="user-menu-header">
+                            <span class="user-menu-icon">👤</span>
+                            <div class="user-menu-info">
+                                <div class="user-menu-name" id="user-menu-username">-</div>
+                                <div class="user-menu-role" id="user-menu-role">-</div>
+                            </div>
+                        </div>
+                        <div class="user-menu-divider"></div>
+                        <div class="user-menu-items">
+                            <div class="user-menu-item">
+                                <span class="user-menu-item-icon">📧</span>
+                                <span class="user-menu-item-text" id="user-menu-email">-</span>
+                            </div>
+                            <div class="user-menu-item">
+                                <span class="user-menu-item-icon">🔑</span>
+                                <span class="user-menu-item-text">権限管理</span>
+                            </div>
+                        </div>
+                        <div class="user-menu-divider"></div>
+                        <button class="btn btn-danger" onclick="logout(); event.stopPropagation();" style="width: 100%; font-size: var(--font-size-sm);">ログアウト</button>
+                    </div>
                 </div>
-                <button class="btn btn-danger" onclick="logout()" style="width: 100%; margin-top: var(--spacing-sm); font-size: var(--font-size-sm);">ログアウト</button>
             </div>
         </aside>
 

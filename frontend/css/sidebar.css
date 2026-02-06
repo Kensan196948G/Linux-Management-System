@@ -209,10 +209,19 @@
 
 /* ユーザー情報 */
 .user-info {
+    position: relative;
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.user-info:hover {
+    background-color: #e0f2fe;
 }
 
 .user-avatar {
@@ -230,12 +239,146 @@
     justify-content: center;
     background-color: #e0f2fe;
     border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.user-info:hover .avatar-icon {
+    transform: scale(1.1);
+}
+
+.user-menu-indicator {
+    font-size: 0.75rem;
+    color: #64748b;
+    transition: transform 0.3s;
+}
+
+.user-info.active .user-menu-indicator {
+    transform: rotate(180deg);
 }
 
 .username {
     font-size: var(--font-size-base);
     font-weight: 600;
     color: #1e293b;
+}
+
+/* ユーザーメニュードロップダウン */
+.user-menu {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    margin-bottom: var(--spacing-sm);
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: var(--spacing-md);
+    z-index: 1000;
+    animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.user-menu.show {
+    display: block;
+}
+
+.user-menu-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+}
+
+.user-menu-icon {
+    font-size: 2rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #e0f2fe;
+    border-radius: 50%;
+}
+
+.user-menu-info {
+    flex: 1;
+}
+
+.user-menu-name {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.user-menu-role {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.user-menu-role.role-viewer {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.user-menu-role.role-operator {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.user-menu-role.role-admin {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.user-menu-divider {
+    height: 1px;
+    background-color: #e2e8f0;
+    margin: var(--spacing-sm) 0;
+}
+
+.user-menu-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.user-menu-item:hover {
+    background-color: #f1f5f9;
+}
+
+.user-menu-item-icon {
+    font-size: 1.2rem;
+}
+
+.user-menu-item-text {
+    font-size: var(--font-size-sm);
+    color: #475569;
 }
 
 /* ロールバッジ */

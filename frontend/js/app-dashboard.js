@@ -23,8 +23,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         // サイドバーのユーザー情報を更新
         updateSidebarUserInfo(currentUser);
 
-        // デフォルトページ（ダッシュボード）を表示
-        showPage('dashboard');
+        // アコーディオンの状態を復元
+        if (typeof restoreAccordionState === 'function') {
+            restoreAccordionState();
+        }
+
+        // URLパラメータからページを取得（なければdashboard）
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetPage = urlParams.get('page') || 'dashboard';
+
+        // 指定されたページを表示
+        showPage(targetPage);
 
     } catch (error) {
         console.error('Authentication failed:', error);

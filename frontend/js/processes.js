@@ -431,7 +431,7 @@ class ProcessManager {
 }
 
 // ページロード時に初期化
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     console.log('Initializing ProcessManager...');
 
     // 認証チェック
@@ -439,6 +439,21 @@ document.addEventListener('DOMContentLoaded', function() {
         console.warn('Not authenticated, redirecting to login');
         window.location.href = '/dev/index.html';
         return;
+    }
+
+    try {
+        // ユーザー情報を取得してサイドバーに表示
+        const currentUser = await api.getCurrentUser();
+        if (typeof updateSidebarUserInfo === 'function') {
+            updateSidebarUserInfo(currentUser);
+        }
+    } catch (error) {
+        console.error('Failed to load user info:', error);
+    }
+
+    // アコーディオンの状態を復元
+    if (typeof restoreAccordionState === 'function') {
+        restoreAccordionState();
     }
 
     // ProcessManager 初期化
