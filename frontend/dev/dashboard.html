@@ -20,295 +20,322 @@
 
             <nav class="sidebar-menu">
                 <!-- ダッシュボード -->
-                <div class="menu-item active" onclick="showPage('dashboard')">
+                <div class="menu-item active" onclick="location.href='dashboard.html'">
                     <span class="menu-item-icon">📊</span>
                     <span>ダッシュボード</span>
                 </div>
 
-                <!-- サービス管理（独立メニュー） -->
-                <div class="menu-item" onclick="showPage('services')">
-                    <span class="menu-item-icon">⚙️</span>
-                    <span>サービス管理</span>
-                </div>
-
-                <!-- Running Processes（独立メニュー） -->
-                <div class="menu-item" onclick="location.href='processes.html'">
-                    <span class="menu-item-icon">⚡</span>
-                    <span>Running Processes</span>
-                </div>
-
-                <!-- Linux Management System カテゴリ -->
+                <!-- Linux管理システム カテゴリ -->
                 <div class="accordion-item">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
                         <div class="accordion-title">
                             <span>⚙️</span>
-                            <span>Linux Management System</span>
+                            <span>Linux管理システム</span>
                         </div>
                         <span class="accordion-icon">▼</span>
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">System Configuration</div>
+                                <div class="submenu-item-name">システム設定</div>
                                 <div class="submenu-item-badge">計画中</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">System Users</div>
+                                <div class="submenu-item-name">システムユーザー</div>
                                 <div class="submenu-item-badge">計画中</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('services')">
-                                <div class="submenu-item-name">System Servers</div>
+                                <div class="submenu-item-name">システムサーバー</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('audit-log')">
-                                <div class="submenu-item-name">System Actions Log</div>
+                                <div class="submenu-item-name">システム操作ログ</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">System Themes</div>
+                                <div class="submenu-item-name">システムテーマ</div>
                                 <div class="submenu-item-badge">計画中</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">System Modules</div>
+                                <div class="submenu-item-name">システムモジュール</div>
                                 <div class="submenu-item-badge">計画中</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- System カテゴリ -->
+                <!-- システム カテゴリ -->
                 <div class="accordion-item">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
                         <div class="accordion-title">
                             <span>💻</span>
-                            <span>System</span>
+                            <span>システム</span>
                         </div>
                         <span class="accordion-icon">▼</span>
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Bootup and Shutdown </div>
+                                <div class="submenu-item-name">起動・シャットダウン</div>
                                 <div class="submenu-item-badge">v0.2</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Disk and Network Filesystems </div>
+                                <div class="submenu-item-name">ディスク・ネットワークファイルシステム</div>
                                 <div class="submenu-item-badge">v0.2</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Disk Quotas </div>
+                                <div class="submenu-item-name">ディスククォータ</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('disk')">
-                                <div class="submenu-item-name">Local Disk </div>
+                                <div class="submenu-item-name">ローカルディスク</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Users and Groups </div>
+                                <div class="submenu-item-name">ユーザー・グループ</div>
                                 <div class="submenu-item-badge">v0.2</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Software Package Updates </div>
+                                <div class="submenu-item-name">ソフトウェアパッケージ更新</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Cron Jobs </div>
+                                <div class="submenu-item-name">Cronジョブ</div>
                                 <div class="submenu-item-badge">v0.2</div>
                             </div>
                             <div class="submenu-item" onclick="location.href='processes.html'">
-                                <div class="submenu-item-name">Running Processes </div>
+                                <div class="submenu-item-name">実行中プロセス</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- System Logs カテゴリ（独立） -->
+                <!-- システムログ カテゴリ -->
                 <div class="accordion-item">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
                         <div class="accordion-title">
                             <span>📜</span>
-                            <span>System Logs</span>
+                            <span>システムログ</span>
                         </div>
                         <span class="accordion-icon">▼</span>
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
                             <div class="submenu-item" onclick="showPage('logs')">
-                                <div class="submenu-item-name">System Logs </div>
+                                <div class="submenu-item-name">システムログ</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Kernel Messages </div>
+                                <div class="submenu-item-name">カーネルメッセージ</div>
                                 <div class="submenu-item-badge">v0.2</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Auth Logs </div>
+                                <div class="submenu-item-name">認証ログ</div>
                                 <div class="submenu-item-badge">v0.2</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Application Logs </div>
+                                <div class="submenu-item-name">アプリケーションログ</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Servers カテゴリ -->
+                <!-- サーバー カテゴリ -->
                 <div class="accordion-item">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
                         <div class="accordion-title">
                             <span>🖥️</span>
-                            <span>Servers</span>
+                            <span>サーバー</span>
                         </div>
                         <span class="accordion-icon">▼</span>
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Apache Webserver </div>
+                                <div class="submenu-item-name">Apache Webサーバー</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">BIND DNS Server </div>
+                                <div class="submenu-item-name">BIND DNSサーバー</div>
                                 <div class="submenu-item-badge">v0.4</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Postfix / Sendmail </div>
+                                <div class="submenu-item-name">Postfix / Sendmail</div>
                                 <div class="submenu-item-badge">v0.4</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">MySQL / MariaDB </div>
+                                <div class="submenu-item-name">MySQL / MariaDB</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">PostgreSQL </div>
+                                <div class="submenu-item-name">PostgreSQL</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">SSH Server </div>
+                                <div class="submenu-item-name">SSHサーバー</div>
                                 <div class="submenu-item-badge">v0.2</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">ProFTPD / WU-FTP </div>
+                                <div class="submenu-item-name">ProFTPD / WU-FTP</div>
                                 <div class="submenu-item-badge">v0.4</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Squid Proxy </div>
+                                <div class="submenu-item-name">Squidプロキシ</div>
                                 <div class="submenu-item-badge">v0.4</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">DHCP Server </div>
+                                <div class="submenu-item-name">DHCPサーバー</div>
                                 <div class="submenu-item-badge">v0.4</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Networking カテゴリ -->
+                <!-- ネットワーク カテゴリ -->
                 <div class="accordion-item">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
                         <div class="accordion-title">
                             <span>🌐</span>
-                            <span>Networking</span>
+                            <span>ネットワーク</span>
                         </div>
                         <span class="accordion-icon">▼</span>
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
                             <div class="submenu-item" onclick="showPage('firewall')">
-                                <div class="submenu-item-name">Linux Firewall </div>
+                                <div class="submenu-item-name">Linuxファイアウォール</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('network-config')">
-                                <div class="submenu-item-name">Network Configuration </div>
+                                <div class="submenu-item-name">ネットワーク設定</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('routing')">
-                                <div class="submenu-item-name">Routing and Gateways </div>
+                                <div class="submenu-item-name">ルーティング・ゲートウェイ</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('netstat')">
-                                <div class="submenu-item-name">Netstat </div>
+                                <div class="submenu-item-name">ネットワーク統計</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('bandwidth')">
-                                <div class="submenu-item-name">Bandwidth Monitoring </div>
+                                <div class="submenu-item-name">帯域幅モニタリング</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Hardware カテゴリ -->
+                <!-- ハードウェア カテゴリ -->
                 <div class="accordion-item">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
                         <div class="accordion-title">
                             <span>🔧</span>
-                            <span>Hardware</span>
+                            <span>ハードウェア</span>
                         </div>
                         <span class="accordion-icon">▼</span>
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
                             <div class="submenu-item" onclick="showPage('partitions')">
-                                <div class="submenu-item-name">Partitions on Local Disks </div>
+                                <div class="submenu-item-name">ローカルディスクパーティション</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('system-time')">
-                                <div class="submenu-item-name">System Time </div>
+                                <div class="submenu-item-name">システム時刻</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('smart-status')">
-                                <div class="submenu-item-name">SMART Drive Status </div>
+                                <div class="submenu-item-name">SMARTドライブ状態</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
                             <div class="submenu-item" onclick="showPage('sensors')">
-                                <div class="submenu-item-name">Sensors (lm-sensors) </div>
+                                <div class="submenu-item-name">センサー (lm-sensors)</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Cluster / Tools カテゴリ -->
+                <!-- クラスタ/ツール カテゴリ -->
                 <div class="accordion-item">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
                         <div class="accordion-title">
                             <span>🔗</span>
-                            <span>Cluster / Tools</span>
+                            <span>クラスタ/ツール</span>
                         </div>
                         <span class="accordion-icon">▼</span>
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Cluster SSH </div>
+                                <div class="submenu-item-name">クラスタSSH</div>
                                 <div class="submenu-item-badge">v0.5</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Cluster Cron Jobs </div>
+                                <div class="submenu-item-name">クラスタCronジョブ</div>
                                 <div class="submenu-item-badge">v0.5</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Cluster Users </div>
+                                <div class="submenu-item-name">クラスタユーザー</div>
                                 <div class="submenu-item-badge">v0.5</div>
                             </div>
                             <div class="submenu-item disabled" style="text-decoration: line-through;">
-                                <div class="submenu-item-name">Command Shell</div>
+                                <div class="submenu-item-name">コマンドシェル</div>
                                 <div class="submenu-item-badge" style="color: #ef4444;">禁止</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">File Manager </div>
+                                <div class="submenu-item-name">ファイルマネージャー</div>
                                 <div class="submenu-item-badge">v0.4</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Scheduled Commands </div>
+                                <div class="submenu-item-name">スケジュールコマンド</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Custom Commands </div>
+                                <div class="submenu-item-name">カスタムコマンド</div>
                                 <div class="submenu-item-badge">v0.3</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- システム設定 カテゴリ（新規） -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>⚡</span>
+                            <span>システム設定</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">ユーザー管理</div>
+                                <div class="submenu-item-badge">v0.2</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">セキュリティ設定</div>
+                                <div class="submenu-item-badge">v0.3</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">監査ログ設定</div>
+                                <div class="submenu-item-badge">v0.2</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">通知設定</div>
+                                <div class="submenu-item-badge">v0.3</div>
+                            </div>
+                            <div class="submenu-item" onclick="showPage('dashboard')">
+                                <div class="submenu-item-name">システム情報</div>
+                                <div class="submenu-item-badge">実装済み</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">ライセンス情報</div>
+                                <div class="submenu-item-badge">v0.2</div>
                             </div>
                         </div>
                     </div>
@@ -317,8 +344,13 @@
 
             <!-- サイドバーフッター -->
             <div class="sidebar-footer">
-                <p>ユーザー: <strong id="sidebar-username">-</strong></p>
-                <p>ロール: <span id="sidebar-role">-</span></p>
+                <div class="user-info">
+                    <div class="user-avatar">
+                        <span class="avatar-icon">👤</span>
+                        <span class="username" id="sidebar-username">-</span>
+                    </div>
+                    <div class="role-badge role-viewer" id="sidebar-role">-</div>
+                </div>
                 <button class="btn btn-danger" onclick="logout()" style="width: 100%; margin-top: var(--spacing-sm); font-size: var(--font-size-sm);">ログアウト</button>
             </div>
         </aside>

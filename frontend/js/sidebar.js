@@ -102,5 +102,18 @@ function showPage(pageName) {
  */
 function updateSidebarUserInfo(user) {
     document.getElementById('sidebar-username').textContent = user.username;
-    document.getElementById('sidebar-role').textContent = user.role;
+
+    const roleElement = document.getElementById('sidebar-role');
+    roleElement.textContent = user.role;
+
+    // ロールに応じたクラスを適用
+    roleElement.className = 'role-badge';
+    const roleLower = user.role.toLowerCase();
+    if (roleLower === 'viewer') {
+        roleElement.classList.add('role-viewer');
+    } else if (roleLower === 'operator') {
+        roleElement.classList.add('role-operator');
+    } else if (roleLower === 'admin') {
+        roleElement.classList.add('role-admin');
+    }
 }

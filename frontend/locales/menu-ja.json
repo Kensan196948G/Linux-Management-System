@@ -1,0 +1,157 @@
+{
+  "menu_translation": {
+    "version": "1.0.0",
+    "description": "Linux Management System - サイドメニュー日本語化マッピング",
+    "last_updated": "2026-02-06",
+
+    "top_level_menu": {
+      "Dashboard": "ダッシュボード",
+      "Services": "サービス管理",
+      "Running Processes": "実行中プロセス"
+    },
+
+    "categories": {
+      "Linux Management System": "Linux管理システム",
+      "System": "システム",
+      "System Logs": "システムログ",
+      "Servers": "サーバー",
+      "Networking": "ネットワーク",
+      "Hardware": "ハードウェア",
+      "Cluster / Tools": "クラスタ/ツール"
+    },
+
+    "submenu_items": {
+      "linux_management_system": {
+        "System Configuration": "システム設定",
+        "System Users": "システムユーザー",
+        "System Servers": "システムサーバー",
+        "System Actions Log": "システム操作ログ",
+        "System Themes": "システムテーマ",
+        "System Modules": "システムモジュール"
+      },
+
+      "system": {
+        "Bootup and Shutdown": "起動・シャットダウン",
+        "Disk and Network Filesystems": "ディスク・ネットワークファイルシステム",
+        "Disk Quotas": "ディスククォータ",
+        "Local Disk": "ローカルディスク",
+        "Users and Groups": "ユーザー・グループ",
+        "Software Package Updates": "ソフトウェアパッケージ更新",
+        "Cron Jobs": "Cronジョブ",
+        "Running Processes": "実行中プロセス"
+      },
+
+      "system_logs": {
+        "System Logs": "システムログ",
+        "Kernel Messages": "カーネルメッセージ",
+        "Auth Logs": "認証ログ",
+        "Application Logs": "アプリケーションログ"
+      },
+
+      "servers": {
+        "Apache Webserver": "Apache Webサーバー",
+        "BIND DNS Server": "BIND DNSサーバー",
+        "Postfix / Sendmail": "Postfix / Sendmail",
+        "MySQL / MariaDB": "MySQL / MariaDB",
+        "PostgreSQL": "PostgreSQL",
+        "SSH Server": "SSHサーバー",
+        "ProFTPD / WU-FTP": "ProFTPD / WU-FTP",
+        "Squid Proxy": "Squidプロキシ",
+        "DHCP Server": "DHCPサーバー"
+      },
+
+      "networking": {
+        "Linux Firewall": "Linuxファイアウォール",
+        "Network Configuration": "ネットワーク設定",
+        "Routing and Gateways": "ルーティング・ゲートウェイ",
+        "Netstat": "ネットワーク統計",
+        "Bandwidth Monitoring": "帯域幅モニタリング"
+      },
+
+      "hardware": {
+        "Partitions on Local Disks": "ローカルディスクパーティション",
+        "System Time": "システム時刻",
+        "SMART Drive Status": "SMARTドライブ状態",
+        "Sensors (lm-sensors)": "センサー (lm-sensors)"
+      },
+
+      "cluster_tools": {
+        "Cluster SSH": "クラスタSSH",
+        "Cluster Cron Jobs": "クラスタCronジョブ",
+        "Cluster Users": "クラスタユーザー",
+        "Command Shell": "コマンドシェル",
+        "File Manager": "ファイルマネージャー",
+        "Scheduled Commands": "スケジュールコマンド",
+        "Custom Commands": "カスタムコマンド"
+      }
+    },
+
+    "status_badges": {
+      "実装済み": "実装済み",
+      "サンプル": "サンプル",
+      "計画中": "計画中",
+      "v0.2": "v0.2",
+      "v0.3": "v0.3",
+      "v0.4": "v0.4",
+      "v0.5": "v0.5",
+      "禁止": "禁止"
+    },
+
+    "sidebar": {
+      "title": "Linux管理運用",
+      "subtitle": "【開発】",
+      "footer": {
+        "user_label": "ユーザー",
+        "role_label": "ロール",
+        "logout_button": "ログアウト"
+      }
+    },
+
+    "additional_future_modules": {
+      "description": "将来実装予定の追加モジュール（Webmin互換）",
+      "modules": {
+        "Backup Configuration Files": "設定ファイルバックアップ",
+        "Change Language and Theme": "言語・テーマ変更",
+        "Custom Commands": "カスタムコマンド",
+        "Disk and Network Filesystems": "ディスク・ネットワークファイルシステム",
+        "Encrypted Filesystems": "暗号化ファイルシステム",
+        "File Manager": "ファイルマネージャー",
+        "GRUB Boot Loader": "GRUBブートローダー",
+        "Init and Bootup Actions": "初期化・起動アクション",
+        "Linux Firewall": "Linuxファイアウォール",
+        "Linux RAID": "Linux RAID",
+        "Local Disk Quotas": "ローカルディスククォータ",
+        "Log File Rotation": "ログファイルローテーション",
+        "Logical Volume Management": "論理ボリューム管理",
+        "Network Configuration": "ネットワーク設定",
+        "Network Services and Protocols": "ネットワークサービス・プロトコル",
+        "NFS Exports": "NFSエクスポート",
+        "PAM Authentication": "PAM認証",
+        "Perl Modules": "Perlモジュール",
+        "PHP Configuration": "PHP設定",
+        "Printer Administration": "プリンター管理",
+        "Python Modules": "Pythonモジュール",
+        "Running Processes": "実行中プロセス",
+        "Scheduled Cron Jobs": "スケジュールCronジョブ",
+        "Samba Windows File Sharing": "Samba Windowsファイル共有",
+        "Software Packages": "ソフトウェアパッケージ",
+        "System and Server Status": "システム・サーバー状態",
+        "System Logs": "システムログ",
+        "System Time": "システム時刻",
+        "Upload and Download": "アップロード・ダウンロード",
+        "Users and Groups": "ユーザー・グループ",
+        "Webmin Actions Log": "Webmin操作ログ",
+        "Webmin Configuration": "Webmin設定",
+        "Webmin Servers Index": "Webminサーバーインデックス",
+        "Webmin Users": "Webminユーザー"
+      }
+    },
+
+    "usage_notes": {
+      "note_1": "このマッピングは dashboard.html のメニュー項目を日本語化するために使用します",
+      "note_2": "実装時は sidebar.js または app-dashboard.js で翻訳ロジックを適用します",
+      "note_3": "新しいメニュー項目を追加する際は、このファイルに対応する日本語訳を追加してください",
+      "note_4": "セキュリティ上の理由で「Command Shell」は「禁止」ステータスとして扱われます"
+    }
+  }
+}

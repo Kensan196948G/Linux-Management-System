@@ -19,6 +19,8 @@
     z-index: 1000;
     border-right: 2px solid #e2e8f0;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
 }
 
 .sidebar-header {
@@ -43,6 +45,9 @@
 /* メニュー */
 .sidebar-menu {
     padding: var(--spacing-md) 0;
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 200px; /* フッターのスペースを確保 */
 }
 
 .menu-item {
@@ -189,6 +194,77 @@
 
 .main-body {
     padding: var(--spacing-lg);
+}
+
+/* サイドバーフッター */
+.sidebar-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: var(--spacing-lg);
+    background-color: #f8fafc;
+    border-top: 2px solid #e2e8f0;
+}
+
+/* ユーザー情報 */
+.user-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.user-avatar {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.avatar-icon {
+    font-size: 1.5rem;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #e0f2fe;
+    border-radius: 50%;
+}
+
+.username {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: #1e293b;
+}
+
+/* ロールバッジ */
+.role-badge {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 4px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-align: center;
+    width: fit-content;
+}
+
+.role-badge.role-viewer {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.role-badge.role-operator {
+    background-color: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #2563eb;
+}
+
+.role-badge.role-admin {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
 }
 
 /* レスポンシブ */
