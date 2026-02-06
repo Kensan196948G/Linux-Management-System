@@ -7,11 +7,18 @@ let currentUser = null;
 
 // ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Linux Management System - Dashboard loaded');
+    console.log('===== Dashboard Initialization Debug =====');
+    console.log('1. Current URL:', window.location.href);
+    console.log('2. LocalStorage token exists:', !!localStorage.getItem('access_token'));
+    console.log('3. LocalStorage token (first 50 chars):',
+                (localStorage.getItem('access_token') || 'NOT FOUND').substring(0, 50));
+    console.log('4. api.token exists:', !!api.token);
+    console.log('5. api.isAuthenticated():', api.isAuthenticated());
+    console.log('==========================================');
 
     // 認証チェック
     if (!api.isAuthenticated()) {
-        console.warn('No authentication token found, redirecting to login...');
+        console.warn('❌ No authentication token found, redirecting to login...');
         // ログインページにリダイレクト
         window.location.href = '/dev/index.html';
         return;
