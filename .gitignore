@@ -99,6 +99,7 @@ coverage.xml
 .coverage.*
 junit/
 test-results/
+tests/reports/
 
 # Node.js (for future frontend tooling)
 node_modules/
