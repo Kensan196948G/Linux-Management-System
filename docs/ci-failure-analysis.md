@@ -77,6 +77,15 @@ GitHub Actions の CI および Security Audit ワークフローが連続して
   - Bandit: レポート生成コマンドに `|| true` を追加、HIGH/CRITICAL のみで失敗判定
   - os.system: `grep -rHnE` に変更し、コメント行を除外するパイプラインに修正
 
+### 原因6: eval/exec 検出の `find -exec grep -l` 誤検知 (Security Audit)
+
+- **重大度**: HIGH
+- **症状**: Forbidden Pattern Detection の "CRITICAL: Detect eval/exec" ステップが失敗。ログにファイル名が一切表示されないのに exit 1
+- **原因**: `find backend/ -name "*.py" -exec grep -lE "\b(eval|exec)\s*\(" {} \;` が、マッチなしでも `find` の終了コードが 0 になり `if` が真になるケースあり（os.system 検出と同じバグパターン）
+- **影響**: Security Audit の Forbidden Pattern Detection ジョブが常に失敗
+- **修正**: `grep -rHnE` に変更し、コメント行を除外するパイプラインに統一
+- **追加修正**: shell=True 検出と __import__ 検出も同じパターンを `grep -rHn` に統一
+
 ---
 
 ## 修正ファイル一覧

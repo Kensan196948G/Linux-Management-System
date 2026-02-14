@@ -151,7 +151,7 @@ jobs:
       - name: Check for eval/exec (CRITICAL)
         run: |
           echo "🔍 Checking for eval/exec usage..."
-          if grep -rE "\b(eval|exec)\s*\(" backend/ --exclude-dir=docs --exclude="*.md" 2>/dev/null; then
+          if grep -rHnE "\b(eval|exec)\s*\(" backend/ --include="*.py" 2>/dev/null | grep -v '^\s*#' | grep -v '#.*\b\(eval\|exec\)\s*('; then
             echo "❌ ERROR: eval/exec detected in backend/"
             echo "This is a CRITICAL security violation"
             exit 1

@@ -81,12 +81,12 @@ jobs:
         run: |
           echo "🚨 Scanning for shell=True (CRITICAL VIOLATION)..."
 
-          # コメント行を除外して shell=True を検出
-          if find backend/ -name "*.py" ! -path "*/docs/*" -exec grep -Hn "shell=True" {} \; 2>/dev/null | grep -v '^\s*#' | grep -v '#.*shell=True'; then
+          # Use grep directly with --include to avoid find -exec false positives
+          # Exclude comment lines
+          if grep -rHn "shell=True" backend/ --include="*.py" 2>/dev/null | grep -v '^\s*#' | grep -v '#.*shell=True'; then
             echo ""
             echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
-            echo "shell=True detected in executable code (not in comments):"
-            find backend/ -name "*.py" ! -path "*/docs/*" -exec grep -Hn "shell=True" {} \; 2>/dev/null | grep -v '^\s*#' | grep -v '#.*shell=True'
+            echo "shell=True detected in executable code (not in comments)"
             echo ""
             echo "This is a BLOCKING issue and must be fixed immediately."
             echo "See CLAUDE.md for security principles."
@@ -116,11 +116,12 @@ jobs:
         run: |
           echo "🚨 Scanning for eval/exec (CRITICAL VIOLATION)..."
 
-          if find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -lE "\b(eval|exec)\s*\(" {} \; 2>/dev/null; then
+          # Use grep directly with --include to avoid find -exec grep -l false positives
+          # Exclude comment lines
+          if grep -rHnE "\b(eval|exec)\s*\(" backend/ --include="*.py" 2>/dev/null | grep -v '^\s*#' | grep -v '#.*\b\(eval\|exec\)\s*('; then
             echo ""
             echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
-            echo "eval/exec detected in the following files:"
-            find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -HnE "\b(eval|exec)\s*\(" {} \;
+            echo "eval/exec detected in executable code"
             echo ""
             echo "This is a BLOCKING issue and must be fixed immediately."
             exit 1
@@ -132,11 +133,11 @@ jobs:
         run: |
           echo "🚨 Scanning for dynamic imports (CRITICAL VIOLATION)..."
 
-          if find backend/ -name "*.py" -exec grep -lE "__import__\s*\(" {} \; 2>/dev/null; then
+          # Use grep directly to avoid find -exec grep -l false positives
+          if grep -rHnE "__import__\s*\(" backend/ --include="*.py" 2>/dev/null | grep -v '^\s*#'; then
             echo ""
             echo "❌ WARNING: Dynamic import detected"
-            echo "Please review the following files:"
-            find backend/ -name "*.py" -exec grep -HnE "__import__\s*\(" {} \;
+            echo "Please review the above files."
             echo ""
             echo "Ensure user input is NOT passed to __import__()"
             # Warning only, manual review required
