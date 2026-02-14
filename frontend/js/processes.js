@@ -155,7 +155,7 @@ class ProcessManager {
             if (proc.cpu_percent > 50) {
                 row.classList.add('high-cpu');
             }
-            if (proc.memory_percent > 50) {
+            if (proc.mem_percent > 50) {
                 row.classList.add('high-memory');
             }
 
@@ -290,13 +290,13 @@ class ProcessManager {
                         <p><strong>PID:</strong> ${this.escapeHtml(proc.pid.toString())}</p>
                         <p><strong>Name:</strong> ${this.escapeHtml(proc.name || '-')}</p>
                         <p><strong>User:</strong> ${this.escapeHtml(proc.user)}</p>
-                        <p><strong>State:</strong> <span class="state-badge state-${proc.state}">${proc.state}</span></p>
+                        <p><strong>State:</strong> <span class="state-badge state-${proc.stat}">${proc.stat}</span></p>
                     </div>
                     <div class="col-md-6">
                         <p><strong>CPU %:</strong> ${proc.cpu_percent.toFixed(2)}</p>
-                        <p><strong>Memory %:</strong> ${proc.memory_percent.toFixed(2)}</p>
-                        <p><strong>RSS (MB):</strong> ${proc.memory_rss_mb ? proc.memory_rss_mb.toFixed(2) : '-'}</p>
-                        <p><strong>Started:</strong> ${this.escapeHtml(this.formatDateTime(proc.started_at))}</p>
+                        <p><strong>Memory %:</strong> ${proc.mem_percent.toFixed(2)}</p>
+                        <p><strong>RSS (KB):</strong> ${proc.rss ? proc.rss.toFixed(0) : '-'}</p>
+                        <p><strong>Started:</strong> ${this.escapeHtml(this.formatDateTime(proc.start))}</p>
                     </div>
                 </div>
                 <hr>
