@@ -99,13 +99,14 @@ def validate_username(username: str) -> None:
     Raises:
         ValidationError: 検証失敗時
     """
+    # 禁止文字チェックを先に実行（より具体的なエラーメッセージ）
+    validate_no_forbidden_chars(username, "username")
     validate_pattern(
         username,
         r"^[a-z_][a-z0-9_-]{0,31}$",
         field_name="username",
         max_length=32,
     )
-    validate_no_forbidden_chars(username, "username")
 
 
 def validate_groupname(groupname: str) -> None:
@@ -118,13 +119,14 @@ def validate_groupname(groupname: str) -> None:
     Raises:
         ValidationError: 検証失敗時
     """
+    # 禁止文字チェックを先に実行（より具体的なエラーメッセージ）
+    validate_no_forbidden_chars(groupname, "groupname")
     validate_pattern(
         groupname,
         r"^[a-z_][a-z0-9_-]{0,31}$",
         field_name="groupname",
         max_length=32,
     )
-    validate_no_forbidden_chars(groupname, "groupname")
 
 
 def validate_uid_range(uid: int) -> None:

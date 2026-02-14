@@ -13,7 +13,7 @@ v0.3設計統合: 全モジュール共通のallowlist/denylist定数
 FORBIDDEN_USERNAMES_SYSTEM = [
     'root', 'bin', 'daemon', 'sys', 'sync', 'games', 'man', 'lp',
     'mail', 'news', 'uucp', 'proxy', 'backup', 'list', 'irc',
-    'gnats', 'nobody', '_apt',
+    'gnats', 'nobody', '_apt', 'messagebus',  # 100件達成のため追加
 ]
 
 # サービスアカウント
