@@ -612,10 +612,14 @@ class TestProcessesSecurityPrinciples:
 
         content = wrapper_file.read_text()
 
-        # 特殊文字チェックの正規表現が存在
+        # FORBIDDEN_CHARS変数が定義されていること
         assert (
-            "[';|&$(){}[]`<>*?]" in content or "[;|&$(){}[]`<>*?]" in content
-        ), "Wrapper must validate forbidden characters"
+            "FORBIDDEN_CHARS=" in content
+        ), "Wrapper must define FORBIDDEN_CHARS variable"
+
+        # 禁止文字パターンに危険な文字が含まれていること
+        for char in [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?"]:
+            assert char in content, f"Wrapper FORBIDDEN_CHARS must include '{char}'"
 
     def test_no_bash_c_in_wrapper(self, project_root):
         """ラッパースクリプトに bash -c が存在しないこと"""

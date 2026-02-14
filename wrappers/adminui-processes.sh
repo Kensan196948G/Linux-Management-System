@@ -343,10 +343,16 @@ while IFS= read -r line; do
         COMMAND="${COMMAND:0:200}..."
     fi
 
-    # 機密情報のマスキング
-    COMMAND=$(echo "$COMMAND" | sed 's/password=[^ ]*/password=***/g')
-    COMMAND=$(echo "$COMMAND" | sed 's/token=[^ ]*/token=***/g')
-    COMMAND=$(echo "$COMMAND" | sed 's/secret=[^ ]*/secret=***/g')
+    # 機密情報のマスキング（bash parameter expansion）
+    while [[ "$COMMAND" =~ password=[^\ ]* ]]; do
+        COMMAND="${COMMAND/password=[^ ]*/password=***}"
+    done
+    while [[ "$COMMAND" =~ token=[^\ ]* ]]; do
+        COMMAND="${COMMAND/token=[^ ]*/token=***}"
+    done
+    while [[ "$COMMAND" =~ secret=[^\ ]* ]]; do
+        COMMAND="${COMMAND/secret=[^ ]*/secret=***}"
+    done
 
     # JSON エスケープ
     COMMAND=$(echo "$COMMAND" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')

@@ -24,12 +24,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # backend の依存関係（まだ requirements.txt がない場合はスキップ）
-          if [ -f backend/requirements.txt ]; then
+          # requirements-dev.txt は -r requirements.txt を含むため、これだけで全依存関係がインストールされる
+          if [ -f backend/requirements-dev.txt ]; then
+            pip install -r backend/requirements-dev.txt
+          elif [ -f backend/requirements.txt ]; then
             pip install -r backend/requirements.txt
+            # フォールバック: requirements-dev.txt がない場合は個別にインストール
+            pip install pytest pytest-cov pytest-asyncio bandit flake8 black isort mypy
           fi
-          # 開発・テスト用依存関係
-          pip install pytest pytest-cov bandit flake8 black isort mypy
 
       - name: Code formatting check (Black)
         run: |
@@ -160,12 +162,13 @@ jobs:
       - name: Check for bash -c in wrappers (CRITICAL)
         run: |
           echo "🔍 Checking for bash -c in wrappers..."
-          if grep -r "bash -c" wrappers/ 2>/dev/null; then
-            echo "❌ ERROR: bash -c detected in wrappers/"
+          # Only check actual wrapper .sh files (exclude test/ subdirectory and documentation)
+          if find wrappers/ -maxdepth 1 -name "*.sh" -exec grep -Hn "bash -c" {} \; 2>/dev/null | grep -v '^\s*#'; then
+            echo "❌ ERROR: bash -c detected in wrapper scripts"
             echo "Wrappers must use array-based execution only"
             exit 1
           else
-            echo "✅ No bash -c found in wrappers"
+            echo "✅ No bash -c found in wrapper scripts"
           fi
 
       - name: Check for command substitution in API code
