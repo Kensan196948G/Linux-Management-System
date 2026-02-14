@@ -57,12 +57,20 @@ subprocess.run("systemctl status nginx", shell=True)  # 絶対禁止
 
 ### 4. sudo最小化（ラッパー経由必須）
 
+**システム実行ユーザー**: `svc-adminui`（全モジュール共通）
+
 ```python
 # ✅ 良い例
 subprocess.run(["sudo", "/usr/local/sbin/adminui-service-restart", "nginx"])
 
 # ❌ 悪い例
 subprocess.run(["sudo", "systemctl", "restart", "nginx"])  # 直接実行禁止
+```
+
+**sudoers設定例**:
+```bash
+# /etc/sudoers.d/adminui
+svc-adminui ALL=(root) NOPASSWD: /usr/local/sbin/adminui-*.sh
 ```
 
 ### 5. 監査証跡（全操作ログ）
