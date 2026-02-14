@@ -67,7 +67,15 @@ ROLES = {
     ),
     "Operator": UserRole(
         name="Operator",
-        permissions=["read:status", "read:logs", "read:processes", "execute:service_restart"],
+        permissions=[
+            "read:status",
+            "read:logs",
+            "read:processes",
+            "execute:service_restart",
+            # 承認関連
+            "request:approval",
+            "view:approval_policies",
+        ],
     ),
     "Approver": UserRole(
         name="Approver",
@@ -77,6 +85,11 @@ ROLES = {
             "read:processes",
             "execute:service_restart",
             "approve:dangerous_operation",
+            # 承認関連
+            "request:approval",
+            "view:approval_pending",
+            "execute:approval",
+            "view:approval_policies",
         ],
     ),
     "Admin": UserRole(
@@ -89,6 +102,15 @@ ROLES = {
             "approve:dangerous_operation",
             "manage:users",
             "manage:settings",
+            # 承認関連
+            "request:approval",
+            "view:approval_pending",
+            "execute:approval",
+            "execute:approved_action",
+            "view:approval_history",
+            "export:approval_history",
+            "view:approval_policies",
+            "view:approval_stats",
         ],
     ),
 }

@@ -1,0 +1,924 @@
+/**
+ * approval.js - 承認ワークフローUI管理
+ *
+ * 機能:
+ * - 承認待ちリクエスト一覧表示
+ * - 自分の申請一覧表示
+ * - 承認履歴表示
+ * - 承認/拒否アクション
+ * - 自己承認防止（UI無効化）
+ * - XSS防止（escapeHtml）
+ * - 30秒自動リフレッシュ
+ * - 期限切れ警告
+ */
+
+class ApprovalManager {
+    constructor() {
+        this.currentUser = null;
+        this.pendingRequests = [];
+        this.myRequests = [];
+        this.historyEntries = [];
+        this.policies = [];
+        this.stats = null;
+        this.autoRefreshInterval = null;
+        this.currentRequestId = null; // 詳細表示中のリクエストID
+
+        // モーダルインスタンス
+        this.detailModal = null;
+        this.approveModal = null;
+        this.rejectModal = null;
+    }
+
+    /**
+     * 初期化
+     */
+    async init() {
+        console.log('ApprovalManager: Initializing...');
+
+        // 認証チェック
+        if (!api.isAuthenticated()) {
+            console.error('Not authenticated, redirecting to login');
+            window.location.href = '/dev/index.html';
+            return;
+        }
+
+        // 現在のユーザー情報取得
+        await this.loadCurrentUser();
+
+        // モーダル初期化
+        this.initModals();
+
+        // 承認ポリシー読み込み
+        await this.loadPolicies();
+
+        // 統計読み込み（Admin のみ）
+        if (this.currentUser && this.currentUser.role === 'Admin') {
+            await this.loadStats();
+        }
+
+        // 初回データ読み込み
+        await this.refreshPendingRequests();
+        await this.refreshMyRequests();
+
+        // イベントリスナー設定
+        this.setupEventListeners();
+
+        // 自動更新開始（30秒間隔）
+        this.startAutoRefresh();
+
+        console.log('ApprovalManager: Initialized successfully');
+    }
+
+    /**
+     * 現在のユーザー情報取得
+     */
+    async loadCurrentUser() {
+        try {
+            const response = await api.get('/auth/me');
+            if (response.status === 'success') {
+                this.currentUser = response.user;
+                console.log('Current user:', this.currentUser);
+
+                // サイドバーに表示
+                const usernameEl = document.getElementById('user-menu-username');
+                const roleEl = document.getElementById('user-menu-role');
+                const emailEl = document.getElementById('user-menu-email');
+
+                if (usernameEl) usernameEl.textContent = this.currentUser.username;
+                if (roleEl) roleEl.textContent = this.currentUser.role;
+                if (emailEl) emailEl.textContent = this.currentUser.email;
+            }
+        } catch (error) {
+            console.error('Failed to load current user:', error);
+            alert('ユーザー情報の取得に失敗しました。再度ログインしてください。');
+            window.location.href = '/dev/index.html';
+        }
+    }
+
+    /**
+     * 承認ポリシー読み込み
+     */
+    async loadPolicies() {
+        try {
+            const response = await api.get('/approval/policies');
+            if (response.status === 'success') {
+                this.policies = response.policies;
+                console.log('Policies loaded:', this.policies.length);
+
+                // フィルタのドロップダウンを構築
+                this.populateTypeFilters();
+            }
+        } catch (error) {
+            console.error('Failed to load policies:', error);
+        }
+    }
+
+    /**
+     * 統計読み込み（Admin のみ）
+     */
+    async loadStats() {
+        try {
+            const response = await api.get('/approval/stats?period=30d');
+            if (response.status === 'success') {
+                this.stats = response.stats;
+                console.log('Stats loaded:', this.stats);
+                this.renderStats();
+            }
+        } catch (error) {
+            console.error('Failed to load stats:', error);
+        }
+    }
+
+    /**
+     * 統計表示
+     */
+    renderStats() {
+        if (!this.stats) return;
+
+        const statsCard = document.getElementById('statsCard');
+        if (statsCard) {
+            statsCard.style.display = 'block';
+            document.getElementById('stat-pending').textContent = this.stats.pending || 0;
+            document.getElementById('stat-approved').textContent = this.stats.approved || 0;
+            document.getElementById('stat-rejected').textContent = this.stats.rejected || 0;
+            document.getElementById('stat-approval-rate').textContent =
+                (this.stats.approval_rate || 0).toFixed(1) + '%';
+        }
+    }
+
+    /**
+     * 操作種別フィルタのドロップダウンを構築
+     */
+    populateTypeFilters() {
+        const pendingFilter = document.getElementById('pending-filter-type');
+        const myFilter = document.getElementById('my-filter-type');
+        const historyFilter = document.getElementById('history-filter-type');
+
+        this.policies.forEach(policy => {
+            const option = `<option value="${this.escapeHtml(policy.operation_type)}">${this.escapeHtml(policy.description)}</option>`;
+            if (pendingFilter) pendingFilter.insertAdjacentHTML('beforeend', option);
+            if (myFilter) myFilter.insertAdjacentHTML('beforeend', option);
+            if (historyFilter) historyFilter.insertAdjacentHTML('beforeend', option);
+        });
+    }
+
+    /**
+     * モーダル初期化
+     */
+    initModals() {
+        const detailModalEl = document.getElementById('detailModal');
+        const approveModalEl = document.getElementById('approveModal');
+        const rejectModalEl = document.getElementById('rejectModal');
+
+        if (detailModalEl) this.detailModal = new bootstrap.Modal(detailModalEl);
+        if (approveModalEl) this.approveModal = new bootstrap.Modal(approveModalEl);
+        if (rejectModalEl) this.rejectModal = new bootstrap.Modal(rejectModalEl);
+    }
+
+    /**
+     * イベントリスナー設定
+     */
+    setupEventListeners() {
+        // 承認ボタン
+        const confirmApproveBtn = document.getElementById('confirm-approve-btn');
+        if (confirmApproveBtn) {
+            confirmApproveBtn.addEventListener('click', () => this.handleApprove());
+        }
+
+        // 拒否ボタン
+        const confirmRejectBtn = document.getElementById('confirm-reject-btn');
+        if (confirmRejectBtn) {
+            confirmRejectBtn.addEventListener('click', () => this.handleReject());
+        }
+
+        // フィルタ変更時の再読み込み
+        const filters = [
+            'pending-filter-type', 'pending-filter-requester', 'pending-sort',
+            'my-filter-status', 'my-filter-type'
+        ];
+        filters.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', () => {
+                    if (id.startsWith('pending-')) {
+                        this.refreshPendingRequests();
+                    } else if (id.startsWith('my-')) {
+                        this.refreshMyRequests();
+                    }
+                });
+            }
+        });
+
+        // タブ切り替え時の更新
+        document.getElementById('history-tab')?.addEventListener('shown.bs.tab', () => {
+            this.refreshHistory();
+        });
+    }
+
+    /**
+     * 自動更新開始
+     */
+    startAutoRefresh() {
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+        }
+
+        this.autoRefreshInterval = setInterval(async () => {
+            console.log('Auto refresh...');
+
+            // アクティブなタブに応じて更新
+            const activeTab = document.querySelector('.approval-tabs .nav-link.active');
+            if (activeTab) {
+                const tabId = activeTab.id;
+                if (tabId === 'pending-tab') {
+                    await this.refreshPendingRequests();
+                } else if (tabId === 'my-requests-tab') {
+                    await this.refreshMyRequests();
+                } else if (tabId === 'history-tab') {
+                    await this.refreshHistory();
+                }
+            }
+
+            // 統計も更新（Admin のみ）
+            if (this.currentUser && this.currentUser.role === 'Admin') {
+                await this.loadStats();
+            }
+        }, 30000); // 30秒
+    }
+
+    /**
+     * 承認待ちリクエスト更新
+     */
+    async refreshPendingRequests() {
+        try {
+            // フィルタパラメータ取得
+            const params = new URLSearchParams();
+            const typeFilter = document.getElementById('pending-filter-type')?.value;
+            const requesterFilter = document.getElementById('pending-filter-requester')?.value;
+            const sortBy = document.getElementById('pending-sort')?.value || 'expires_at';
+
+            if (typeFilter) params.append('request_type', typeFilter);
+            if (requesterFilter) params.append('requester_id', requesterFilter);
+            params.append('sort_by', sortBy);
+            params.append('sort_order', 'asc');
+
+            const response = await api.get(`/approval/pending?${params.toString()}`);
+            if (response.status === 'success') {
+                this.pendingRequests = response.requests || [];
+                console.log('Pending requests loaded:', this.pendingRequests.length);
+
+                // バッジ更新
+                document.getElementById('pending-count').textContent = this.pendingRequests.length;
+
+                // リスト描画
+                this.renderPendingRequests();
+
+                // 申請者フィルタのドロップダウン更新
+                this.updateRequesterFilter();
+            }
+        } catch (error) {
+            console.error('Failed to load pending requests:', error);
+            this.showError('pending-list', '承認待ちリクエストの読み込みに失敗しました');
+        }
+    }
+
+    /**
+     * 自分の申請更新
+     */
+    async refreshMyRequests() {
+        try {
+            // フィルタパラメータ取得
+            const params = new URLSearchParams();
+            const statusFilter = document.getElementById('my-filter-status')?.value;
+            const typeFilter = document.getElementById('my-filter-type')?.value;
+
+            if (statusFilter) params.append('status', statusFilter);
+            if (typeFilter) params.append('request_type', typeFilter);
+
+            const response = await api.get(`/approval/my-requests?${params.toString()}`);
+            if (response.status === 'success') {
+                this.myRequests = response.requests || [];
+                console.log('My requests loaded:', this.myRequests.length);
+
+                // バッジ更新
+                document.getElementById('my-requests-count').textContent = this.myRequests.length;
+
+                // リスト描画
+                this.renderMyRequests();
+            }
+        } catch (error) {
+            console.error('Failed to load my requests:', error);
+            this.showError('my-requests-list', '自分の申請の読み込みに失敗しました');
+        }
+    }
+
+    /**
+     * 承認履歴更新
+     */
+    async refreshHistory() {
+        try {
+            // フィルタパラメータ取得
+            const params = new URLSearchParams();
+            const startDate = document.getElementById('history-start-date')?.value;
+            const endDate = document.getElementById('history-end-date')?.value;
+            const typeFilter = document.getElementById('history-filter-type')?.value;
+            const actionFilter = document.getElementById('history-filter-action')?.value;
+
+            if (startDate) params.append('start_date', startDate + 'T00:00:00Z');
+            if (endDate) params.append('end_date', endDate + 'T23:59:59Z');
+            if (typeFilter) params.append('request_type', typeFilter);
+            if (actionFilter) params.append('action', actionFilter);
+
+            const response = await api.get(`/approval/history?${params.toString()}`);
+            if (response.status === 'success') {
+                this.historyEntries = response.history || [];
+                console.log('History entries loaded:', this.historyEntries.length);
+
+                // リスト描画
+                this.renderHistory();
+            }
+        } catch (error) {
+            console.error('Failed to load history:', error);
+            this.showError('history-list', '承認履歴の読み込みに失敗しました');
+        }
+    }
+
+    /**
+     * 申請者フィルタ更新
+     */
+    updateRequesterFilter() {
+        const filter = document.getElementById('pending-filter-requester');
+        if (!filter) return;
+
+        // 既存の選択肢をクリア
+        filter.innerHTML = '<option value="">全申請者</option>';
+
+        // ユニークな申請者を抽出
+        const requesters = new Set();
+        this.pendingRequests.forEach(req => {
+            requesters.add(req.requester_id + '::' + req.requester_name);
+        });
+
+        // ドロップダウンに追加
+        requesters.forEach(requester => {
+            const [id, name] = requester.split('::');
+            const option = document.createElement('option');
+            option.value = this.escapeHtml(id);
+            option.textContent = this.escapeHtml(name);
+            filter.appendChild(option);
+        });
+    }
+
+    /**
+     * 承認待ちリスト描画
+     */
+    renderPendingRequests() {
+        const container = document.getElementById('pending-list');
+        if (!container) return;
+
+        if (this.pendingRequests.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <div class="empty-state-text">承認待ちのリクエストはありません</div>
+                    <div class="empty-state-subtext">新しいリクエストが作成されるとここに表示されます</div>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        this.pendingRequests.forEach(request => {
+            const isSelfRequest = this.currentUser && request.requester_id === this.currentUser.user_id;
+            const remainingHours = request.remaining_hours || 0;
+            const expiringClass = remainingHours < 6 ? 'expiring-soon' : (remainingHours < 12 ? 'expiring-warning' : '');
+
+            html += `
+                <div class="request-card ${expiringClass}" onclick="approvalManager.showRequestDetail('${this.escapeHtml(request.id)}')">
+                    <div class="request-card-header">
+                        <div>
+                            <div class="request-type">
+                                ${this.escapeHtml(request.request_type_description)}
+                                <span class="risk-badge risk-${this.escapeHtml(request.risk_level)}">${this.escapeHtml(request.risk_level)}</span>
+                            </div>
+                            <div class="request-id">ID: ${this.escapeHtml(request.id)}</div>
+                        </div>
+                        <div>
+                            <span class="status-badge status-${this.escapeHtml(request.status || 'pending')}">
+                                ${this.escapeHtml(request.status || 'pending')}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="request-meta">
+                        <div class="meta-item">
+                            <div class="meta-label">申請者</div>
+                            <div class="meta-value">${this.escapeHtml(request.requester_name)}</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">申請日時</div>
+                            <div class="meta-value">${this.formatDateTime(request.created_at)}</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">承認期限</div>
+                            <div class="meta-value" style="color: ${remainingHours < 6 ? '#dc3545' : (remainingHours < 12 ? '#ffc107' : '#28a745')}">
+                                ${this.formatDateTime(request.expires_at)}
+                                <br><small>(残り ${remainingHours.toFixed(1)}時間)</small>
+                            </div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">パラメータ</div>
+                            <div class="meta-value" style="font-size: 12px; font-family: monospace;">
+                                ${this.escapeHtml(request.payload_summary || '-')}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="request-reason">
+                        ${this.escapeHtml(request.reason)}
+                    </div>
+                    ${isSelfRequest ? '<div class="self-approval-warning" style="margin-top: 10px;"><span class="self-approval-warning-icon">⚠️</span><span class="self-approval-warning-text">自分の申請です（自己承認は禁止）</span></div>' : ''}
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    /**
+     * 自分の申請リスト描画
+     */
+    renderMyRequests() {
+        const container = document.getElementById('my-requests-list');
+        if (!container) return;
+
+        if (this.myRequests.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📝</div>
+                    <div class="empty-state-text">申請はありません</div>
+                    <div class="empty-state-subtext">承認が必要な操作を実行すると、ここに申請が表示されます</div>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        this.myRequests.forEach(request => {
+            html += `
+                <div class="request-card" onclick="approvalManager.showRequestDetail('${this.escapeHtml(request.id)}')">
+                    <div class="request-card-header">
+                        <div>
+                            <div class="request-type">
+                                ${this.escapeHtml(request.request_type_description)}
+                                <span class="risk-badge risk-${this.escapeHtml(request.risk_level)}">${this.escapeHtml(request.risk_level)}</span>
+                            </div>
+                            <div class="request-id">ID: ${this.escapeHtml(request.id)}</div>
+                        </div>
+                        <div>
+                            <span class="status-badge status-${this.escapeHtml(request.status)}">
+                                ${this.escapeHtml(request.status)}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="request-meta">
+                        <div class="meta-item">
+                            <div class="meta-label">申請日時</div>
+                            <div class="meta-value">${this.formatDateTime(request.created_at)}</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">承認期限</div>
+                            <div class="meta-value">${this.formatDateTime(request.expires_at)}</div>
+                        </div>
+                        ${request.approved_by_name ? `
+                        <div class="meta-item">
+                            <div class="meta-label">承認者</div>
+                            <div class="meta-value">${this.escapeHtml(request.approved_by_name)}</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">承認日時</div>
+                            <div class="meta-value">${this.formatDateTime(request.approved_at)}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <div class="request-reason">
+                        ${this.escapeHtml(request.reason)}
+                    </div>
+                    ${request.rejection_reason ? `<div class="request-reason" style="border-left-color: #dc3545; background-color: #f8d7da;"><strong>拒否理由:</strong> ${this.escapeHtml(request.rejection_reason)}</div>` : ''}
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    /**
+     * 承認履歴描画
+     */
+    renderHistory() {
+        const container = document.getElementById('history-list');
+        if (!container) return;
+
+        if (this.historyEntries.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📜</div>
+                    <div class="empty-state-text">履歴はありません</div>
+                    <div class="empty-state-subtext">フィルタ条件を変更して再度検索してください</div>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '<div class="timeline">';
+        this.historyEntries.forEach(entry => {
+            html += `
+                <div class="timeline-item">
+                    <div class="timeline-time">${this.formatDateTime(entry.timestamp)}</div>
+                    <div class="timeline-content">
+                        <div class="timeline-actor">${this.escapeHtml(entry.actor_name)} (${this.escapeHtml(entry.actor_role)})</div>
+                        <div>
+                            <strong>${this.escapeHtml(entry.action)}</strong>:
+                            ${this.escapeHtml(entry.request_type)}
+                            <span class="badge bg-secondary">${this.escapeHtml(entry.approval_request_id.substring(0, 8))}</span>
+                        </div>
+                        ${entry.previous_status ? `<div style="font-size: 12px; color: #6c757d; margin-top: 4px;">${this.escapeHtml(entry.previous_status)} → ${this.escapeHtml(entry.new_status)}</div>` : ''}
+                        ${entry.signature_valid === false ? '<div style="color: #dc3545; font-weight: bold; margin-top: 4px;">⚠️ 署名検証失敗</div>' : ''}
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+
+        container.innerHTML = html;
+    }
+
+    /**
+     * リクエスト詳細表示
+     */
+    async showRequestDetail(requestId) {
+        this.currentRequestId = requestId;
+
+        // モーダル表示
+        if (this.detailModal) {
+            this.detailModal.show();
+        }
+
+        // ボディをローディング状態に
+        const body = document.getElementById('detailModalBody');
+        if (body) {
+            body.innerHTML = `
+                <div class="loading-spinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">読み込み中...</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        try {
+            const response = await api.get(`/approval/${requestId}`);
+            if (response.status === 'success') {
+                const request = response.request;
+                this.renderRequestDetail(request);
+            }
+        } catch (error) {
+            console.error('Failed to load request detail:', error);
+            if (body) {
+                body.innerHTML = `<div class="alert alert-danger">リクエスト詳細の読み込みに失敗しました</div>`;
+            }
+        }
+    }
+
+    /**
+     * リクエスト詳細描画
+     */
+    renderRequestDetail(request) {
+        const body = document.getElementById('detailModalBody');
+        const footer = document.getElementById('detailModalFooter');
+        if (!body || !footer) return;
+
+        const isSelfRequest = this.currentUser && request.requester_id === this.currentUser.user_id;
+        const canApprove = !isSelfRequest && request.status === 'pending' &&
+                          this.currentUser && (this.currentUser.role === 'Approver' || this.currentUser.role === 'Admin');
+        const canCancel = isSelfRequest && request.status === 'pending';
+
+        let html = '';
+
+        // 自己承認警告
+        if (isSelfRequest && request.status === 'pending') {
+            html += `
+                <div class="self-approval-warning">
+                    <span class="self-approval-warning-icon">⚠️</span>
+                    <span class="self-approval-warning-text">これは自分の申請です。自己承認は禁止されています。</span>
+                </div>
+            `;
+        }
+
+        // 基本情報
+        html += `
+            <div class="detail-section">
+                <div class="detail-section-title">基本情報</div>
+                <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; font-size: 14px;">
+                    <div style="font-weight: bold;">リクエストID:</div>
+                    <div style="font-family: monospace;">${this.escapeHtml(request.id)}</div>
+
+                    <div style="font-weight: bold;">操作種別:</div>
+                    <div>
+                        ${this.escapeHtml(request.request_type_description)}
+                        <span class="risk-badge risk-${this.escapeHtml(request.risk_level)}">${this.escapeHtml(request.risk_level)}</span>
+                    </div>
+
+                    <div style="font-weight: bold;">ステータス:</div>
+                    <div><span class="status-badge status-${this.escapeHtml(request.status)}">${this.escapeHtml(request.status)}</span></div>
+
+                    <div style="font-weight: bold;">申請者:</div>
+                    <div>${this.escapeHtml(request.requester_name)} (${this.escapeHtml(request.requester_id)})</div>
+
+                    <div style="font-weight: bold;">申請日時:</div>
+                    <div>${this.formatDateTime(request.created_at)}</div>
+
+                    <div style="font-weight: bold;">承認期限:</div>
+                    <div>${this.formatDateTime(request.expires_at)}</div>
+                </div>
+            </div>
+        `;
+
+        // 操作内容
+        html += `
+            <div class="detail-section">
+                <div class="detail-section-title">操作内容</div>
+                <div class="payload-display">${this.escapeHtml(JSON.stringify(request.request_payload, null, 2))}</div>
+            </div>
+        `;
+
+        // 申請理由
+        html += `
+            <div class="detail-section">
+                <div class="detail-section-title">申請理由</div>
+                <div class="request-reason">${this.escapeHtml(request.reason)}</div>
+            </div>
+        `;
+
+        // 承認情報（承認済みの場合）
+        if (request.approved_by) {
+            html += `
+                <div class="detail-section">
+                    <div class="detail-section-title">承認情報</div>
+                    <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; font-size: 14px;">
+                        <div style="font-weight: bold;">承認者:</div>
+                        <div>${this.escapeHtml(request.approved_by_name)} (${this.escapeHtml(request.approved_by)})</div>
+
+                        <div style="font-weight: bold;">承認日時:</div>
+                        <div>${this.formatDateTime(request.approved_at)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 拒否理由（拒否された場合）
+        if (request.rejection_reason) {
+            html += `
+                <div class="detail-section">
+                    <div class="detail-section-title">拒否理由</div>
+                    <div class="request-reason" style="border-left-color: #dc3545; background-color: #f8d7da;">
+                        ${this.escapeHtml(request.rejection_reason)}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 実行結果（実行済みの場合）
+        if (request.execution_result) {
+            html += `
+                <div class="detail-section">
+                    <div class="detail-section-title">実行結果</div>
+                    <div class="payload-display">${this.escapeHtml(JSON.stringify(request.execution_result, null, 2))}</div>
+                </div>
+            `;
+        }
+
+        // 履歴
+        if (request.history && request.history.length > 0) {
+            html += `
+                <div class="detail-section">
+                    <div class="detail-section-title">履歴</div>
+                    <div class="timeline">
+            `;
+
+            request.history.forEach(entry => {
+                html += `
+                    <div class="timeline-item">
+                        <div class="timeline-time">${this.formatDateTime(entry.timestamp)}</div>
+                        <div class="timeline-content">
+                            <div class="timeline-actor">${this.escapeHtml(entry.actor_name)} (${this.escapeHtml(entry.actor_role)})</div>
+                            <div><strong>${this.escapeHtml(entry.action)}</strong></div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+
+        body.innerHTML = html;
+
+        // フッターボタン
+        let footerHtml = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>';
+
+        if (canApprove) {
+            footerHtml += `
+                <button type="button" class="btn btn-reject" onclick="approvalManager.openRejectModal()">拒否</button>
+                <button type="button" class="btn btn-approve" onclick="approvalManager.openApproveModal()">承認</button>
+            `;
+        }
+
+        if (canCancel) {
+            footerHtml += `
+                <button type="button" class="btn btn-warning" onclick="approvalManager.handleCancel()">キャンセル</button>
+            `;
+        }
+
+        footer.innerHTML = footerHtml;
+    }
+
+    /**
+     * 承認モーダル表示
+     */
+    openApproveModal() {
+        if (this.approveModal) {
+            // コメントクリア
+            document.getElementById('approve-comment').value = '';
+            this.approveModal.show();
+        }
+    }
+
+    /**
+     * 拒否モーダル表示
+     */
+    openRejectModal() {
+        if (this.rejectModal) {
+            // 理由クリア
+            document.getElementById('reject-reason').value = '';
+            this.rejectModal.show();
+        }
+    }
+
+    /**
+     * 承認実行
+     */
+    async handleApprove() {
+        if (!this.currentRequestId) return;
+
+        const comment = document.getElementById('approve-comment')?.value || '';
+
+        try {
+            const response = await api.post(`/approval/${this.currentRequestId}/approve`, {
+                comment: comment
+            });
+
+            if (response.status === 'success') {
+                alert('承認しました');
+
+                // モーダルを閉じる
+                if (this.approveModal) this.approveModal.hide();
+                if (this.detailModal) this.detailModal.hide();
+
+                // リスト更新
+                await this.refreshPendingRequests();
+                await this.refreshMyRequests();
+            }
+        } catch (error) {
+            console.error('Failed to approve request:', error);
+            alert('承認に失敗しました: ' + (error.message || '不明なエラー'));
+        }
+    }
+
+    /**
+     * 拒否実行
+     */
+    async handleReject() {
+        if (!this.currentRequestId) return;
+
+        const reason = document.getElementById('reject-reason')?.value || '';
+
+        if (!reason.trim()) {
+            alert('拒否理由を入力してください');
+            return;
+        }
+
+        try {
+            const response = await api.post(`/approval/${this.currentRequestId}/reject`, {
+                reason: reason
+            });
+
+            if (response.status === 'success') {
+                alert('拒否しました');
+
+                // モーダルを閉じる
+                if (this.rejectModal) this.rejectModal.hide();
+                if (this.detailModal) this.detailModal.hide();
+
+                // リスト更新
+                await this.refreshPendingRequests();
+                await this.refreshMyRequests();
+            }
+        } catch (error) {
+            console.error('Failed to reject request:', error);
+            alert('拒否に失敗しました: ' + (error.message || '不明なエラー'));
+        }
+    }
+
+    /**
+     * キャンセル実行
+     */
+    async handleCancel() {
+        if (!this.currentRequestId) return;
+
+        if (!confirm('この申請をキャンセルしますか?')) return;
+
+        try {
+            const response = await api.post(`/approval/${this.currentRequestId}/cancel`, {
+                reason: 'ユーザーによるキャンセル'
+            });
+
+            if (response.status === 'success') {
+                alert('キャンセルしました');
+
+                // モーダルを閉じる
+                if (this.detailModal) this.detailModal.hide();
+
+                // リスト更新
+                await this.refreshPendingRequests();
+                await this.refreshMyRequests();
+            }
+        } catch (error) {
+            console.error('Failed to cancel request:', error);
+            alert('キャンセルに失敗しました: ' + (error.message || '不明なエラー'));
+        }
+    }
+
+    /**
+     * エラー表示
+     */
+    showError(containerId, message) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = `
+                <div class="alert alert-danger" role="alert">
+                    <strong>エラー:</strong> ${this.escapeHtml(message)}
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * 日時フォーマット
+     */
+    formatDateTime(dateString) {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleString('ja-JP', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    /**
+     * XSS防止（HTMLエスケープ）
+     */
+    escapeHtml(text) {
+        if (typeof text !== 'string') return text;
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    /**
+     * クリーンアップ
+     */
+    destroy() {
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+        }
+    }
+}
+
+// グローバルインスタンス
+let approvalManager;
+
+// 初期化
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('Approval page loaded');
+    approvalManager = new ApprovalManager();
+    await approvalManager.init();
+});

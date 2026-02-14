@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>承認ワークフロー - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* 承認ワークフロー専用スタイル */
+        .approval-tabs {
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .approval-tabs .nav-link {
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: #6c757d;
+            padding: 12px 20px;
+            font-weight: 500;
+        }
+
+        .approval-tabs .nav-link.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+            background: none;
+        }
+
+        .approval-tabs .nav-link:hover {
+            border-bottom-color: #b3d7ff;
+        }
+
+        /* リクエストカード */
+        .request-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            background: white;
+            transition: box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .request-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .request-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .request-type {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .request-id {
+            font-size: 12px;
+            color: #6c757d;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* ステータスバッジ */
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .status-approved {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-rejected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-expired {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+
+        .status-executed {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status-execution_failed {
+            background-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        .status-cancelled {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+
+        /* リスクレベルバッジ */
+        .risk-badge {
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+
+        .risk-CRITICAL {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .risk-HIGH {
+            background-color: #fd7e14;
+            color: white;
+        }
+
+        .risk-MEDIUM {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .risk-LOW {
+            background-color: #28a745;
+            color: white;
+        }
+
+        /* 期限切れ警告 */
+        .expiring-soon {
+            border-left: 4px solid #dc3545;
+        }
+
+        .expiring-warning {
+            border-left: 4px solid #ffc107;
+        }
+
+        /* リクエスト情報 */
+        .request-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .meta-label {
+            font-size: 11px;
+            color: #6c757d;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .meta-value {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        /* 理由・コメント */
+        .request-reason {
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #495057;
+            margin-top: 12px;
+            border-left: 3px solid #007bff;
+        }
+
+        /* フィルタコントロール */
+        .filter-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 6px 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        /* 空状態 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state-text {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .empty-state-subtext {
+            font-size: 14px;
+        }
+
+        /* モーダルスタイル */
+        .detail-section {
+            margin-bottom: 20px;
+        }
+
+        .detail-section-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #6c757d;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 4px;
+        }
+
+        .payload-display {
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* タイムライン */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #dee2e6;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -26px;
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #007bff;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px #007bff;
+        }
+
+        .timeline-time {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 4px;
+        }
+
+        .timeline-content {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .timeline-actor {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        /* ボタン */
+        .btn-approve {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-approve:hover {
+            background-color: #218838;
+        }
+
+        .btn-reject {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-reject:hover {
+            background-color: #c82333;
+        }
+
+        /* 統計カード */
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        /* Loading */
+        .loading-spinner {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        /* 自己承認防止UI */
+        .self-approval-warning {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .self-approval-warning-icon {
+            font-size: 24px;
+        }
+
+        .self-approval-warning-text {
+            font-size: 14px;
+            color: #856404;
+            font-weight: 500;
+        }
+
+        /* 無効化されたボタン */
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- 左側サイドバー -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="sidebar-title">🖥️ Linux管理運用</h1>
+                <p class="sidebar-subtitle">
+                    <span class="env-badge dev">【開発】</span>
+                </p>
+            </div>
+
+            <nav class="sidebar-menu">
+                <!-- ダッシュボード -->
+                <div class="menu-item" onclick="location.href='dashboard.html'">
+                    <span class="menu-item-icon">📊</span>
+                    <span>ダッシュボード</span>
+                </div>
+
+                <!-- 承認ワークフロー カテゴリ（新規） -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>✅</span>
+                            <span>承認ワークフロー</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content" style="display: block;">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item active" onclick="location.href='approval.html'">
+                                <div class="submenu-item-name">承認管理</div>
+                                <div class="submenu-item-badge">v0.3</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">承認ポリシー</div>
+                                <div class="submenu-item-badge">v0.3</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">承認統計</div>
+                                <div class="submenu-item-badge">v0.3</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linux管理システム カテゴリ -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>⚙️</span>
+                            <span>Linux管理システム</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">システム設定</div>
+                                <div class="submenu-item-badge">計画中</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">システムユーザー</div>
+                                <div class="submenu-item-badge">計画中</div>
+                            </div>
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=services'">
+                                <div class="submenu-item-name">システムサーバー</div>
+                                <div class="submenu-item-badge">実装済み</div>
+                            </div>
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=audit-log'">
+                                <div class="submenu-item-name">システム操作ログ</div>
+                                <div class="submenu-item-badge">実装済み</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- システム カテゴリ -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <div class="accordion-title">
+                            <span>💻</span>
+                            <span>システム</span>
+                        </div>
+                        <span class="accordion-icon">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-submenu">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=disk'">
+                                <div class="submenu-item-name">ローカルディスク</div>
+                                <div class="submenu-item-badge">実装済み</div>
+                            </div>
+                            <div class="submenu-item" onclick="location.href='processes.html'">
+                                <div class="submenu-item-name">実行中プロセス</div>
+                                <div class="submenu-item-badge">実装済み</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">ユーザー・グループ</div>
+                                <div class="submenu-item-badge">v0.2</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">Cronジョブ</div>
+                                <div class="submenu-item-badge">v0.2</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info" onclick="toggleUserMenu(event)">
+                    <div class="user-avatar">
+                        <span class="avatar-icon">👤</span>
+                    </div>
+                    <span class="user-menu-indicator">▼</span>
+
+                    <!-- ユーザー詳細ドロップダウン -->
+                    <div class="user-menu" id="user-menu">
+                        <div class="user-menu-header">
+                            <span class="user-menu-icon">👤</span>
+                            <div class="user-menu-info">
+                                <div class="user-menu-name" id="user-menu-username">-</div>
+                                <div class="user-menu-role" id="user-menu-role">-</div>
+                            </div>
+                        </div>
+                        <div class="user-menu-divider"></div>
+                        <div class="user-menu-items">
+                            <div class="user-menu-item">
+                                <span class="user-menu-item-icon">📧</span>
+                                <span class="user-menu-item-text" id="user-menu-email">-</span>
+                            </div>
+                            <div class="user-menu-item">
+                                <span class="user-menu-item-icon">🔑</span>
+                                <span class="user-menu-item-text">権限管理</span>
+                            </div>
+                        </div>
+                        <div class="user-menu-divider"></div>
+                        <button class="btn btn-danger" onclick="logout(); event.stopPropagation();" style="width: 100%; font-size: var(--font-size-sm);">ログアウト</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <div class="main-header">
+                <h2 id="page-title">✅ 承認ワークフロー</h2>
+            </div>
+
+            <div class="main-body" id="main-body">
+                <!-- 統計カード -->
+                <div class="stats-card" id="statsCard" style="display: none;">
+                    <h5>📊 承認統計（30日間）</h5>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">承認待ち</div>
+                            <div class="stat-value" id="stat-pending">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">承認済み</div>
+                            <div class="stat-value" id="stat-approved">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">拒否</div>
+                            <div class="stat-value" id="stat-rejected">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">承認率</div>
+                            <div class="stat-value" id="stat-approval-rate">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- タブ -->
+                <ul class="nav nav-tabs approval-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending-pane" type="button" role="tab">
+                            承認待ち <span class="badge bg-warning text-dark" id="pending-count">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="my-requests-tab" data-bs-toggle="tab" data-bs-target="#my-requests-pane" type="button" role="tab">
+                            自分の申請 <span class="badge bg-secondary" id="my-requests-count">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-pane" type="button" role="tab">
+                            承認履歴
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="approvalTabContent">
+                    <!-- 承認待ちタブ -->
+                    <div class="tab-pane fade show active" id="pending-pane" role="tabpanel">
+                        <!-- フィルタ -->
+                        <div class="filter-controls">
+                            <div class="filter-group">
+                                <label>操作種別</label>
+                                <select id="pending-filter-type" class="form-select form-select-sm">
+                                    <option value="">全種別</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>申請者</label>
+                                <select id="pending-filter-requester" class="form-select form-select-sm">
+                                    <option value="">全申請者</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>ソート</label>
+                                <select id="pending-sort" class="form-select form-select-sm">
+                                    <option value="expires_at">期限が近い順</option>
+                                    <option value="created_at">作成日時順</option>
+                                    <option value="request_type">種別順</option>
+                                </select>
+                            </div>
+                            <div class="filter-group" style="margin-left: auto;">
+                                <label>&nbsp;</label>
+                                <button class="btn btn-primary btn-sm" onclick="approvalManager.refreshPendingRequests()">
+                                    🔄 更新
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- リスト -->
+                        <div id="pending-list"></div>
+                    </div>
+
+                    <!-- 自分の申請タブ -->
+                    <div class="tab-pane fade" id="my-requests-pane" role="tabpanel">
+                        <!-- フィルタ -->
+                        <div class="filter-controls">
+                            <div class="filter-group">
+                                <label>ステータス</label>
+                                <select id="my-filter-status" class="form-select form-select-sm">
+                                    <option value="">全ステータス</option>
+                                    <option value="pending">承認待ち</option>
+                                    <option value="approved">承認済み</option>
+                                    <option value="rejected">拒否</option>
+                                    <option value="expired">期限切れ</option>
+                                    <option value="executed">実行完了</option>
+                                    <option value="cancelled">キャンセル</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>操作種別</label>
+                                <select id="my-filter-type" class="form-select form-select-sm">
+                                    <option value="">全種別</option>
+                                </select>
+                            </div>
+                            <div class="filter-group" style="margin-left: auto;">
+                                <label>&nbsp;</label>
+                                <button class="btn btn-primary btn-sm" onclick="approvalManager.refreshMyRequests()">
+                                    🔄 更新
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- リスト -->
+                        <div id="my-requests-list"></div>
+                    </div>
+
+                    <!-- 承認履歴タブ -->
+                    <div class="tab-pane fade" id="history-pane" role="tabpanel">
+                        <!-- フィルタ -->
+                        <div class="filter-controls">
+                            <div class="filter-group">
+                                <label>期間（開始）</label>
+                                <input type="date" id="history-start-date" class="form-control form-control-sm">
+                            </div>
+                            <div class="filter-group">
+                                <label>期間（終了）</label>
+                                <input type="date" id="history-end-date" class="form-control form-control-sm">
+                            </div>
+                            <div class="filter-group">
+                                <label>操作種別</label>
+                                <select id="history-filter-type" class="form-select form-select-sm">
+                                    <option value="">全種別</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>アクション</label>
+                                <select id="history-filter-action" class="form-select form-select-sm">
+                                    <option value="">全アクション</option>
+                                    <option value="created">作成</option>
+                                    <option value="approved">承認</option>
+                                    <option value="rejected">拒否</option>
+                                    <option value="expired">期限切れ</option>
+                                    <option value="executed">実行完了</option>
+                                    <option value="cancelled">キャンセル</option>
+                                </select>
+                            </div>
+                            <div class="filter-group" style="margin-left: auto;">
+                                <label>&nbsp;</label>
+                                <button class="btn btn-primary btn-sm" onclick="approvalManager.refreshHistory()">
+                                    🔄 更新
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- リスト -->
+                        <div id="history-list"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 詳細モーダル -->
+    <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailModalLabel">承認リクエスト詳細</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="detailModalBody">
+                    <div class="loading-spinner">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">読み込み中...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" id="detailModalFooter">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 承認モーダル -->
+    <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="approveModalLabel">承認確認</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>このリクエストを承認しますか?</p>
+                    <div class="mb-3">
+                        <label for="approve-comment" class="form-label">コメント（任意）</label>
+                        <textarea class="form-control" id="approve-comment" rows="3" maxlength="500"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-success" id="confirm-approve-btn">承認する</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 拒否モーダル -->
+    <div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="rejectModalLabel">拒否確認</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>このリクエストを拒否しますか?</p>
+                    <div class="mb-3">
+                        <label for="reject-reason" class="form-label">拒否理由（必須）<span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="reject-reason" rows="3" required maxlength="1000"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-danger" id="confirm-reject-btn">拒否する</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/sidebar.js"></script>
+    <script src="../js/approval.js"></script>
+    <script>
+        // ログアウト関数
+        function logout() {
+            localStorage.removeItem('access_token');
+            window.location.href = '/dev/index.html';
+        }
+    </script>
+</body>
+</html>
