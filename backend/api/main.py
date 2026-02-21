@@ -9,11 +9,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
-from .routes import approval, auth, logs, processes, services, system
+from .routes import approval, auth, cron, logs, processes, services, system, users
 
 # ログ設定
 logging.basicConfig(
@@ -57,6 +57,8 @@ app.include_router(services.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
 app.include_router(processes.router, prefix="/api")
 app.include_router(approval.router, prefix="/api")
+app.include_router(cron.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信
@@ -70,8 +72,12 @@ app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
 app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
 
 # dev, prod ディレクトリの配信
-app.mount("/dev", StaticFiles(directory=str(frontend_dir / "dev"), html=True), name="dev")
-app.mount("/prod", StaticFiles(directory=str(frontend_dir / "prod"), html=True), name="prod")
+app.mount(
+    "/dev", StaticFiles(directory=str(frontend_dir / "dev"), html=True), name="dev"
+)
+app.mount(
+    "/prod", StaticFiles(directory=str(frontend_dir / "prod"), html=True), name="prod"
+)
 
 # ===================================================================
 # ミドルウェア
@@ -87,7 +93,9 @@ async def log_requests(request: Request, call_next):
 
     response = await call_next(request)
 
-    logger.info(f"Response: {request.method} {request.url.path} - {response.status_code}")
+    logger.info(
+        f"Response: {request.method} {request.url.path} - {response.status_code}"
+    )
 
     return response
 
@@ -150,12 +158,14 @@ async def root():
     html_path = frontend_dir / "dev" / "index.html"
     if not html_path.exists():
         # HTMLが見つからない場合はAPIメタデータを返す
-        return JSONResponse({
-            "message": "Linux Management System API",
-            "environment": settings.environment,
-            "version": "0.1.0",
-            "docs_url": "/api/docs" if settings.features.api_docs_enabled else None,
-        })
+        return JSONResponse(
+            {
+                "message": "Linux Management System API",
+                "environment": settings.environment,
+                "version": "0.1.0",
+                "docs_url": "/api/docs" if settings.features.api_docs_enabled else None,
+            }
+        )
     return HTMLResponse(content=html_path.read_text(), status_code=200)
 
 

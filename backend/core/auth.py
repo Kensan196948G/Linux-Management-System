@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -63,7 +63,13 @@ class TokenData(BaseModel):
 ROLES = {
     "Viewer": UserRole(
         name="Viewer",
-        permissions=["read:status", "read:logs", "read:processes"],
+        permissions=[
+            "read:status",
+            "read:logs",
+            "read:processes",
+            "read:cron",
+            "read:users",
+        ],
     ),
     "Operator": UserRole(
         name="Operator",
@@ -72,6 +78,11 @@ ROLES = {
             "read:logs",
             "read:processes",
             "execute:service_restart",
+            # Cron ジョブ管理
+            "read:cron",
+            "write:cron",
+            # ユーザー・グループ管理
+            "read:users",
             # 承認関連
             "request:approval",
             "view:approval_policies",
@@ -85,6 +96,12 @@ ROLES = {
             "read:processes",
             "execute:service_restart",
             "approve:dangerous_operation",
+            # Cron ジョブ管理
+            "read:cron",
+            "write:cron",
+            # ユーザー・グループ管理
+            "read:users",
+            "write:users",
             # 承認関連
             "request:approval",
             "view:approval_pending",
@@ -102,6 +119,12 @@ ROLES = {
             "approve:dangerous_operation",
             "manage:users",
             "manage:settings",
+            # Cron ジョブ管理
+            "read:cron",
+            "write:cron",
+            # ユーザー・グループ管理
+            "read:users",
+            "write:users",
             # 承認関連
             "request:approval",
             "view:approval_pending",
@@ -142,6 +165,16 @@ DEMO_USERS_DEV = {
             hashed_password="",
         ),
         "plain_password": "operator123",
+    },
+    "approver@example.com": {
+        "user": User(
+            user_id="user_004",
+            username="approver",
+            email="approver@example.com",
+            role="Approver",
+            hashed_password="",
+        ),
+        "plain_password": "approver123",
     },
     "admin@example.com": {
         "user": User(

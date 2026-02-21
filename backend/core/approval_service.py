@@ -10,6 +10,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Optional
 
 import aiosqlite
@@ -25,7 +26,9 @@ logger = logging.getLogger(__name__)
 # ===================================================================
 
 # HMAC 署名用秘密鍵（環境変数から取得、デフォルトは開発環境用）
-HMAC_SECRET_KEY = getattr(settings, "APPROVAL_HMAC_SECRET", "dev-approval-secret-key-change-in-production")
+HMAC_SECRET_KEY = getattr(
+    settings, "APPROVAL_HMAC_SECRET", "dev-approval-secret-key-change-in-production"
+)
 
 # 承認履歴の許可アクション
 ALLOWED_ACTIONS = {
@@ -50,7 +53,23 @@ ALLOWED_STATUSES = {
 }
 
 # 特殊文字検証（CLAUDE.md のセキュリティ原則準拠）
-FORBIDDEN_CHARS = [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?", "{", "}", "[", "]"]
+FORBIDDEN_CHARS = [
+    ";",
+    "|",
+    "&",
+    "$",
+    "(",
+    ")",
+    "`",
+    ">",
+    "<",
+    "*",
+    "?",
+    "{",
+    "}",
+    "[",
+    "]",
+]
 
 
 # ===================================================================
@@ -156,7 +175,37 @@ class ApprovalService:
             db_path: SQLite データベースファイルパス
         """
         self.db_path = db_path
-        self.audit_log = AuditLog(db_path)
+        self.audit_log = AuditLog()  # デフォルトのログディレクトリを使用
+
+    # ===============================================================
+    # 0. データベース初期化
+    # ===============================================================
+
+    async def initialize_db(self) -> None:
+        """
+        承認ワークフロー用テーブルを作成（DDL実行）
+
+        approval-schema.sql の CREATE TABLE / INDEX / VIEW を実行する。
+        INSERT OR IGNORE のため既存データは影響を受けない。
+        """
+        schema_path = (
+            Path(__file__).parent.parent.parent
+            / "docs"
+            / "database"
+            / "approval-schema.sql"
+        )
+
+        if not schema_path.exists():
+            logger.error(f"Schema file not found: {schema_path}")
+            raise FileNotFoundError(f"Schema file not found: {schema_path}")
+
+        schema_sql = schema_path.read_text(encoding="utf-8")
+
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.executescript(schema_sql)
+            await db.commit()
+
+        logger.info("Approval workflow database initialized successfully")
 
     # ===============================================================
     # 1. 承認リクエスト作成
@@ -248,11 +297,11 @@ class ApprovalService:
             await db.commit()
 
             # 5. 監査ログ記録
-            await self.audit_log.log_action(
-                user_id=requester_id,
+            self.audit_log.record(
                 operation="approval_request_created",
+                user_id=requester_id,
                 target=f"{request_type}:{request_id}",
-                result="success",
+                status="success",
                 details={
                     "request_id": request_id,
                     "request_type": request_type,
@@ -367,11 +416,11 @@ class ApprovalService:
             await db.commit()
 
             # 7. 監査ログ記録
-            await self.audit_log.log_action(
-                user_id=approver_id,
+            self.audit_log.record(
                 operation="approval_approved",
+                user_id=approver_id,
                 target=f"{request['request_type']}:{request_id}",
-                result="success",
+                status="success",
                 details={
                     "request_id": request_id,
                     "requester_id": request["requester_id"],
@@ -434,6 +483,13 @@ class ApprovalService:
             LookupError: リクエストが存在しない
             ValueError: 拒否不可（ステータス不正等）
         """
+        # 拒否理由の FORBIDDEN_CHARS チェック
+        for char in FORBIDDEN_CHARS:
+            if char in rejection_reason:
+                raise ValueError(
+                    f"Forbidden character '{char}' detected in rejection_reason"
+                )
+
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
 
@@ -491,11 +547,11 @@ class ApprovalService:
             await db.commit()
 
             # 5. 監査ログ記録
-            await self.audit_log.log_action(
-                user_id=approver_id,
+            self.audit_log.record(
                 operation="approval_rejected",
+                user_id=approver_id,
                 target=f"{request['request_type']}:{request_id}",
-                result="success",
+                status="success",
                 details={
                     "request_id": request_id,
                     "requester_id": request["requester_id"],
@@ -559,14 +615,18 @@ class ApprovalService:
 
             history = []
             for row in history_rows:
-                history.append({
-                    "action": row["action"],
-                    "actor_id": row["actor_id"],
-                    "actor_name": row["actor_name"],
-                    "actor_role": row["actor_role"],
-                    "timestamp": row["timestamp"],
-                    "details": json.loads(row["details"]) if row["details"] else None,
-                })
+                history.append(
+                    {
+                        "action": row["action"],
+                        "actor_id": row["actor_id"],
+                        "actor_name": row["actor_name"],
+                        "actor_role": row["actor_role"],
+                        "timestamp": row["timestamp"],
+                        "details": (
+                            json.loads(row["details"]) if row["details"] else None
+                        ),
+                    }
+                )
 
             # 3. 結果組み立て
             return {
@@ -647,7 +707,9 @@ class ApprovalService:
                 sort_order = "asc"
 
             # 3. 総件数取得
-            count_query = f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"
+            count_query = (
+                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"
+            )
             async with db.execute(count_query, params) as cursor:
                 total = (await cursor.fetchone())["total"]
 
@@ -677,19 +739,21 @@ class ApprovalService:
                     f"{k}={v}" for k, v in list(payload.items())[:3]
                 )
 
-                requests.append({
-                    "id": row["id"],
-                    "request_type": row["request_type"],
-                    "request_type_description": row["request_type_description"],
-                    "risk_level": row["risk_level"],
-                    "requester_id": row["requester_id"],
-                    "requester_name": row["requester_name"],
-                    "reason": row["reason"],
-                    "created_at": row["created_at"],
-                    "expires_at": row["expires_at"],
-                    "remaining_hours": row["remaining_hours"],
-                    "payload_summary": payload_summary,
-                })
+                requests.append(
+                    {
+                        "id": row["id"],
+                        "request_type": row["request_type"],
+                        "request_type_description": row["request_type_description"],
+                        "risk_level": row["risk_level"],
+                        "requester_id": row["requester_id"],
+                        "requester_name": row["requester_name"],
+                        "reason": row["reason"],
+                        "created_at": row["created_at"],
+                        "expires_at": row["expires_at"],
+                        "remaining_hours": row["remaining_hours"],
+                        "payload_summary": payload_summary,
+                    }
+                )
 
             return {
                 "total": total,
@@ -741,7 +805,9 @@ class ApprovalService:
             where_sql = " AND ".join(where_clauses)
 
             # 2. 総件数取得
-            count_query = f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"
+            count_query = (
+                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"
+            )
             async with db.execute(count_query, params) as cursor:
                 total = (await cursor.fetchone())["total"]
 
@@ -764,19 +830,21 @@ class ApprovalService:
 
             requests = []
             for row in rows:
-                requests.append({
-                    "id": row["id"],
-                    "request_type": row["request_type"],
-                    "request_type_description": row["request_type_description"],
-                    "risk_level": row["risk_level"],
-                    "status": row["status"],
-                    "reason": row["reason"],
-                    "created_at": row["created_at"],
-                    "expires_at": row["expires_at"],
-                    "approved_by_name": row["approved_by_name"],
-                    "approved_at": row["approved_at"],
-                    "rejection_reason": row["rejection_reason"],
-                })
+                requests.append(
+                    {
+                        "id": row["id"],
+                        "request_type": row["request_type"],
+                        "request_type_description": row["request_type_description"],
+                        "risk_level": row["risk_level"],
+                        "status": row["status"],
+                        "reason": row["reason"],
+                        "created_at": row["created_at"],
+                        "expires_at": row["expires_at"],
+                        "approved_by_name": row["approved_by_name"],
+                        "approved_at": row["approved_at"],
+                        "rejection_reason": row["rejection_reason"],
+                    }
+                )
 
             return {
                 "total": total,
@@ -862,11 +930,11 @@ class ApprovalService:
             await db.commit()
 
             # 6. 監査ログ記録
-            await self.audit_log.log_action(
-                user_id=requester_id,
+            self.audit_log.record(
                 operation="approval_cancelled",
+                user_id=requester_id,
                 target=f"{request['request_type']}:{request_id}",
-                result="success",
+                status="success",
                 details={"request_id": request_id, "reason": reason},
             )
 
@@ -890,12 +958,16 @@ class ApprovalService:
             db.row_factory = aiosqlite.Row
 
             # 1. 期限切れリクエスト取得
+            # Python isoformat() (T区切り) と SQLite datetime() (空白区切り) の
+            # 形式差異を回避するため、Python 側で現在時刻を生成して渡す
+            now_iso = datetime.utcnow().isoformat()
             async with db.execute(
                 """
                 SELECT * FROM approval_requests
                 WHERE status = 'pending'
-                AND expires_at < datetime('now')
+                AND expires_at < ?
                 """,
+                (now_iso,),
             ) as cursor:
                 expired_requests = await cursor.fetchall()
 
@@ -972,6 +1044,191 @@ class ApprovalService:
                 signature,
             ),
         )
+
+    # ===============================================================
+    # 9. 汎用リクエスト一覧取得
+    # ===============================================================
+
+    async def list_requests(
+        self,
+        status: Optional[str] = None,
+        requester_id: Optional[str] = None,
+        request_type: Optional[str] = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+        page: int = 1,
+        per_page: int = 20,
+    ) -> dict:
+        """
+        承認リクエストの汎用一覧取得（Admin/Approver向け全件、その他は自分のみ）
+
+        Args:
+            status: ステータスフィルタ（任意）
+            requester_id: 申請者IDフィルタ（任意）
+            request_type: 操作種別フィルタ（任意）
+            sort_by: ソートキー（created_at, expires_at, request_type, status）
+            sort_order: ソート順（asc/desc）
+            page: ページ番号
+            per_page: 1ページあたり件数
+
+        Returns:
+            リクエスト一覧（ページネーション付き）
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            where_clauses = []
+            params = []
+
+            if status:
+                if status not in ALLOWED_STATUSES:
+                    raise ValueError(f"Invalid status filter: {status}")
+                where_clauses.append("r.status = ?")
+                params.append(status)
+
+            if requester_id:
+                where_clauses.append("r.requester_id = ?")
+                params.append(requester_id)
+
+            if request_type:
+                where_clauses.append("r.request_type = ?")
+                params.append(request_type)
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+            # ソート順の検証
+            allowed_sort_keys = {"created_at", "expires_at", "request_type", "status"}
+            if sort_by not in allowed_sort_keys:
+                sort_by = "created_at"
+            if sort_order.lower() not in {"asc", "desc"}:
+                sort_order = "desc"
+
+            # 総件数取得
+            count_query = (
+                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"
+            )
+            async with db.execute(count_query, params) as cursor:
+                total = (await cursor.fetchone())["total"]
+
+            # リクエスト一覧取得
+            offset = (page - 1) * per_page
+            query = f"""
+                SELECT
+                    r.*,
+                    p.description AS request_type_description,
+                    p.risk_level
+                FROM approval_requests r
+                JOIN approval_policies p ON r.request_type = p.operation_type
+                WHERE {where_sql}
+                ORDER BY r.{sort_by} {sort_order}
+                LIMIT ? OFFSET ?
+            """
+
+            async with db.execute(query, params + [per_page, offset]) as cursor:
+                rows = await cursor.fetchall()
+
+            requests = []
+            for row in rows:
+                requests.append(
+                    {
+                        "id": row["id"],
+                        "request_type": row["request_type"],
+                        "request_type_description": row["request_type_description"],
+                        "risk_level": row["risk_level"],
+                        "requester_id": row["requester_id"],
+                        "requester_name": row["requester_name"],
+                        "reason": row["reason"],
+                        "status": row["status"],
+                        "created_at": row["created_at"],
+                        "expires_at": row["expires_at"],
+                        "approved_by_name": row["approved_by_name"],
+                        "approved_at": row["approved_at"],
+                        "rejection_reason": row["rejection_reason"],
+                    }
+                )
+
+            return {
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "requests": requests,
+            }
+
+    # ===============================================================
+    # 10. ポリシー取得
+    # ===============================================================
+
+    async def get_policy(self, operation_type: str) -> dict:
+        """
+        承認ポリシーを取得
+
+        Args:
+            operation_type: 操作種別
+
+        Returns:
+            ポリシー情報
+
+        Raises:
+            LookupError: ポリシーが存在しない
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM approval_policies WHERE operation_type = ?",
+                (operation_type,),
+            ) as cursor:
+                policy = await cursor.fetchone()
+
+            if not policy:
+                raise LookupError(f"Approval policy not found: {operation_type}")
+
+            return {
+                "id": policy["id"],
+                "operation_type": policy["operation_type"],
+                "description": policy["description"],
+                "approval_required": bool(policy["approval_required"]),
+                "approver_roles": json.loads(policy["approver_roles"]),
+                "approval_count": policy["approval_count"],
+                "timeout_hours": policy["timeout_hours"],
+                "auto_execute": bool(policy["auto_execute"]),
+                "risk_level": policy["risk_level"],
+            }
+
+    async def list_policies(self) -> list[dict]:
+        """
+        全承認ポリシーの一覧を取得
+
+        Returns:
+            ポリシー一覧
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM approval_policies ORDER BY id"
+            ) as cursor:
+                policies = await cursor.fetchall()
+
+            result = []
+            for policy in policies:
+                result.append(
+                    {
+                        "id": policy["id"],
+                        "operation_type": policy["operation_type"],
+                        "description": policy["description"],
+                        "approval_required": bool(policy["approval_required"]),
+                        "approver_roles": json.loads(policy["approver_roles"]),
+                        "approval_count": policy["approval_count"],
+                        "timeout_hours": policy["timeout_hours"],
+                        "auto_execute": bool(policy["auto_execute"]),
+                        "risk_level": policy["risk_level"],
+                    }
+                )
+
+            return result
+
+    # ===============================================================
+    # 内部メソッド
+    # ===============================================================
 
     async def _expire_request(
         self,

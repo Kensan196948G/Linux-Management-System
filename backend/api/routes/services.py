@@ -25,7 +25,9 @@ router = APIRouter(prefix="/services", tags=["services"])
 class ServiceRestartRequest(BaseModel):
     """サービス再起動リクエスト"""
 
-    service_name: str = Field(..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$")
+    service_name: str = Field(
+        ..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$"
+    )
 
 
 class ServiceRestartResponse(BaseModel):

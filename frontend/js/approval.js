@@ -74,7 +74,7 @@ class ApprovalManager {
      */
     async loadCurrentUser() {
         try {
-            const response = await api.get('/auth/me');
+            const response = await api.request('GET', '/api/auth/me');
             if (response.status === 'success') {
                 this.currentUser = response.user;
                 console.log('Current user:', this.currentUser);
@@ -100,7 +100,7 @@ class ApprovalManager {
      */
     async loadPolicies() {
         try {
-            const response = await api.get('/approval/policies');
+            const response = await api.request('GET', '/api/approval/policies');
             if (response.status === 'success') {
                 this.policies = response.policies;
                 console.log('Policies loaded:', this.policies.length);
@@ -118,7 +118,7 @@ class ApprovalManager {
      */
     async loadStats() {
         try {
-            const response = await api.get('/approval/stats?period=30d');
+            const response = await api.request('GET', '/api/approval/stats?period=30d');
             if (response.status === 'success') {
                 this.stats = response.stats;
                 console.log('Stats loaded:', this.stats);
@@ -262,7 +262,7 @@ class ApprovalManager {
             params.append('sort_by', sortBy);
             params.append('sort_order', 'asc');
 
-            const response = await api.get(`/approval/pending?${params.toString()}`);
+            const response = await api.request('GET', `/api/approval/pending?${params.toString()}`);
             if (response.status === 'success') {
                 this.pendingRequests = response.requests || [];
                 console.log('Pending requests loaded:', this.pendingRequests.length);
@@ -295,7 +295,7 @@ class ApprovalManager {
             if (statusFilter) params.append('status', statusFilter);
             if (typeFilter) params.append('request_type', typeFilter);
 
-            const response = await api.get(`/approval/my-requests?${params.toString()}`);
+            const response = await api.request('GET', `/api/approval/my-requests?${params.toString()}`);
             if (response.status === 'success') {
                 this.myRequests = response.requests || [];
                 console.log('My requests loaded:', this.myRequests.length);
@@ -329,7 +329,7 @@ class ApprovalManager {
             if (typeFilter) params.append('request_type', typeFilter);
             if (actionFilter) params.append('action', actionFilter);
 
-            const response = await api.get(`/approval/history?${params.toString()}`);
+            const response = await api.request('GET', `/api/approval/history?${params.toString()}`);
             if (response.status === 'success') {
                 this.historyEntries = response.history || [];
                 console.log('History entries loaded:', this.historyEntries.length);
@@ -575,7 +575,7 @@ class ApprovalManager {
         }
 
         try {
-            const response = await api.get(`/approval/${requestId}`);
+            const response = await api.request('GET', `/api/approval/${requestId}`);
             if (response.status === 'success') {
                 const request = response.request;
                 this.renderRequestDetail(request);
@@ -774,7 +774,7 @@ class ApprovalManager {
         const comment = document.getElementById('approve-comment')?.value || '';
 
         try {
-            const response = await api.post(`/approval/${this.currentRequestId}/approve`, {
+            const response = await api.request('POST', `/api/approval/${this.currentRequestId}/approve`, {
                 comment: comment
             });
 
@@ -809,7 +809,7 @@ class ApprovalManager {
         }
 
         try {
-            const response = await api.post(`/approval/${this.currentRequestId}/reject`, {
+            const response = await api.request('POST', `/api/approval/${this.currentRequestId}/reject`, {
                 reason: reason
             });
 
@@ -839,7 +839,7 @@ class ApprovalManager {
         if (!confirm('この申請をキャンセルしますか?')) return;
 
         try {
-            const response = await api.post(`/approval/${this.currentRequestId}/cancel`, {
+            const response = await api.request('POST', `/api/approval/${this.currentRequestId}/cancel`, {
                 reason: 'ユーザーによるキャンセル'
             });
 

@@ -140,7 +140,9 @@ async def list_processes(
             details={"returned_processes": result.get("returned_processes", 0)},
         )
 
-        logger.info(f"Process list retrieved: {result.get('returned_processes', 0)} processes")
+        logger.info(
+            f"Process list retrieved: {result.get('returned_processes', 0)} processes"
+        )
 
         return ProcessListResponse(**result)
 

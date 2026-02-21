@@ -57,6 +57,9 @@ function showPage(pageName) {
         'audit-log': 'System Actions Log - 操作ログ',
         'disk': 'Local Disk - ディスク使用状況',
         'logs': 'System Logs - ログ閲覧',
+        'users': 'Users and Groups - ユーザー・グループ',
+        'cron': 'Cron Jobs - Cronジョブ',
+        'approvals': 'Approval Workflow - 承認ワークフロー',
         'firewall': 'Linux Firewall - ファイアウォール管理',
         'network-config': 'Network Configuration - ネットワーク設定',
         'routing': 'Routing and Gateways - ルーティング',
@@ -82,6 +85,15 @@ function showPage(pageName) {
         case 'dashboard':
             showDashboardPage(mainBody);
             break;
+        case 'users':
+            location.href = 'users.html';
+            return;
+        case 'cron':
+            location.href = 'cron.html';
+            return;
+        case 'approvals':
+            location.href = 'approval.html';
+            return;
         case 'services':
             showServicesPage(mainBody);
             break;

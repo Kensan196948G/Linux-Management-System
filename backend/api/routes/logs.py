@@ -40,7 +40,9 @@ class LogsResponse(BaseModel):
 
 @router.get("/{service_name}", response_model=LogsResponse)
 async def get_service_logs(
-    service_name: str = Path(..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$"),
+    service_name: str = Path(
+        ..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$"
+    ),
     lines: int = Query(100, ge=1, le=1000, description="取得行数（1-1000）"),
     current_user: TokenData = Depends(require_permission("read:logs")),
 ):

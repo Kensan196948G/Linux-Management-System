@@ -3,9 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>【開発】Linux Management System</title>
+    <title>Users & Groups - Linux Management System</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        /* ユーザーテーブル専用スタイル */
+        .users-table {
+            width: 100%;
+            font-size: 14px;
+        }
+
+        .users-table th {
+            background-color: #2c3e50;
+            color: white;
+            padding: 10px 8px;
+            font-weight: bold;
+            border-bottom: 2px solid #34495e;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .users-table td {
+            padding: 8px;
+            border-bottom: 1px solid #ecf0f1;
+            vertical-align: middle;
+        }
+
+        .users-table tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        /* コントロールバー */
+        .controls-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .control-group select,
+        .control-group input {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        /* タブスタイル */
+        .tab-header {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 10px 24px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 15px;
+            font-weight: 600;
+            color: #6c757d;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: #2c3e50;
+        }
+
+        .tab-btn.active {
+            color: #2c3e50;
+            border-bottom-color: #3498db;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ステータスバッジ */
+        .badge-locked { background-color: #ef4444; }
+        .badge-active { background-color: #10b981; }
+
+        /* パスワード強度バー */
+        .password-strength {
+            height: 4px;
+            border-radius: 2px;
+            margin-top: 4px;
+            transition: all 0.3s;
+        }
+
+        .strength-weak { background-color: #ef4444; width: 25%; }
+        .strength-fair { background-color: #f59e0b; width: 50%; }
+        .strength-good { background-color: #3b82f6; width: 75%; }
+        .strength-strong { background-color: #10b981; width: 100%; }
+
+        /* 統計カード */
+        .stats-card {
+            background: linear-gradient(135deg, #3498db, #2c3e50);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .stat-item {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
     <div class="app-layout">
@@ -20,7 +167,7 @@
 
             <nav class="sidebar-menu">
                 <!-- ダッシュボード -->
-                <div class="menu-item active" onclick="location.href='dashboard.html'">
+                <div class="menu-item" onclick="location.href='dashboard.html'">
                     <span class="menu-item-icon">📊</span>
                     <span>ダッシュボード</span>
                 </div>
@@ -44,11 +191,11 @@
                                 <div class="submenu-item-name">システムユーザー</div>
                                 <div class="submenu-item-badge">計画中</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('services')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=services'">
                                 <div class="submenu-item-name">システムサーバー</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('audit-log')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=audit-log'">
                                 <div class="submenu-item-name">システム操作ログ</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
@@ -87,11 +234,11 @@
                                 <div class="submenu-item-name">ディスククォータ</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('disk')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=disk'">
                                 <div class="submenu-item-name">ローカルディスク</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
-                            <div class="submenu-item" onclick="location.href='users.html'">
+                            <div class="submenu-item active" onclick="location.href='users.html'">
                                 <div class="submenu-item-name">ユーザー・グループ</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
@@ -122,7 +269,7 @@
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
-                            <div class="submenu-item" onclick="showPage('logs')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=logs'">
                                 <div class="submenu-item-name">システムログ</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
@@ -204,23 +351,23 @@
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
-                            <div class="submenu-item" onclick="showPage('firewall')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html'">
                                 <div class="submenu-item-name">Linuxファイアウォール</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('network-config')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html'">
                                 <div class="submenu-item-name">ネットワーク設定</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('routing')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html'">
                                 <div class="submenu-item-name">ルーティング・ゲートウェイ</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('netstat')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html'">
                                 <div class="submenu-item-name">ネットワーク統計</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('bandwidth')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html'">
                                 <div class="submenu-item-name">帯域幅モニタリング</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
@@ -239,19 +386,19 @@
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
-                            <div class="submenu-item" onclick="showPage('partitions')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html'">
                                 <div class="submenu-item-name">ローカルディスクパーティション</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('system-time')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html'">
                                 <div class="submenu-item-name">システム時刻</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('smart-status')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html'">
                                 <div class="submenu-item-name">SMARTドライブ状態</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('sensors')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html'">
                                 <div class="submenu-item-name">センサー (lm-sensors)</div>
                                 <div class="submenu-item-badge">サンプル</div>
                             </div>
@@ -302,7 +449,7 @@
                     </div>
                 </div>
 
-                <!-- システム設定 カテゴリ（新規） -->
+                <!-- システム設定 カテゴリ -->
                 <div class="accordion-item">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
                         <div class="accordion-title">
@@ -329,7 +476,7 @@
                                 <div class="submenu-item-name">通知設定</div>
                                 <div class="submenu-item-badge">v0.3</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('dashboard')">
+                            <div class="submenu-item" onclick="location.href='dashboard.html?page=dashboard'">
                                 <div class="submenu-item-name">システム情報</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
@@ -342,7 +489,6 @@
                 </div>
             </nav>
 
-            <!-- サイドバーフッター -->
             <div class="sidebar-footer">
                 <div class="user-info" onclick="toggleUserMenu(event)">
                     <div class="user-avatar">
@@ -380,20 +526,278 @@
         <!-- メインコンテンツ -->
         <main class="main-content">
             <div class="main-header">
-                <h2 id="page-title">ダッシュボード</h2>
+                <h2 id="page-title">👥 ユーザー・グループ管理</h2>
             </div>
 
             <div class="main-body" id="main-body">
-                <!-- ページコンテンツがここに表示される -->
+                <!-- アラートコンテナ -->
+                <div id="usersAlertContainer"></div>
+
+                <!-- 統計カード -->
+                <div class="stats-card" id="usersStatsCard" style="display: none;">
+                    <h5>📊 ユーザー統計</h5>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">総ユーザー数</div>
+                            <div class="stat-value" id="stat-total-users">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">アクティブ</div>
+                            <div class="stat-value" id="stat-active-users">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">ロック済み</div>
+                            <div class="stat-value" id="stat-locked-users">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">グループ数</div>
+                            <div class="stat-value" id="stat-total-groups">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- タブヘッダー -->
+                <div class="tab-header">
+                    <button class="tab-btn active" data-tab="users" id="tabBtnUsers">
+                        <i class="bi bi-people"></i> ユーザー
+                    </button>
+                    <button class="tab-btn" data-tab="groups" id="tabBtnGroups">
+                        <i class="bi bi-diagram-3"></i> グループ
+                    </button>
+                </div>
+
+                <!-- ユーザータブ -->
+                <div class="tab-content active" id="tabUsers">
+                    <!-- フィルタコントロール -->
+                    <div class="controls-bar">
+                        <div class="control-group">
+                            <label for="sortBy">ソート</label>
+                            <select id="sortBy">
+                                <option value="username">ユーザー名</option>
+                                <option value="uid">UID</option>
+                                <option value="last_login">最終ログイン</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group">
+                            <label for="filterLocked">ステータス</label>
+                            <select id="filterLocked">
+                                <option value="">全て</option>
+                                <option value="false">アクティブのみ</option>
+                                <option value="true">ロック済みのみ</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group">
+                            <label for="limitCount">表示数</label>
+                            <select id="limitCount">
+                                <option value="50">50</option>
+                                <option value="100" selected>100</option>
+                                <option value="200">200</option>
+                                <option value="500">500</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group" style="margin-left: auto;">
+                            <label>&nbsp;</label>
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn btn-sm btn-primary" id="addUserBtn" style="display: none;">
+                                    <i class="bi bi-person-plus"></i> ユーザー追加
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" id="refreshBtn">
+                                    <i class="bi bi-arrow-clockwise"></i> 更新
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" id="autoRefreshBtn" title="自動更新: OFF">
+                                    <i class="bi bi-clock"></i> 自動更新
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ステータス表示 -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span id="usersStatusText" class="text-muted small"></span>
+                        <span id="usersLoadingSpinner" style="display: none;">
+                            <span class="spinner-border spinner-border-sm"></span> 読み込み中...
+                        </span>
+                    </div>
+
+                    <!-- ユーザーテーブル -->
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover users-table">
+                            <thead>
+                                <tr>
+                                    <th>ユーザー名</th>
+                                    <th>UID</th>
+                                    <th>GID</th>
+                                    <th>説明</th>
+                                    <th>ホーム</th>
+                                    <th>シェル</th>
+                                    <th>グループ</th>
+                                    <th>状態</th>
+                                    <th>最終ログイン</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr>
+                                    <td colspan="10" class="text-center text-muted py-4">読み込み中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- グループタブ -->
+                <div class="tab-content" id="tabGroups">
+                    <div class="controls-bar">
+                        <div class="control-group" style="margin-left: auto;">
+                            <label>&nbsp;</label>
+                            <button class="btn btn-sm btn-outline-secondary" id="refreshGroupsBtn">
+                                <i class="bi bi-arrow-clockwise"></i> 更新
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover users-table">
+                            <thead>
+                                <tr>
+                                    <th>グループ名</th>
+                                    <th>GID</th>
+                                    <th>メンバー</th>
+                                </tr>
+                            </thead>
+                            <tbody id="groupsTableBody">
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">読み込み中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
 
+    <!-- ユーザー追加モーダル -->
+    <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addUserModalLabel">ユーザー追加</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="addUserForm">
+                    <div class="modal-body">
+                        <div id="addUserModalAlert"></div>
+
+                        <div class="mb-3">
+                            <label for="newUsername" class="form-label">ユーザー名</label>
+                            <input type="text" class="form-control" id="newUsername" required
+                                pattern="^[a-z_][a-z0-9_-]{0,31}$" maxlength="32"
+                                placeholder="例: new-user">
+                            <div class="form-text">小文字英字, 数字, ハイフン, アンダースコアのみ（32文字以内）</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">パスワード</label>
+                            <input type="password" class="form-control" id="newPassword" required minlength="8">
+                            <div class="password-strength" id="passwordStrengthBar"></div>
+                            <div class="form-text" id="passwordStrengthText"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="newPasswordConfirm" class="form-label">パスワード（確認）</label>
+                            <input type="password" class="form-control" id="newPasswordConfirm" required minlength="8">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="newUserGecos" class="form-label">説明（GECOS）</label>
+                            <input type="text" class="form-control" id="newUserGecos" maxlength="100"
+                                placeholder="例: Taro Yamada">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="newUserShell" class="form-label">シェル</label>
+                            <select class="form-select" id="newUserShell">
+                                <option value="/bin/bash">/bin/bash</option>
+                                <option value="/bin/sh">/bin/sh</option>
+                                <option value="/usr/sbin/nologin">/usr/sbin/nologin</option>
+                                <option value="/bin/false">/bin/false</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                        <button type="submit" class="btn btn-primary" id="submitAddUser">追加</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ユーザー詳細モーダル -->
+    <div class="modal fade" id="userDetailModal" tabindex="-1" aria-labelledby="userDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="userDetailModalLabel">ユーザー詳細</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="userDetailBody">
+                    <p class="text-muted">読み込み中...</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- パスワード変更モーダル -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="changePasswordModalLabel">パスワード変更</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="changePasswordForm">
+                    <div class="modal-body">
+                        <div id="changePasswordModalAlert"></div>
+                        <p>対象ユーザー: <strong id="changePasswordUsername">-</strong></p>
+
+                        <div class="mb-3">
+                            <label for="chgNewPassword" class="form-label">新しいパスワード</label>
+                            <input type="password" class="form-control" id="chgNewPassword" required minlength="8">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="chgNewPasswordConfirm" class="form-label">新しいパスワード（確認）</label>
+                            <input type="password" class="form-control" id="chgNewPasswordConfirm" required minlength="8">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                        <button type="submit" class="btn btn-warning" id="submitChangePassword">変更</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="../js/api.js"></script>
-    <script src="../js/components.js"></script>
     <script src="../js/sidebar.js"></script>
-    <script src="../js/pages.js"></script>
-    <script src="../js/app-dashboard.js"></script>
+    <script src="../js/users.js"></script>
+    <script>
+        // ログアウト関数
+        function logout() {
+            localStorage.removeItem('access_token');
+            window.location.href = '/dev/index.html';
+        }
+    </script>
 </body>
 </html>

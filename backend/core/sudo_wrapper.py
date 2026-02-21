@@ -43,7 +43,9 @@ class SudoWrapper:
                 f"using development directory: {self.wrapper_dir}"
             )
 
-    def _execute(self, wrapper_name: str, args: list[str], timeout: int = 30) -> Dict[str, Any]:
+    def _execute(
+        self, wrapper_name: str, args: list[str], timeout: int = 30
+    ) -> Dict[str, Any]:
         """
         ラッパースクリプトを実行
 
@@ -182,6 +184,396 @@ class SudoWrapper:
             args.append(f"--min-mem={min_mem}")
 
         return self._execute("adminui-processes.sh", args, timeout=10)
+
+    def _execute_with_stdin(
+        self, wrapper_name: str, args: list[str], stdin_data: str, timeout: int = 30
+    ) -> Dict[str, Any]:
+        """
+        ラッパースクリプトを stdin データ付きで実行
+
+        Args:
+            wrapper_name: ラッパースクリプト名
+            args: 引数リスト
+            stdin_data: stdin に渡すデータ
+            timeout: タイムアウト（秒）
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        wrapper_path = self.wrapper_dir / wrapper_name
+
+        if not wrapper_path.exists():
+            error_msg = f"Wrapper script not found: {wrapper_path}"
+            logger.error(error_msg)
+            raise SudoWrapperError(error_msg)
+
+        cmd = ["sudo", str(wrapper_path)] + args
+
+        logger.info(f"Executing wrapper (with stdin): {wrapper_name}, args={args}")
+
+        try:
+            result = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                input=stdin_data,
+                timeout=timeout,
+            )
+
+            logger.info(f"Wrapper execution successful: {wrapper_name}")
+
+            try:
+                output = json.loads(result.stdout)
+                return output
+            except json.JSONDecodeError:
+                return {"status": "success", "output": result.stdout.strip()}
+
+        except subprocess.TimeoutExpired:
+            error_msg = f"Wrapper execution timed out: {wrapper_name}"
+            logger.error(error_msg)
+            raise SudoWrapperError(error_msg)
+
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Wrapper execution failed: {wrapper_name}"
+            logger.error(f"{error_msg}, stderr={e.stderr}")
+
+            try:
+                error_data = json.loads(e.stderr or e.stdout or "{}")
+                return error_data
+            except json.JSONDecodeError:
+                raise SudoWrapperError(f"{error_msg}: {e.stderr}")
+
+        except Exception as e:
+            error_msg = f"Unexpected error during wrapper execution: {wrapper_name}"
+            logger.error(f"{error_msg}: {e}")
+            raise SudoWrapperError(f"{error_msg}: {str(e)}")
+
+    # ===================================================================
+    # ユーザー管理
+    # ===================================================================
+
+    def list_users(
+        self,
+        sort_by: str = "username",
+        limit: int = 100,
+        filter_locked: str | None = None,
+        username_filter: str | None = None,
+    ) -> Dict[str, Any]:
+        """
+        ユーザー一覧を取得
+
+        Args:
+            sort_by: ソートキー (username/uid/last_login)
+            limit: 取得件数 (1-500)
+            filter_locked: ロック状態フィルタ (true/false)
+            username_filter: ユーザー名フィルタ
+
+        Returns:
+            ユーザー一覧の辞書
+        """
+        args = [
+            f"--sort={sort_by}",
+            f"--limit={limit}",
+        ]
+
+        if filter_locked is not None:
+            args.append(f"--filter-locked={filter_locked}")
+        if username_filter:
+            args.append(f"--username-filter={username_filter}")
+
+        return self._execute("adminui-user-list.sh", args, timeout=10)
+
+    def get_user_detail(
+        self,
+        username: str | None = None,
+        uid: int | None = None,
+    ) -> Dict[str, Any]:
+        """
+        ユーザー詳細情報を取得
+
+        Args:
+            username: ユーザー名（username か uid のどちらか一方を指定）
+            uid: UID
+
+        Returns:
+            ユーザー詳細の辞書
+        """
+        args = []
+        if username is not None:
+            args.append(f"--username={username}")
+        elif uid is not None:
+            args.append(f"--uid={uid}")
+
+        return self._execute("adminui-user-detail.sh", args, timeout=10)
+
+    def add_user(
+        self,
+        username: str,
+        password_hash: str,
+        shell: str = "/bin/bash",
+        gecos: str = "",
+        groups: list[str] | None = None,
+    ) -> Dict[str, Any]:
+        """
+        ユーザーを作成
+
+        Args:
+            username: ユーザー名
+            password_hash: bcrypt パスワードハッシュ（stdin 経由で渡す）
+            shell: ログインシェル
+            gecos: GECOS フィールド（フルネーム等）
+            groups: 追加グループリスト
+
+        Returns:
+            作成結果の辞書
+        """
+        args = [
+            f"--username={username}",
+            f"--shell={shell}",
+        ]
+
+        if gecos:
+            args.append(f"--gecos={gecos}")
+        if groups:
+            args.append(f"--groups={','.join(groups)}")
+
+        return self._execute_with_stdin(
+            "adminui-user-add.sh", args, stdin_data=password_hash, timeout=15
+        )
+
+    def delete_user(
+        self,
+        username: str,
+        remove_home: bool = False,
+        backup_home: bool = False,
+        force_logout: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        ユーザーを削除
+
+        Args:
+            username: ユーザー名
+            remove_home: ホームディレクトリを削除するか
+            backup_home: ホームディレクトリをバックアップするか
+            force_logout: アクティブセッションを強制ログアウトするか
+
+        Returns:
+            削除結果の辞書
+        """
+        args = [f"--username={username}"]
+
+        if remove_home:
+            args.append("--remove-home")
+        if backup_home:
+            args.append("--backup-home")
+        if force_logout:
+            args.append("--force-logout")
+
+        return self._execute("adminui-user-delete.sh", args, timeout=30)
+
+    def change_user_password(
+        self,
+        username: str,
+        password_hash: str,
+    ) -> Dict[str, Any]:
+        """
+        ユーザーパスワードを変更
+
+        Args:
+            username: ユーザー名
+            password_hash: bcrypt パスワードハッシュ（stdin 経由で渡す）
+
+        Returns:
+            変更結果の辞書
+        """
+        return self._execute_with_stdin(
+            "adminui-user-passwd.sh",
+            [f"--username={username}"],
+            stdin_data=password_hash,
+            timeout=10,
+        )
+
+    # ===================================================================
+    # グループ管理
+    # ===================================================================
+
+    def list_groups(
+        self,
+        sort_by: str = "name",
+        limit: int = 100,
+    ) -> Dict[str, Any]:
+        """
+        グループ一覧を取得
+
+        Args:
+            sort_by: ソートキー (name/gid/member_count)
+            limit: 取得件数 (1-500)
+
+        Returns:
+            グループ一覧の辞書
+        """
+        args = [
+            f"--sort={sort_by}",
+            f"--limit={limit}",
+        ]
+
+        return self._execute("adminui-group-list.sh", args, timeout=10)
+
+    def add_group(self, name: str) -> Dict[str, Any]:
+        """
+        グループを作成
+
+        Args:
+            name: グループ名
+
+        Returns:
+            作成結果の辞書
+        """
+        return self._execute("adminui-group-add.sh", [f"--name={name}"], timeout=10)
+
+    def delete_group(self, name: str) -> Dict[str, Any]:
+        """
+        グループを削除
+
+        Args:
+            name: グループ名
+
+        Returns:
+            削除結果の辞書
+        """
+        return self._execute("adminui-group-delete.sh", [f"--name={name}"], timeout=10)
+
+    def modify_group_membership(
+        self,
+        group: str,
+        action: str,
+        user: str,
+    ) -> Dict[str, Any]:
+        """
+        グループメンバーシップを変更
+
+        Args:
+            group: グループ名
+            action: アクション ("add" or "remove")
+            user: 対象ユーザー名
+
+        Returns:
+            変更結果の辞書
+        """
+        return self._execute(
+            "adminui-group-modify.sh",
+            [f"--group={group}", f"--action={action}", f"--user={user}"],
+            timeout=10,
+        )
+
+    # ===================================================================
+    # Cron ジョブ管理
+    # ===================================================================
+
+    def list_cron_jobs(self, username: str) -> Dict[str, Any]:
+        """
+        指定ユーザーの cron ジョブ一覧を取得
+
+        Args:
+            username: 対象ユーザー名
+
+        Returns:
+            cron ジョブ一覧の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-cron-list.sh", [username], timeout=10)
+
+    def add_cron_job(
+        self,
+        username: str,
+        schedule: str,
+        command: str,
+        arguments: str = "",
+        comment: str = "",
+    ) -> Dict[str, Any]:
+        """
+        指定ユーザーに cron ジョブを追加
+
+        Args:
+            username: 対象ユーザー名
+            schedule: cron スケジュール式 (例: "0 2 * * *")
+            command: 実行コマンド（絶対パス、allowlist 検証済み）
+            arguments: コマンド引数
+            comment: ジョブの説明コメント
+
+        Returns:
+            追加結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        args = [username, schedule, command]
+        if arguments:
+            args.append(arguments)
+            if comment:
+                args.append(comment)
+        elif comment:
+            # 引数なしでコメントありの場合、空文字列の引数を挿入
+            args.append("")
+            args.append(comment)
+
+        return self._execute("adminui-cron-add.sh", args, timeout=10)
+
+    def remove_cron_job(
+        self,
+        username: str,
+        line_number: int,
+    ) -> Dict[str, Any]:
+        """
+        指定ユーザーの cron ジョブを削除（コメントアウト方式）
+
+        Args:
+            username: 対象ユーザー名
+            line_number: 削除対象の行番号
+
+        Returns:
+            削除結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute(
+            "adminui-cron-remove.sh",
+            [username, str(line_number)],
+            timeout=10,
+        )
+
+    def toggle_cron_job(
+        self,
+        username: str,
+        line_number: int,
+        action: str,
+    ) -> Dict[str, Any]:
+        """
+        指定ユーザーの cron ジョブの有効/無効を切り替え
+
+        Args:
+            username: 対象ユーザー名
+            line_number: 対象の行番号
+            action: "enable" または "disable"
+
+        Returns:
+            切替結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute(
+            "adminui-cron-toggle.sh",
+            [username, str(line_number), action],
+            timeout=10,
+        )
 
 
 # グローバルインスタンス

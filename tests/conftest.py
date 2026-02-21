@@ -44,6 +44,23 @@ def auth_headers(auth_token):
 
 
 @pytest.fixture
+def approver_token(test_client):
+    """Approver ユーザーのトークン"""
+    response = test_client.post(
+        "/api/auth/login",
+        json={"email": "approver@example.com", "password": "approver123"},
+    )
+    assert response.status_code == 200
+    return response.json()["access_token"]
+
+
+@pytest.fixture
+def approver_headers(approver_token):
+    """Approver ユーザーの認証ヘッダー"""
+    return {"Authorization": f"Bearer {approver_token}"}
+
+
+@pytest.fixture
 def admin_token(test_client):
     """Admin ユーザーのトークン"""
     response = test_client.post(
@@ -134,3 +151,32 @@ def audit_log():
 
     mock_log.record.side_effect = record_side_effect
     return mock_log
+
+
+@pytest.fixture
+def approval_db_path(tmp_path):
+    """テスト用 SQLite データベースパスを生成"""
+    return str(tmp_path / "test_approval.db")
+
+
+@pytest.fixture
+def approval_service(approval_db_path):
+    """テスト用 ApprovalService（DB初期化済み）"""
+    import asyncio
+    from backend.core.approval_service import ApprovalService
+
+    service = ApprovalService(db_path=approval_db_path)
+    asyncio.get_event_loop().run_until_complete(service.initialize_db())
+    return service
+
+
+@pytest.fixture
+def approval_service_with_mock_audit(approval_db_path, audit_log):
+    """テスト用 ApprovalService（監査ログモック付き）"""
+    import asyncio
+    from backend.core.approval_service import ApprovalService
+
+    service = ApprovalService(db_path=approval_db_path)
+    service.audit_log = audit_log
+    asyncio.get_event_loop().run_until_complete(service.initialize_db())
+    return service

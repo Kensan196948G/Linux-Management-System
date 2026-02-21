@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/approval", tags=["Approval Workflow"])
 
 # ApprovalService インスタンス
-approval_service = ApprovalService(db_path=settings.database_path)
+approval_service = ApprovalService(db_path=settings.database.path)
 
 
 # ===================================================================
@@ -107,10 +107,15 @@ async def create_approval_request(
             requester_role=current_user.role,
         )
 
+        # result に含まれる "status" (DB上の "pending") と
+        # API レスポンスの "status": "success" が衝突するため、
+        # result の "status" を "request_status" にリネームして返す
+        request_status = result.pop("status", None)
         return {
             "status": "success",
             "message": "承認リクエストを作成しました。Approver/Admin の承認をお待ちください。",
             **result,
+            "request_status": request_status,
         }
 
     except ValueError as e:
@@ -342,6 +347,93 @@ async def list_my_requests(
         )
 
 
+@router.get("/policies", status_code=status.HTTP_200_OK)
+async def get_approval_policies(
+    current_user: TokenData = Depends(require_permission("view:approval_policies")),
+):
+    """
+    承認ポリシーの一覧を取得
+
+    - **必要権限**: `view:approval_policies` (Operator, Approver, Admin)
+    """
+    try:
+        policies = await approval_service.list_policies()
+
+        return {
+            "status": "success",
+            "policies": policies,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get policies: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get policies",
+        )
+
+
+@router.get("/history", status_code=status.HTTP_200_OK)
+async def get_approval_history(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    request_type: Optional[str] = None,
+    action: Optional[str] = None,
+    actor_id: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 50,
+    current_user: TokenData = Depends(require_permission("view:approval_history")),
+):
+    """
+    承認履歴を取得（監査証跡）（v0.4 実装予定）
+
+    - **必要権限**: `view:approval_history` (Admin)
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Approval history viewing will be implemented in v0.4",
+    )
+
+
+@router.get("/history/export", status_code=status.HTTP_200_OK)
+async def export_approval_history(
+    format: str = "json",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    request_type: Optional[str] = None,
+    current_user: TokenData = Depends(require_permission("export:approval_history")),
+):
+    """
+    承認履歴をエクスポート（CSV/JSON）（v0.4 実装予定）
+
+    - **必要権限**: `export:approval_history` (Admin)
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Approval history export will be implemented in v0.4",
+    )
+
+
+@router.get("/stats", status_code=status.HTTP_200_OK)
+async def get_approval_stats(
+    period: str = "30d",
+    current_user: TokenData = Depends(require_permission("view:approval_stats")),
+):
+    """
+    承認ワークフローの統計情報を取得（v0.4 実装予定）
+
+    - **必要権限**: `view:approval_stats` (Admin)
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Approval statistics will be implemented in v0.4",
+    )
+
+
+# ===================================================================
+# パラメータ化ルート（固定パスの後に配置すること）
+# ===================================================================
+
+
 @router.get("/{request_id}", status_code=status.HTTP_200_OK)
 async def get_request_detail(
     request_id: str,
@@ -450,54 +542,30 @@ async def cancel_request(
         )
 
 
-@router.get("/policies", status_code=status.HTTP_200_OK)
-async def get_approval_policies(
-    current_user: TokenData = Depends(require_permission("view:approval_policies")),
+@router.post("/expire", status_code=status.HTTP_200_OK)
+async def expire_old_requests(
+    current_user: TokenData = Depends(require_permission("execute:approved_action")),
 ):
     """
-    承認ポリシーの一覧を取得
+    期限切れリクエストを一括処理（手動トリガー）
 
-    - **必要権限**: `view:approval_policies` (Operator, Approver, Admin)
+    - **必要権限**: `execute:approved_action` (Admin)
     """
     try:
-        import aiosqlite
-        import json
-
-        async with aiosqlite.connect(settings.database_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM approval_policies ORDER BY id") as cursor:
-                policies = await cursor.fetchall()
-
-        result = []
-        for policy in policies:
-            result.append({
-                "id": policy["id"],
-                "operation_type": policy["operation_type"],
-                "description": policy["description"],
-                "approval_required": bool(policy["approval_required"]),
-                "approver_roles": json.loads(policy["approver_roles"]),
-                "approval_count": policy["approval_count"],
-                "timeout_hours": policy["timeout_hours"],
-                "auto_execute": bool(policy["auto_execute"]),
-                "risk_level": policy["risk_level"],
-            })
+        count = await approval_service.expire_old_requests()
 
         return {
             "status": "success",
-            "policies": result,
+            "message": f"{count} 件のリクエストを期限切れに更新しました。",
+            "expired_count": count,
         }
 
     except Exception as e:
-        logger.error(f"Failed to get policies: {e}", exc_info=True)
+        logger.error(f"Failed to expire old requests: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get policies",
+            detail="Failed to expire old requests",
         )
-
-
-# ===================================================================
-# v0.4 予定のエンドポイント（スタブ）
-# ===================================================================
 
 
 @router.post("/{request_id}/execute", status_code=status.HTTP_200_OK)
@@ -513,61 +581,4 @@ async def execute_approved_action(
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Manual execution of approved actions will be implemented in v0.4",
-    )
-
-
-@router.get("/history", status_code=status.HTTP_200_OK)
-async def get_approval_history(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    request_type: Optional[str] = None,
-    action: Optional[str] = None,
-    actor_id: Optional[str] = None,
-    page: int = 1,
-    per_page: int = 50,
-    current_user: TokenData = Depends(require_permission("view:approval_history")),
-):
-    """
-    承認履歴を取得（監査証跡）（v0.4 実装予定）
-
-    - **必要権限**: `view:approval_history` (Admin)
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Approval history viewing will be implemented in v0.4",
-    )
-
-
-@router.get("/history/export", status_code=status.HTTP_200_OK)
-async def export_approval_history(
-    format: str = "json",
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    request_type: Optional[str] = None,
-    current_user: TokenData = Depends(require_permission("export:approval_history")),
-):
-    """
-    承認履歴をエクスポート（CSV/JSON）（v0.4 実装予定）
-
-    - **必要権限**: `export:approval_history` (Admin)
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Approval history export will be implemented in v0.4",
-    )
-
-
-@router.get("/stats", status_code=status.HTTP_200_OK)
-async def get_approval_stats(
-    period: str = "30d",
-    current_user: TokenData = Depends(require_permission("view:approval_stats")),
-):
-    """
-    承認ワークフローの統計情報を取得（v0.4 実装予定）
-
-    - **必要権限**: `view:approval_stats` (Admin)
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Approval statistics will be implemented in v0.4",
     )

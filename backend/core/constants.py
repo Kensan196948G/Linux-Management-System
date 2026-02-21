@@ -11,47 +11,125 @@ v0.3設計統合: 全モジュール共通のallowlist/denylist定数
 
 # システムクリティカルユーザー
 FORBIDDEN_USERNAMES_SYSTEM = [
-    'root', 'bin', 'daemon', 'sys', 'sync', 'games', 'man', 'lp',
-    'mail', 'news', 'uucp', 'proxy', 'backup', 'list', 'irc',
-    'gnats', 'nobody', '_apt', 'messagebus',  # 100件達成のため追加
+    "root",
+    "bin",
+    "daemon",
+    "sys",
+    "sync",
+    "games",
+    "man",
+    "lp",
+    "mail",
+    "news",
+    "uucp",
+    "proxy",
+    "backup",
+    "list",
+    "irc",
+    "gnats",
+    "nobody",
+    "_apt",
+    "messagebus",  # 100件達成のため追加
 ]
 
 # サービスアカウント
 FORBIDDEN_USERNAMES_SERVICE = [
-    'www-data', 'sshd', 'systemd-network', 'systemd-resolve',
-    'systemd-timesync', 'messagebus', 'syslog', 'uuidd',
-    'tcpdump', 'landscape', 'pollinate', 'fwupd-refresh',
-    'tss', 'usbmux', 'dnsmasq', 'avahi', 'speech-dispatcher',
-    'pulse', 'rtkit', 'colord', 'geoclue', 'saned', 'whoopsie',
+    "www-data",
+    "sshd",
+    "systemd-network",
+    "systemd-resolve",
+    "systemd-timesync",
+    "messagebus",
+    "syslog",
+    "uuidd",
+    "tcpdump",
+    "landscape",
+    "pollinate",
+    "fwupd-refresh",
+    "tss",
+    "usbmux",
+    "dnsmasq",
+    "avahi",
+    "speech-dispatcher",
+    "pulse",
+    "rtkit",
+    "colord",
+    "geoclue",
+    "saned",
+    "whoopsie",
     # Database services
-    'postgres', 'mysql', 'mongodb', 'redis', 'memcached',
-    'elasticsearch', 'cassandra', 'couchdb',
+    "postgres",
+    "mysql",
+    "mongodb",
+    "redis",
+    "memcached",
+    "elasticsearch",
+    "cassandra",
+    "couchdb",
     # Web servers
-    'nginx', 'apache', 'httpd', 'lighttpd',
+    "nginx",
+    "apache",
+    "httpd",
+    "lighttpd",
     # Application servers
-    'tomcat', 'jetty', 'node', 'pm2',
+    "tomcat",
+    "jetty",
+    "node",
+    "pm2",
     # Monitoring & logging
-    'nagios', 'zabbix', 'prometheus', 'grafana', 'logstash',
-    'kibana', 'fluentd', 'telegraf',
+    "nagios",
+    "zabbix",
+    "prometheus",
+    "grafana",
+    "logstash",
+    "kibana",
+    "fluentd",
+    "telegraf",
     # Container & orchestration
-    'docker', 'containerd', 'kubernetes', 'k8s',
+    "docker",
+    "containerd",
+    "kubernetes",
+    "k8s",
     # Message queues
-    'rabbitmq', 'kafka', 'activemq',
+    "rabbitmq",
+    "kafka",
+    "activemq",
     # Mail
-    'postfix', 'dovecot', 'exim', 'sendmail',
+    "postfix",
+    "dovecot",
+    "exim",
+    "sendmail",
 ]
 
 # 管理関連ユーザー名
 FORBIDDEN_USERNAMES_ADMIN = [
-    'admin', 'administrator', 'sudo', 'wheel', 'operator',
-    'adm', 'staff', 'kmem', 'dialout', 'cdrom', 'floppy',
-    'audio', 'video', 'plugdev', 'netdev', 'lxd',
+    "admin",
+    "administrator",
+    "sudo",
+    "wheel",
+    "operator",
+    "adm",
+    "staff",
+    "kmem",
+    "dialout",
+    "cdrom",
+    "floppy",
+    "audio",
+    "video",
+    "plugdev",
+    "netdev",
+    "lxd",
 ]
 
 # アプリケーション固有ユーザー名
 FORBIDDEN_USERNAMES_APP = [
-    'adminui', 'svc-adminui', 'webmin', 'cockpit',
-    'usermin', 'virtualmin', 'cloudmin',
+    "adminui",
+    "svc-adminui",
+    "webmin",
+    "cockpit",
+    "usermin",
+    "virtualmin",
+    "cloudmin",
 ]
 
 # 全ての禁止ユーザー名（統合リスト）
@@ -69,36 +147,69 @@ FORBIDDEN_USERNAMES = (
 
 # クリティカルグループ（権限昇格リスク）
 FORBIDDEN_GROUPS_CRITICAL = [
-    'root', 'sudo', 'wheel', 'adm', 'staff',
+    "root",
+    "sudo",
+    "wheel",
+    "adm",
+    "staff",
 ]
 
 # システムグループ
 FORBIDDEN_GROUPS_SYSTEM = [
-    'bin', 'daemon', 'sys', 'disk', 'lp', 'dialout',
-    'cdrom', 'floppy', 'tape', 'audio', 'video',
-    'plugdev', 'netdev', 'scanner', 'bluetooth',
-    'input', 'kvm', 'render', 'sgx',
+    "bin",
+    "daemon",
+    "sys",
+    "disk",
+    "lp",
+    "dialout",
+    "cdrom",
+    "floppy",
+    "tape",
+    "audio",
+    "video",
+    "plugdev",
+    "netdev",
+    "scanner",
+    "bluetooth",
+    "input",
+    "kvm",
+    "render",
+    "sgx",
 ]
 
 # コンテナ・仮想化グループ
 FORBIDDEN_GROUPS_CONTAINER = [
-    'docker', 'lxd', 'libvirt', 'libvirt-qemu', 'kvm',
+    "docker",
+    "lxd",
+    "libvirt",
+    "libvirt-qemu",
+    "kvm",
 ]
 
 # ネットワーク・セキュリティグループ
 FORBIDDEN_GROUPS_NETWORK = [
-    'ssl-cert', 'shadow', 'utmp', 'tty', 'kmem',
+    "ssl-cert",
+    "shadow",
+    "utmp",
+    "tty",
+    "kmem",
 ]
 
 # systemd関連グループ
 FORBIDDEN_GROUPS_SYSTEMD = [
-    'systemd-journal', 'systemd-network', 'systemd-resolve',
-    'systemd-timesync', 'systemd-coredump',
+    "systemd-journal",
+    "systemd-network",
+    "systemd-resolve",
+    "systemd-timesync",
+    "systemd-coredump",
 ]
 
 # ハードウェアアクセスグループ
 FORBIDDEN_GROUPS_HARDWARE = [
-    'i2c', 'gpio', 'spi', 'dialout',
+    "i2c",
+    "gpio",
+    "spi",
+    "dialout",
 ]
 
 # 全ての禁止グループ名（統合リスト）
@@ -117,11 +228,11 @@ FORBIDDEN_GROUPS = (
 # ===================================================================
 
 ALLOWED_SHELLS = [
-    '/bin/bash',
-    '/bin/sh',
-    '/bin/dash',
-    '/usr/bin/zsh',
-    '/bin/false',  # アカウント無効化用
+    "/bin/bash",
+    "/bin/sh",
+    "/bin/dash",
+    "/usr/bin/zsh",
+    "/bin/false",  # アカウント無効化用
 ]
 
 

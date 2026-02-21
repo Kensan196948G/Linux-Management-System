@@ -44,7 +44,9 @@ class LoggingConfig(BaseSettings):
 class SecurityConfig(BaseSettings):
     """セキュリティ設定"""
 
-    allowed_services: List[str] = Field(default_factory=lambda: ["nginx", "postgresql", "redis"])
+    allowed_services: List[str] = Field(
+        default_factory=lambda: ["nginx", "postgresql", "redis"]
+    )
     session_timeout: int = 3600
     max_login_attempts: int = 5
     require_https: bool = False

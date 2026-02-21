@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 
 from ...core import get_current_user, settings
-from ...core.auth import TokenData, authenticate_user, create_access_token
 from ...core.audit_log import audit_log
+from ...core.auth import TokenData, authenticate_user, create_access_token
 
 logger = logging.getLogger(__name__)
 
