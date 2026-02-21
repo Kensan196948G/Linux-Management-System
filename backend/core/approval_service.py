@@ -201,6 +201,9 @@ class ApprovalService:
 
         schema_sql = schema_path.read_text(encoding="utf-8")
 
+        # DB ファイルの親ディレクトリが存在しない場合は自動作成
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+
         async with aiosqlite.connect(self.db_path) as db:
             await db.executescript(schema_sql)
             await db.commit()
