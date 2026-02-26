@@ -9,13 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for v0.4.0
-- Network Configuration module (ip addr/route)
-- Linux Firewall module (iptables/nftables)
-- SSH Server configuration module
-- Apache Webserver management
-- MySQL/PostgreSQL management
-- Hardware/SMART Drive Status
+### Planned for v0.5.0
+- HTTPS対応（Nginx リバースプロキシ + TLS）
+- E2Eテスト実装（Playwright）
+- Linux Firewall モジュール（iptables/nftables）
+- SSH Server 設定モジュール
+- Approval Workflow: user_modify/service_stop/firewall_modify 対応
+
+---
+
+## [0.4.0] - 2026-02-26
+
+**v0.4 リリース** - Networking / Servers / Hardware モジュール実装・デプロイ基盤整備
+
+### Added
+
+#### Networking Module（ネットワーク管理）
+- **GET /api/network/interfaces**: ネットワークインターフェース一覧 (ip -j addr show)
+- **GET /api/network/stats**: インターフェース統計 (ip -j -s link show)
+- **GET /api/network/connections**: アクティブな接続 (ss -j -tlnp)
+- **GET /api/network/routes**: ルーティングテーブル (ip -j route show)
+- **wrappers/adminui-network.sh**: 4サブコマンド allowlist、iproute2 JSON非対応環境フォールバック
+- **read:network 権限**: 全ロール（Viewer/Operator/Approver/Admin）に追加
+
+#### Servers Module（サーバー管理）
+- **GET /api/servers/status**: 全5サーバー状態一括取得 (nginx/apache2/mysql/postgresql/redis)
+- **GET /api/servers/{server}/status**: 個別サーバー状態 (systemctl show)
+- **GET /api/servers/{server}/version**: バージョン情報
+- **GET /api/servers/{server}/config**: 設定ファイルパス情報（内容は返さない）
+- **wrappers/adminui-servers.sh**: allowlist 5サーバー、設定ファイルパス allowlist
+- **read:servers 権限**: 全ロールに追加
+
+#### Hardware Module（ハードウェア管理）
+- **GET /api/hardware/disks**: ブロックデバイス一覧 (lsblk -J)
+- **GET /api/hardware/disk_usage**: ディスク使用量 (df -P)
+- **GET /api/hardware/smart?device=**: SMART情報 (smartctl -j -a)
+- **GET /api/hardware/sensors**: 温度センサー (sensors -j / /sys/class/thermal/ フォールバック)
+- **GET /api/hardware/memory**: メモリ情報 (/proc/meminfo)
+- **wrappers/adminui-hardware.sh**: デバイスパス正規表現 allowlist（パストラバーサル対策）
+- **read:hardware 権限**: 全ロールに追加
+
+#### デプロイ基盤
+- **scripts/setup/setup-sudoers.sh**: sudoers自動設定スクリプト（--dry-run/--yes/--uninstall）
+- **scripts/deploy.sh**: 本番デプロイスクリプト（6フェーズ、--dry-run/--skip-sudoers）
+
+#### 承認ワークフロー改善
+- **execute_request()**: 承認後の自動実行ロジック実装（9操作タイプ対応）
+- **execute_approved_action()**: 501スタブから実装に変更
+- **executed_by カラム**: approval_requests テーブルに追加（後方互換マイグレーション）
+
+### Tests
+- test_network_api.py: 23件
+- test_servers_api.py: 25件
+- test_hardware_api.py: 34件
+- 合計: **598 PASS / 104 SKIP**
 
 ---
 
