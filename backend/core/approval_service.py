@@ -650,7 +650,7 @@ class ApprovalService:
 
             # 3. operation_type ごとにディスパッチ
             # ── 未対応の operation_type は NotImplementedError を送出 ──
-            _UNSUPPORTED = {"user_modify", "service_stop", "firewall_modify"}
+            _UNSUPPORTED = {"firewall_modify"}
             if request_type in _UNSUPPORTED:
                 raise NotImplementedError(
                     f"Auto-execution of '{request_type}' is not yet supported. "
@@ -678,6 +678,14 @@ class ApprovalService:
                     return sudo_wrapper.change_user_password(
                         username=payload["username"],
                         password_hash=payload["password_hash"],
+                    )
+                elif request_type == "user_modify":
+                    # user_modify: shell/gecos/groupsの変更
+                    # adminui-user-modify.shが未実装のため、
+                    # 現時点では対応操作ごとに個別ラッパーを呼び出す
+                    raise NotImplementedError(
+                        "user_modify executor requires adminui-user-modify.sh wrapper. "
+                        "Please implement wrappers/adminui-user-modify.sh first."
                     )
                 elif request_type == "group_add":
                     return sudo_wrapper.add_group(name=payload["name"])
@@ -707,6 +715,10 @@ class ApprovalService:
                         username=payload["username"],
                         line_number=int(payload["line_number"]),
                         action=payload["action"],
+                    )
+                elif request_type == "service_stop":
+                    return sudo_wrapper.stop_service(
+                        service_name=payload["service_name"],
                     )
                 else:
                     raise NotImplementedError(

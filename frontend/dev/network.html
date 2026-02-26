@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ネットワーク情報 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-up { background: #d1fae5; color: #065f46; }
+        .status-down { background: #fee2e2; color: #991b1b; }
+        .status-listen { background: #dbeafe; color: #1e40af; }
+        .status-established { background: #d1fae5; color: #065f46; }
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .metric-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+            margin-bottom: 12px;
+        }
+        .metric-label { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+        .metric-value { font-size: 18px; font-weight: bold; color: #111827; }
+        .if-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .if-name { font-size: 16px; font-weight: bold; color: #1f2937; }
+        .if-addr { font-family: monospace; color: #374151; font-size: 13px; }
+        .table-compact td, .table-compact th { padding: 6px 10px; font-size: 13px; }
+        code { background: #f3f4f6; padding: 2px 5px; border-radius: 3px; font-size: 12px; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <!-- サイドバー（dashboard.htmlと共通） -->
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">🌐 ネットワーク情報</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <!-- アラートエリア -->
+            <div id="alert-area"></div>
+
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-3" id="network-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('interfaces')" id="tab-interfaces">
+                        🔌 インターフェース
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('connections')" id="tab-connections">
+                        🔗 接続状態
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('routes')" id="tab-routes">
+                        🗺️ ルーティング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('stats')" id="tab-stats">
+                        📊 統計
+                    </a>
+                </li>
+            </ul>
+
+            <!-- インターフェース一覧 -->
+            <div id="pane-interfaces">
+                <div id="interfaces-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="interfaces-content" style="display:none"></div>
+            </div>
+
+            <!-- 接続状態 -->
+            <div id="pane-connections" style="display:none">
+                <div id="connections-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="connections-content" style="display:none">
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" id="conn-filter"
+                               placeholder="フィルター（ポート・アドレス）" style="max-width:300px; display:inline-block"
+                               oninput="filterConnections()">
+                    </div>
+                    <table class="table table-sm table-hover table-compact">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>状態</th>
+                                <th>ローカルアドレス</th>
+                                <th>リモートアドレス</th>
+                                <th>プロセス</th>
+                            </tr>
+                        </thead>
+                        <tbody id="connections-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ルーティング -->
+            <div id="pane-routes" style="display:none">
+                <div id="routes-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="routes-content" style="display:none">
+                    <table class="table table-sm table-hover table-compact">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>宛先</th>
+                                <th>ゲートウェイ</th>
+                                <th>インターフェース</th>
+                                <th>プロトコル</th>
+                                <th>メトリクス</th>
+                            </tr>
+                        </thead>
+                        <tbody id="routes-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 統計 -->
+            <div id="pane-stats" style="display:none">
+                <div id="stats-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="stats-content" style="display:none">
+                    <div class="row" id="stats-cards"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+let allConnections = [];
+let currentTab = 'interfaces';
+
+// タブ切り替え
+function showTab(tab) {
+    ['interfaces', 'connections', 'routes', 'stats'].forEach(t => {
+        document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+    });
+    currentTab = tab;
+    if (tab === 'interfaces') loadInterfaces();
+    else if (tab === 'connections') loadConnections();
+    else if (tab === 'routes') loadRoutes();
+    else if (tab === 'stats') loadStats();
+}
+
+function showAlert(msg, type = 'danger') {
+    document.getElementById('alert-area').innerHTML =
+        `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${msg}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+}
+
+// インターフェース読み込み
+async function loadInterfaces() {
+    const loading = document.getElementById('interfaces-loading');
+    const content = document.getElementById('interfaces-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.getNetworkInterfaces();
+        const ifaces = data.interfaces || [];
+        if (ifaces.length === 0) {
+            content.innerHTML = '<p class="text-muted">インターフェースが見つかりません</p>';
+        } else {
+            content.innerHTML = ifaces.map(iface => {
+                const addrs = (iface.addr_info || []).map(a =>
+                    `<span class="if-addr">${a.local}/${a.prefixlen || ''} (${a.family || ''})</span>`
+                ).join(' &nbsp; ');
+                const state = (iface.operstate || '').toLowerCase() === 'up'
+                    ? '<span class="status-badge status-up">UP</span>'
+                    : '<span class="status-badge status-down">DOWN</span>';
+                return `<div class="if-card">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="if-name">🔌 ${iface.ifname || iface.name || '-'}</span>
+                        ${state}
+                    </div>
+                    <div class="mb-1">${addrs || '<span class="text-muted">アドレスなし</span>'}</div>
+                    <div class="text-muted" style="font-size:12px">
+                        MTU: ${iface.mtu || '-'} &nbsp;|&nbsp;
+                        MAC: <code>${iface.address || '-'}</code> &nbsp;|&nbsp;
+                        フラグ: ${(iface.flags || []).join(', ')}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+// 接続状態読み込み
+async function loadConnections() {
+    const loading = document.getElementById('connections-loading');
+    const content = document.getElementById('connections-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.getNetworkConnections();
+        allConnections = data.connections || [];
+        renderConnections(allConnections);
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+function renderConnections(conns) {
+    const tbody = document.getElementById('connections-tbody');
+    if (conns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">接続なし</td></tr>';
+        return;
+    }
+    tbody.innerHTML = conns.map(c => {
+        const stateClass = c.state === 'ESTABLISHED' ? 'status-established' : 'status-listen';
+        return `<tr>
+            <td><span class="status-badge ${stateClass}">${c.state || '-'}</span></td>
+            <td><code>${c.local_address || '-'}</code></td>
+            <td><code>${c.peer_address || '-'}</code></td>
+            <td style="font-size:11px;color:#6b7280">${c.process || '-'}</td>
+        </tr>`;
+    }).join('');
+}
+
+function filterConnections() {
+    const q = document.getElementById('conn-filter').value.toLowerCase();
+    const filtered = allConnections.filter(c =>
+        (c.local_address || '').includes(q) ||
+        (c.peer_address || '').includes(q) ||
+        (c.state || '').toLowerCase().includes(q) ||
+        (c.process || '').includes(q)
+    );
+    renderConnections(filtered);
+}
+
+// ルーティング読み込み
+async function loadRoutes() {
+    const loading = document.getElementById('routes-loading');
+    const content = document.getElementById('routes-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.getNetworkRoutes();
+        const routes = data.routes || [];
+        const tbody = document.getElementById('routes-tbody');
+        if (routes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">ルートなし</td></tr>';
+        } else {
+            tbody.innerHTML = routes.map(r => `<tr>
+                <td><code>${r.dst || 'default'}</code></td>
+                <td><code>${r.gateway || '-'}</code></td>
+                <td>${r.dev || '-'}</td>
+                <td>${r.protocol || '-'}</td>
+                <td>${r.metric !== undefined ? r.metric : '-'}</td>
+            </tr>`).join('');
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+// 統計読み込み
+async function loadStats() {
+    const loading = document.getElementById('stats-loading');
+    const content = document.getElementById('stats-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.getNetworkStats();
+        const stats = data.stats || [];
+        const cards = document.getElementById('stats-cards');
+        if (stats.length === 0) {
+            cards.innerHTML = '<p class="text-muted col-12">統計データなし</p>';
+        } else {
+            cards.innerHTML = stats.map(s => {
+                const rx = s.stats64?.rx || s.rx || {};
+                const tx = s.stats64?.tx || s.tx || {};
+                return `<div class="col-md-6 col-lg-4 mb-3">
+                    <div class="metric-card">
+                        <div class="if-name mb-2">📊 ${s.ifname || s.name || '-'}</div>
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="metric-label">受信 (bytes)</div>
+                                <div class="metric-value" style="font-size:14px">${formatBytes(rx.bytes)}</div>
+                                <div class="metric-label mt-1">受信パケット</div>
+                                <div style="font-size:13px">${(rx.packets || 0).toLocaleString()}</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="metric-label">送信 (bytes)</div>
+                                <div class="metric-value" style="font-size:14px">${formatBytes(tx.bytes)}</div>
+                                <div class="metric-label mt-1">送信パケット</div>
+                                <div style="font-size:13px">${(tx.packets || 0).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+    return `${bytes.toFixed(1)} ${units[i]}`;
+}
+
+function refreshAll() {
+    showTab(currentTab);
+}
+
+// 認証チェックして初期化
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = '/dev/index.html'; return; }
+    api.setToken(token);
+
+    // サイドバーを共通コンポーネントで初期化
+    if (typeof initSidebar === 'function') initSidebar('network');
+
+    loadInterfaces();
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

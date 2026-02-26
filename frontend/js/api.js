@@ -130,6 +130,70 @@ class APIClient {
     }
 
     // ===================================================================
+    // ネットワーク API
+    // ===================================================================
+
+    async getNetworkInterfaces() {
+        return await this.request('GET', '/api/network/interfaces');
+    }
+
+    async getNetworkStats() {
+        return await this.request('GET', '/api/network/stats');
+    }
+
+    async getNetworkConnections() {
+        return await this.request('GET', '/api/network/connections');
+    }
+
+    async getNetworkRoutes() {
+        return await this.request('GET', '/api/network/routes');
+    }
+
+    // ===================================================================
+    // サーバー API
+    // ===================================================================
+
+    async getAllServerStatus() {
+        return await this.request('GET', '/api/servers/status');
+    }
+
+    async getServerStatus(server) {
+        return await this.request('GET', `/api/servers/${server}/status`);
+    }
+
+    async getServerVersion(server) {
+        return await this.request('GET', `/api/servers/${server}/version`);
+    }
+
+    async getServerConfig(server) {
+        return await this.request('GET', `/api/servers/${server}/config`);
+    }
+
+    // ===================================================================
+    // ハードウェア API
+    // ===================================================================
+
+    async getHardwareMemory() {
+        return await this.request('GET', '/api/hardware/memory');
+    }
+
+    async getHardwareDiskUsage() {
+        return await this.request('GET', '/api/hardware/disk_usage');
+    }
+
+    async getHardwareDisks() {
+        return await this.request('GET', '/api/hardware/disks');
+    }
+
+    async getHardwareSensors() {
+        return await this.request('GET', '/api/hardware/sensors');
+    }
+
+    async getHardwareSmart(device) {
+        return await this.request('GET', `/api/hardware/smart?device=${encodeURIComponent(device)}`);
+    }
+
+    // ===================================================================
     // サービス API
     // ===================================================================
 

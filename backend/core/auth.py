@@ -71,6 +71,9 @@ ROLES = {
             "read:network",
             "read:servers",
             "read:hardware",
+            "read:firewall",
+            "read:packages",
+            "read:ssh",
             "read:cron",
             "read:users",
         ],
@@ -84,6 +87,9 @@ ROLES = {
             "read:network",
             "read:servers",
             "read:hardware",
+            "read:firewall",
+            "read:packages",
+            "read:ssh",
             "execute:service_restart",
             # Cron ジョブ管理
             "read:cron",
@@ -93,6 +99,8 @@ ROLES = {
             # 承認関連
             "request:approval",
             "view:approval_policies",
+            # 監査ログ（自分のログのみ）
+            "read:audit",
         ],
     ),
     "Approver": UserRole(
@@ -104,6 +112,9 @@ ROLES = {
             "read:network",
             "read:servers",
             "read:hardware",
+            "read:firewall",
+            "read:packages",
+            "read:ssh",
             "execute:service_restart",
             "approve:dangerous_operation",
             # Cron ジョブ管理
@@ -117,6 +128,8 @@ ROLES = {
             "view:approval_pending",
             "execute:approval",
             "view:approval_policies",
+            # 監査ログ（自分のログのみ）
+            "read:audit",
         ],
     ),
     "Admin": UserRole(
@@ -128,6 +141,9 @@ ROLES = {
             "read:network",
             "read:servers",
             "read:hardware",
+            "read:firewall",
+            "read:packages",
+            "read:ssh",
             "execute:service_restart",
             "approve:dangerous_operation",
             "manage:users",
@@ -147,6 +163,9 @@ ROLES = {
             "export:approval_history",
             "view:approval_policies",
             "view:approval_stats",
+            # 監査ログ（全ユーザーのログ閲覧・エクスポート）
+            "read:audit",
+            "export:audit",
         ],
     ),
 }

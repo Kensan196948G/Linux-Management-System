@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>サーバー状態 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .server-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+            transition: box-shadow 0.2s;
+        }
+        .server-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .server-name { font-size: 18px; font-weight: bold; color: #111827; }
+        .server-version { font-size: 12px; color: #6b7280; font-family: monospace; }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-inactive { background: #f3f4f6; color: #6b7280; }
+        .status-failed { background: #fee2e2; color: #991b1b; }
+        .status-unknown { background: #fef3c7; color: #92400e; }
+        .server-meta { display: flex; gap: 20px; font-size: 13px; color: #4b5563; flex-wrap: wrap; }
+        .server-meta-item { display: flex; align-items: center; gap: 4px; }
+        .enabled-badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+        .enabled-disabled {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+        .summary-bar {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .summary-counts { display: flex; gap: 20px; }
+        .count-item { text-align: center; }
+        .count-num { font-size: 28px; font-weight: bold; }
+        .count-label { font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">🖥️ サーバー状態</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadServers()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- サマリーバー -->
+            <div class="summary-bar" id="summary-bar" style="display:none">
+                <div class="summary-counts">
+                    <div class="count-item">
+                        <div class="count-num" id="count-total" style="color:#111827">-</div>
+                        <div class="count-label">合計</div>
+                    </div>
+                    <div class="count-item">
+                        <div class="count-num" id="count-active" style="color:#059669">-</div>
+                        <div class="count-label">稼働中</div>
+                    </div>
+                    <div class="count-item">
+                        <div class="count-num" id="count-inactive" style="color:#6b7280">-</div>
+                        <div class="count-label">停止中</div>
+                    </div>
+                    <div class="count-item">
+                        <div class="count-num" id="count-failed" style="color:#dc2626">-</div>
+                        <div class="count-label">異常</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="servers-loading" class="text-center py-4 text-muted">読み込み中...</div>
+            <div id="servers-content" style="display:none"></div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+const SERVER_ICONS = {
+    nginx: '🌐',
+    apache2: '🔴',
+    mysql: '🐬',
+    postgresql: '🐘',
+    redis: '🔴',
+};
+
+const SERVER_LABELS = {
+    nginx: 'Nginx Web Server',
+    apache2: 'Apache2 Web Server',
+    mysql: 'MySQL Database',
+    postgresql: 'PostgreSQL Database',
+    redis: 'Redis Cache',
+};
+
+function getStatusBadge(status) {
+    if (!status) return '<span class="status-badge status-unknown">不明</span>';
+    const s = status.toLowerCase();
+    if (s === 'active' || s.includes('active')) return `<span class="status-badge status-active">✅ ${status}</span>`;
+    if (s === 'inactive' || s === 'stopped') return `<span class="status-badge status-inactive">⬜ ${status}</span>`;
+    if (s === 'failed' || s === 'error') return `<span class="status-badge status-failed">❌ ${status}</span>`;
+    return `<span class="status-badge status-unknown">⚠️ ${status}</span>`;
+}
+
+async function loadServers() {
+    const loading = document.getElementById('servers-loading');
+    const content = document.getElementById('servers-content');
+    const summaryBar = document.getElementById('summary-bar');
+    loading.style.display = ''; content.style.display = 'none'; summaryBar.style.display = 'none';
+
+    try {
+        const data = await api.getAllServerStatus();
+        const servers = data.servers || [];
+
+        // サマリー集計
+        let active = 0, inactive = 0, failed = 0;
+        servers.forEach(s => {
+            const st = (s.status || '').toLowerCase();
+            if (st === 'active' || st.includes('active')) active++;
+            else if (st === 'failed' || st === 'error') failed++;
+            else inactive++;
+        });
+        document.getElementById('count-total').textContent = servers.length;
+        document.getElementById('count-active').textContent = active;
+        document.getElementById('count-inactive').textContent = inactive;
+        document.getElementById('count-failed').textContent = failed;
+        summaryBar.style.display = '';
+
+        if (servers.length === 0) {
+            content.innerHTML = '<p class="text-muted">サーバー情報が取得できませんでした</p>';
+        } else {
+            content.innerHTML = servers.map(s => {
+                const icon = SERVER_ICONS[s.service] || '🖥️';
+                const label = SERVER_LABELS[s.service] || s.service;
+                const enabledClass = s.enabled === 'enabled' ? 'enabled-badge' : 'enabled-badge enabled-disabled';
+                const enabledText = s.enabled || '-';
+                return `<div class="server-card" id="card-${s.service}">
+                    <div class="server-header">
+                        <div>
+                            <span class="server-name">${icon} ${label}</span>
+                            <span class="text-muted ms-2" style="font-size:12px">(${s.service})</span>
+                        </div>
+                        ${getStatusBadge(s.status)}
+                    </div>
+                    <div class="server-meta">
+                        <div class="server-meta-item">
+                            🔄 起動設定: <span class="${enabledClass}">${enabledText}</span>
+                        </div>
+                        ${s.pid ? `<div class="server-meta-item">🔢 PID: <code>${s.pid}</code></div>` : ''}
+                        ${s.memory ? `<div class="server-meta-item">💾 メモリ: ${s.memory}</div>` : ''}
+                        ${s.uptime ? `<div class="server-meta-item">⏱️ 稼働時間: ${s.uptime}</div>` : ''}
+                        ${s.port ? `<div class="server-meta-item">🔌 ポート: ${s.port}</div>` : ''}
+                    </div>
+                    ${s.error ? `<div class="mt-2 text-danger" style="font-size:12px">⚠️ ${s.error}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">サーバー情報の取得に失敗しました: ${e.message}</div>`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = '/dev/index.html'; return; }
+    api.setToken(token);
+    if (typeof initSidebar === 'function') initSidebar('servers');
+    loadServers();
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

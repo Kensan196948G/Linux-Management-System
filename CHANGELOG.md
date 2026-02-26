@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (v0.5.0相当)
+- **フロントエンド刷新**: Network/Servers/Hardware/監査ログ ページ追加
+  - frontend/dev/network.html: ネットワーク情報ページ（タブ: インターフェース/接続/ルート/統計）
+  - frontend/dev/servers.html: サーバー状態一覧ページ（nginx/apache2/mysql/postgresql/redis）
+  - frontend/dev/hardware.html: ハードウェア情報ページ（タブ: メモリ/ディスク/センサー）
+  - frontend/dev/audit.html: 監査ログ一覧ページ（フィルタ/ページネーション/エクスポート）
+  - frontend/js/api.js: Network/Servers/Hardware APIメソッド追加
+  - frontend/dev/dashboard.html: サイドバーに全新規ページへのリンク追加
+
+- **Firewall モジュール（read-only）**: iptables/nftables/UFW ルール読み取り
+  - wrappers/adminui-firewall.sh: rules/policy/status サブコマンド
+  - GET /api/firewall/rules, /policy, /status
+  - tests/integration/test_firewall_api.py: 22件テスト
+
+- **Package Manager モジュール（apt）**: インストール済み/更新可能/セキュリティパッケージ一覧
+  - wrappers/adminui-packages.sh: list/updates/security サブコマンド
+  - GET /api/packages/installed, /updates, /security
+  - tests/integration/test_packages_api.py: 20件テスト
+
+- **承認ワークフロー拡張**: service_stop 操作を承認フローに追加
+  - wrappers/adminui-service-stop.sh: サービス停止ラッパー（allowlist方式）
+  - approval_service.py に service_stop dispatch 追加
+
+- **SSH Server モジュール（read-only）**: sshd_config 状態確認・危険設定チェック
+  - wrappers/adminui-ssh.sh: status/config サブコマンド
+  - GET /api/ssh/status, /config
+  - 危険設定自動検出（PermitRootLogin yes / PasswordAuthentication yes 等）
+  - tests/integration/test_ssh_api.py: 20件テスト
+
+- **監査ログ API + UI**: 全操作ログの可視化・エクスポート機能
+  - GET /api/audit/logs: ページネーション付き一覧（Operator: 自分のみ / Admin: 全員）
+  - GET /api/audit/logs/export: CSV/JSON エクスポート（Admin のみ）
+  - frontend/dev/audit.html: フィルタ・ページネーション・エクスポートボタン付き UI
+  - tests/integration/test_audit_api.py: 20件テスト
+
+- **CI/CD強化**: E2Eテスト専用 workflow 追加
+  - .github/workflows/e2e.yml: Playwright Chromium ヘッドレステスト実行
+  - テストレポートをアーティファクトに保存（playwright-report/）
+
+### Changed
+- **auth.py**: 全ロールに `read:firewall`, `read:packages`, `read:ssh` 権限追加
+- **auth.py**: Operator/Approver に `read:audit`, Admin に `read:audit`/`export:audit` 追加
+- **sudo_wrapper.py**: get_firewall_*, get_packages_*, get_ssh_*, stop_service メソッド追加
+
+---
+
 ### Added (v0.4.1相当)
 - **E2Eテスト実装**: Playwright + pytest-playwright による API/UI E2Eシナリオテスト (40件)
   - tests/e2e/conftest.py: UvicornTestServer フィクスチャ (ポート18765)

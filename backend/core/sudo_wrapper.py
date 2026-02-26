@@ -134,6 +134,21 @@ class SudoWrapper:
         """
         return self._execute("adminui-service-restart.sh", [service_name])
 
+    def stop_service(self, service_name: str) -> Dict[str, Any]:
+        """
+        サービスを停止（要承認操作）
+
+        Args:
+            service_name: サービス名
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-service-stop.sh", [service_name])
+
     def get_logs(self, service_name: str, lines: int = 100) -> Dict[str, Any]:
         """
         サービスのログを取得
@@ -772,6 +787,115 @@ class SudoWrapper:
             SudoWrapperError: 実行失敗時
         """
         return self._execute("adminui-hardware.sh", ["memory"], timeout=10)
+
+    # ------------------------------------------------------------------
+    # ファイアウォール（読み取り専用）
+    # ------------------------------------------------------------------
+
+    def get_firewall_rules(self) -> Dict[str, Any]:
+        """
+        ファイアウォールルール一覧を取得 (iptables-save / nft list ruleset)
+
+        Returns:
+            ルール情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-firewall.sh", ["rules"], timeout=15)
+
+    def get_firewall_policy(self) -> Dict[str, Any]:
+        """
+        ファイアウォールデフォルトポリシーを取得
+
+        Returns:
+            ポリシー情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-firewall.sh", ["policy"], timeout=10)
+
+    def get_firewall_status(self) -> Dict[str, Any]:
+        """
+        ファイアウォール全体状態を取得 (ufw/firewalld/iptables/nftables)
+
+        Returns:
+            状態情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-firewall.sh", ["status"], timeout=10)
+
+    # ------------------------------------------------------------------
+    # パッケージ管理（読み取り専用）
+    # ------------------------------------------------------------------
+
+    def get_packages_list(self) -> Dict[str, Any]:
+        """
+        インストール済みパッケージ一覧を取得 (dpkg-query)
+
+        Returns:
+            パッケージ情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-packages.sh", ["list"], timeout=30)
+
+    def get_packages_updates(self) -> Dict[str, Any]:
+        """
+        更新可能なパッケージ一覧を取得 (apt list --upgradable)
+
+        Returns:
+            更新パッケージ情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-packages.sh", ["updates"], timeout=30)
+
+    def get_packages_security(self) -> Dict[str, Any]:
+        """
+        セキュリティ更新一覧を取得
+
+        Returns:
+            セキュリティ更新情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-packages.sh", ["security"], timeout=30)
+
+
+    # ------------------------------------------------------------------
+    # SSH設定（読み取り専用）
+    # ------------------------------------------------------------------
+
+    def get_ssh_status(self) -> Dict[str, Any]:
+        """
+        SSHサービスの状態を取得 (systemctl status sshd)
+
+        Returns:
+            SSH状態情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-ssh.sh", ["status"], timeout=10)
+
+    def get_ssh_config(self) -> Dict[str, Any]:
+        """
+        sshd_config の設定を読み取り・パース
+
+        Returns:
+            SSH設定情報の辞書（危険設定警告含む）
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-ssh.sh", ["config"], timeout=10)
 
 
 # グローバルインスタンス

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ハードウェア情報 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .hw-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .hw-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+        }
+        .progress-container { margin-bottom: 10px; }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+        .progress { height: 12px; border-radius: 6px; }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+        }
+        .metric-item {
+            background: #f9fafb;
+            border-radius: 6px;
+            padding: 10px 14px;
+        }
+        .metric-label { font-size: 11px; color: #6b7280; margin-bottom: 2px; }
+        .metric-value { font-size: 16px; font-weight: bold; color: #111827; }
+        .disk-row { margin-bottom: 14px; }
+        .disk-info { font-size: 12px; color: #6b7280; margin-top: 2px; }
+        .sensor-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+        .sensor-row:last-child { border-bottom: none; }
+        .temp-high { color: #dc2626; font-weight: bold; }
+        .temp-warn { color: #f59e0b; font-weight: bold; }
+        .temp-ok { color: #059669; }
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">⚙️ ハードウェア情報</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <ul class="nav nav-tabs mb-3" id="hw-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('memory')" id="tab-memory">💾 メモリ</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('disk')" id="tab-disk">💿 ディスク</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('sensors')" id="tab-sensors">🌡️ センサー</a>
+                </li>
+            </ul>
+
+            <!-- メモリ -->
+            <div id="pane-memory">
+                <div id="memory-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="memory-content" style="display:none"></div>
+            </div>
+
+            <!-- ディスク -->
+            <div id="pane-disk" style="display:none">
+                <div id="disk-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="disk-content" style="display:none"></div>
+            </div>
+
+            <!-- センサー -->
+            <div id="pane-sensors" style="display:none">
+                <div id="sensors-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="sensors-content" style="display:none"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+let currentTab = 'memory';
+
+function showTab(tab) {
+    ['memory', 'disk', 'sensors'].forEach(t => {
+        document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+    });
+    currentTab = tab;
+    if (tab === 'memory') loadMemory();
+    else if (tab === 'disk') loadDisk();
+    else if (tab === 'sensors') loadSensors();
+}
+
+function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+    return `${bytes.toFixed(1)} ${units[i]}`;
+}
+
+function progressColor(pct) {
+    if (pct >= 90) return 'bg-danger';
+    if (pct >= 70) return 'bg-warning';
+    return 'bg-success';
+}
+
+// メモリ読み込み
+async function loadMemory() {
+    const loading = document.getElementById('memory-loading');
+    const content = document.getElementById('memory-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.getHardwareMemory();
+        const m = data.memory || data;
+        const html = [];
+
+        // RAM
+        if (m.ram) {
+            const ram = m.ram;
+            const usedPct = ram.total > 0 ? Math.round(ram.used / ram.total * 100) : 0;
+            html.push(`<div class="hw-card">
+                <div class="hw-title">🖥️ RAM（物理メモリ）</div>
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span>使用中</span>
+                        <span>${formatBytes(ram.used)} / ${formatBytes(ram.total)} (${usedPct}%)</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar ${progressColor(usedPct)}" style="width:${usedPct}%"></div>
+                    </div>
+                </div>
+                <div class="metric-grid mt-3">
+                    <div class="metric-item"><div class="metric-label">合計</div><div class="metric-value">${formatBytes(ram.total)}</div></div>
+                    <div class="metric-item"><div class="metric-label">使用中</div><div class="metric-value">${formatBytes(ram.used)}</div></div>
+                    <div class="metric-item"><div class="metric-label">空き</div><div class="metric-value">${formatBytes(ram.free)}</div></div>
+                    <div class="metric-item"><div class="metric-label">キャッシュ</div><div class="metric-value">${formatBytes(ram.cached || 0)}</div></div>
+                    <div class="metric-item"><div class="metric-label">バッファ</div><div class="metric-value">${formatBytes(ram.buffers || 0)}</div></div>
+                    <div class="metric-item"><div class="metric-label">利用可能</div><div class="metric-value">${formatBytes(ram.available || 0)}</div></div>
+                </div>
+            </div>`);
+        }
+
+        // Swap
+        if (m.swap) {
+            const swap = m.swap;
+            const swapPct = swap.total > 0 ? Math.round(swap.used / swap.total * 100) : 0;
+            html.push(`<div class="hw-card">
+                <div class="hw-title">📀 スワップ</div>
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span>使用中</span>
+                        <span>${formatBytes(swap.used)} / ${formatBytes(swap.total)} (${swapPct}%)</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar ${progressColor(swapPct)}" style="width:${swapPct}%"></div>
+                    </div>
+                </div>
+                <div class="metric-grid mt-3">
+                    <div class="metric-item"><div class="metric-label">合計</div><div class="metric-value">${formatBytes(swap.total)}</div></div>
+                    <div class="metric-item"><div class="metric-label">使用中</div><div class="metric-value">${formatBytes(swap.used)}</div></div>
+                    <div class="metric-item"><div class="metric-label">空き</div><div class="metric-value">${formatBytes(swap.free)}</div></div>
+                </div>
+            </div>`);
+        }
+
+        if (html.length === 0) {
+            content.innerHTML = '<p class="text-muted">メモリ情報が取得できませんでした</p>';
+        } else {
+            content.innerHTML = html.join('');
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+// ディスク使用量読み込み
+async function loadDisk() {
+    const loading = document.getElementById('disk-loading');
+    const content = document.getElementById('disk-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.getHardwareDiskUsage();
+        const filesystems = data.filesystems || data.disk_usage || [];
+        if (filesystems.length === 0) {
+            content.innerHTML = '<p class="text-muted">ディスク情報が取得できませんでした</p>';
+        } else {
+            content.innerHTML = `<div class="hw-card">
+                <div class="hw-title">💿 ファイルシステム使用量</div>
+                ${filesystems.map(fs => {
+                    const pct = parseInt(fs.use_percent || fs.use_pct || 0);
+                    return `<div class="disk-row">
+                        <div class="progress-label">
+                            <span><strong>${fs.filesystem || fs.device || '-'}</strong> → ${fs.mounted_on || fs.mount || '-'}</span>
+                            <span>${fs.used || '-'} / ${fs.size || fs.total || '-'} (${pct}%)</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar ${progressColor(pct)}" style="width:${Math.min(pct,100)}%"></div>
+                        </div>
+                        <div class="disk-info">空き: ${fs.available || fs.avail || '-'} &nbsp;|&nbsp; タイプ: ${fs.type || fs.fstype || '-'}</div>
+                    </div>`;
+                }).join('')}
+            </div>`;
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+// センサー読み込み
+async function loadSensors() {
+    const loading = document.getElementById('sensors-loading');
+    const content = document.getElementById('sensors-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.getHardwareSensors();
+        const sensors = data.sensors || {};
+        const chips = Object.keys(sensors);
+
+        if (chips.length === 0) {
+            content.innerHTML = '<div class="alert alert-info">センサーデータが利用できません（lm-sensorsが未インストールまたは未設定の可能性があります）</div>';
+        } else {
+            content.innerHTML = chips.map(chip => {
+                const chipData = sensors[chip];
+                const rows = Object.entries(chipData).map(([key, val]) => {
+                    if (typeof val !== 'object') return '';
+                    const temp = val.temp_input || val.in_input || val.fan_input;
+                    const unit = val.temp_input !== undefined ? '°C'
+                        : val.in_input !== undefined ? 'V'
+                        : val.fan_input !== undefined ? 'RPM' : '';
+                    if (temp === undefined) return '';
+                    let cls = 'temp-ok';
+                    if (val.temp_crit && temp >= val.temp_crit) cls = 'temp-high';
+                    else if (val.temp_max && temp >= val.temp_max * 0.8) cls = 'temp-warn';
+                    return `<div class="sensor-row">
+                        <span>${key}</span>
+                        <span class="${cls}">${temp.toFixed(1)} ${unit}
+                            ${val.temp_max ? `<small class="text-muted">/ max ${val.temp_max}${unit}</small>` : ''}
+                        </span>
+                    </div>`;
+                }).filter(r => r).join('');
+                if (!rows) return '';
+                return `<div class="hw-card">
+                    <div class="hw-title">🌡️ ${chip}</div>
+                    ${rows}
+                </div>`;
+            }).filter(h => h).join('') || '<div class="alert alert-info">表示可能なセンサーデータがありません</div>';
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+function refreshAll() { showTab(currentTab); }
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = '/dev/index.html'; return; }
+    api.setToken(token);
+    if (typeof initSidebar === 'function') initSidebar('hardware');
+    loadMemory();
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

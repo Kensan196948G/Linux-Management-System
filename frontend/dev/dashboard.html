@@ -48,6 +48,10 @@
                                 <div class="submenu-item-name">システムサーバー</div>
                                 <div class="submenu-item-badge">実装済み</div>
                             </div>
+                            <div class="submenu-item" onclick="location.href='audit.html'">
+                                <div class="submenu-item-name">監査ログ</div>
+                                <div class="submenu-item-badge">実装済み</div>
+                            </div>
                             <div class="submenu-item" onclick="showPage('audit-log')">
                                 <div class="submenu-item-name">システム操作ログ</div>
                                 <div class="submenu-item-badge">実装済み</div>
@@ -153,41 +157,33 @@
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
+                            <div class="submenu-item" onclick="location.href='servers.html'">
+                                <div class="submenu-item-name">サーバー状態一覧</div>
+                                <div class="submenu-item-badge">実装済み</div>
+                            </div>
                             <div class="submenu-item disabled">
                                 <div class="submenu-item-name">Apache Webサーバー</div>
-                                <div class="submenu-item-badge">v0.3</div>
+                                <div class="submenu-item-badge">v0.4</div>
                             </div>
                             <div class="submenu-item disabled">
                                 <div class="submenu-item-name">BIND DNSサーバー</div>
-                                <div class="submenu-item-badge">v0.4</div>
-                            </div>
-                            <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Postfix / Sendmail</div>
-                                <div class="submenu-item-badge">v0.4</div>
+                                <div class="submenu-item-badge">v0.5</div>
                             </div>
                             <div class="submenu-item disabled">
                                 <div class="submenu-item-name">MySQL / MariaDB</div>
-                                <div class="submenu-item-badge">v0.3</div>
-                            </div>
-                            <div class="submenu-item disabled">
-                                <div class="submenu-item-name">PostgreSQL</div>
-                                <div class="submenu-item-badge">v0.3</div>
-                            </div>
-                            <div class="submenu-item disabled">
-                                <div class="submenu-item-name">SSHサーバー</div>
-                                <div class="submenu-item-badge">v0.2</div>
-                            </div>
-                            <div class="submenu-item disabled">
-                                <div class="submenu-item-name">ProFTPD / WU-FTP</div>
                                 <div class="submenu-item-badge">v0.4</div>
                             </div>
                             <div class="submenu-item disabled">
-                                <div class="submenu-item-name">Squidプロキシ</div>
+                                <div class="submenu-item-name">PostgreSQL</div>
+                                <div class="submenu-item-badge">v0.4</div>
+                            </div>
+                            <div class="submenu-item disabled">
+                                <div class="submenu-item-name">SSHサーバー</div>
                                 <div class="submenu-item-badge">v0.4</div>
                             </div>
                             <div class="submenu-item disabled">
                                 <div class="submenu-item-name">DHCPサーバー</div>
-                                <div class="submenu-item-badge">v0.4</div>
+                                <div class="submenu-item-badge">v0.5</div>
                             </div>
                         </div>
                     </div>
@@ -204,25 +200,21 @@
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
-                            <div class="submenu-item" onclick="showPage('firewall')">
+                            <div class="submenu-item" onclick="location.href='network.html'">
+                                <div class="submenu-item-name">ネットワーク情報</div>
+                                <div class="submenu-item-badge">実装済み</div>
+                            </div>
+                            <div class="submenu-item disabled">
                                 <div class="submenu-item-name">Linuxファイアウォール</div>
-                                <div class="submenu-item-badge">サンプル</div>
+                                <div class="submenu-item-badge">v0.4</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('network-config')">
-                                <div class="submenu-item-name">ネットワーク設定</div>
-                                <div class="submenu-item-badge">サンプル</div>
-                            </div>
-                            <div class="submenu-item" onclick="showPage('routing')">
+                            <div class="submenu-item disabled">
                                 <div class="submenu-item-name">ルーティング・ゲートウェイ</div>
-                                <div class="submenu-item-badge">サンプル</div>
+                                <div class="submenu-item-badge">v0.4</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('netstat')">
-                                <div class="submenu-item-name">ネットワーク統計</div>
-                                <div class="submenu-item-badge">サンプル</div>
-                            </div>
-                            <div class="submenu-item" onclick="showPage('bandwidth')">
+                            <div class="submenu-item disabled">
                                 <div class="submenu-item-name">帯域幅モニタリング</div>
-                                <div class="submenu-item-badge">サンプル</div>
+                                <div class="submenu-item-badge">v0.5</div>
                             </div>
                         </div>
                     </div>
@@ -239,21 +231,17 @@
                     </div>
                     <div class="accordion-content">
                         <div class="accordion-submenu">
-                            <div class="submenu-item" onclick="showPage('partitions')">
-                                <div class="submenu-item-name">ローカルディスクパーティション</div>
-                                <div class="submenu-item-badge">サンプル</div>
+                            <div class="submenu-item" onclick="location.href='hardware.html'">
+                                <div class="submenu-item-name">ハードウェア情報</div>
+                                <div class="submenu-item-badge">実装済み</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('system-time')">
-                                <div class="submenu-item-name">システム時刻</div>
-                                <div class="submenu-item-badge">サンプル</div>
-                            </div>
-                            <div class="submenu-item" onclick="showPage('smart-status')">
+                            <div class="submenu-item disabled">
                                 <div class="submenu-item-name">SMARTドライブ状態</div>
-                                <div class="submenu-item-badge">サンプル</div>
+                                <div class="submenu-item-badge">v0.4</div>
                             </div>
-                            <div class="submenu-item" onclick="showPage('sensors')">
+                            <div class="submenu-item disabled">
                                 <div class="submenu-item-name">センサー (lm-sensors)</div>
-                                <div class="submenu-item-badge">サンプル</div>
+                                <div class="submenu-item-badge">v0.4</div>
                             </div>
                         </div>
                     </div>
