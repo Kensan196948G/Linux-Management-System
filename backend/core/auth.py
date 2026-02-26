@@ -54,6 +54,7 @@ class TokenData(BaseModel):
     user_id: str
     username: str
     role: str
+    email: str = ""
 
 
 # ===================================================================
@@ -305,11 +306,12 @@ def decode_token(token: str) -> TokenData:
         user_id: str = payload.get("sub")
         username: str = payload.get("username")
         role: str = payload.get("role")
+        email: str = payload.get("email", "")
 
         if user_id is None or username is None or role is None:
             raise credentials_exception
 
-        return TokenData(user_id=user_id, username=username, role=role)
+        return TokenData(user_id=user_id, username=username, role=role, email=email)
 
     except JWTError as e:
         logger.error(f"JWT decode error: {e}")

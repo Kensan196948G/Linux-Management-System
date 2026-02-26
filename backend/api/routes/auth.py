@@ -92,7 +92,7 @@ async def login(request: LoginRequest):
     # JWT トークン生成
     access_token_expires = timedelta(minutes=settings.jwt_expiration_minutes)
     access_token = create_access_token(
-        data={"sub": user.user_id, "username": user.username, "role": user.role},
+        data={"sub": user.user_id, "username": user.username, "role": user.role, "email": user.email},
         expires_delta=access_token_expires,
     )
 
@@ -133,7 +133,7 @@ async def get_me(current_user: TokenData = Depends(get_current_user)):
     return UserInfoResponse(
         user_id=current_user.user_id,
         username=current_user.username,
-        email=f"{current_user.username}@example.com",  # TODO: データベースから取得
+        email=current_user.email if current_user.email else f"{current_user.username}@example.com",
         role=current_user.role,
         permissions=user_role.permissions if user_role else [],
     )

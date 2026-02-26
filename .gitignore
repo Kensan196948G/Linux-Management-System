@@ -126,6 +126,10 @@ scratch/
 .claude/cache/
 .claude/sessions/
 
+# MCP設定バックアップ（自動生成、リポジトリ不要）
+.mcp.json.backup.*
+.mcp.json.bak.*
+
 # Audit logs (keep in production, not in repo)
 audit_logs/*.json
 audit_logs/*.log

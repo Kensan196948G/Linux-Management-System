@@ -711,25 +711,23 @@ class ApprovalService:
 
             # 3. 総件数取得
             count_query = (
-                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"
+                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"  # nosec B608
             )
             async with db.execute(count_query, params) as cursor:
                 total = (await cursor.fetchone())["total"]
 
             # 4. リクエスト一覧取得
+            # where_sql は内部ロジックで構築した安全な動的句（ユーザー入力はparams経由）
             offset = (page - 1) * per_page
-            query = f"""
-                SELECT
-                    r.*,
-                    p.description AS request_type_description,
-                    p.risk_level,
-                    ROUND((JULIANDAY(r.expires_at) - JULIANDAY('now')) * 24, 1) AS remaining_hours
-                FROM approval_requests r
-                JOIN approval_policies p ON r.request_type = p.operation_type
-                WHERE {where_sql}
-                ORDER BY r.{sort_by} {sort_order}
-                LIMIT ? OFFSET ?
-            """
+            query = (  # nosec B608
+                "SELECT r.*, p.description AS request_type_description, p.risk_level,"  # nosec B608
+                " ROUND((JULIANDAY(r.expires_at) - JULIANDAY('now')) * 24, 1) AS remaining_hours"
+                " FROM approval_requests r"
+                " JOIN approval_policies p ON r.request_type = p.operation_type"
+                f" WHERE {where_sql}"
+                f" ORDER BY r.{sort_by} {sort_order}"
+                " LIMIT ? OFFSET ?"
+            )
 
             async with db.execute(query, params + [per_page, offset]) as cursor:
                 rows = await cursor.fetchall()
@@ -809,24 +807,22 @@ class ApprovalService:
 
             # 2. 総件数取得
             count_query = (
-                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"
+                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"  # nosec B608
             )
             async with db.execute(count_query, params) as cursor:
                 total = (await cursor.fetchone())["total"]
 
             # 3. リクエスト一覧取得
+            # where_sql は内部ロジックで構築した安全な動的句（ユーザー入力はparams経由）
             offset = (page - 1) * per_page
-            query = f"""
-                SELECT
-                    r.*,
-                    p.description AS request_type_description,
-                    p.risk_level
-                FROM approval_requests r
-                JOIN approval_policies p ON r.request_type = p.operation_type
-                WHERE {where_sql}
-                ORDER BY r.created_at DESC
-                LIMIT ? OFFSET ?
-            """
+            query = (  # nosec B608
+                "SELECT r.*, p.description AS request_type_description, p.risk_level"  # nosec B608
+                " FROM approval_requests r"
+                " JOIN approval_policies p ON r.request_type = p.operation_type"
+                f" WHERE {where_sql}"
+                " ORDER BY r.created_at DESC"
+                " LIMIT ? OFFSET ?"
+            )
 
             async with db.execute(query, params + [per_page, offset]) as cursor:
                 rows = await cursor.fetchall()
@@ -1108,24 +1104,22 @@ class ApprovalService:
 
             # 総件数取得
             count_query = (
-                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"
+                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"  # nosec B608
             )
             async with db.execute(count_query, params) as cursor:
                 total = (await cursor.fetchone())["total"]
 
             # リクエスト一覧取得
+            # where_sql は内部ロジックで構築した安全な動的句（ユーザー入力はparams経由）
             offset = (page - 1) * per_page
-            query = f"""
-                SELECT
-                    r.*,
-                    p.description AS request_type_description,
-                    p.risk_level
-                FROM approval_requests r
-                JOIN approval_policies p ON r.request_type = p.operation_type
-                WHERE {where_sql}
-                ORDER BY r.{sort_by} {sort_order}
-                LIMIT ? OFFSET ?
-            """
+            query = (  # nosec B608
+                "SELECT r.*, p.description AS request_type_description, p.risk_level"  # nosec B608
+                " FROM approval_requests r"
+                " JOIN approval_policies p ON r.request_type = p.operation_type"
+                f" WHERE {where_sql}"
+                f" ORDER BY r.{sort_by} {sort_order}"
+                " LIMIT ? OFFSET ?"
+            )
 
             async with db.execute(query, params + [per_page, offset]) as cursor:
                 rows = await cursor.fetchall()

@@ -9,12 +9,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for v0.2.0
-- Users and Groups Management module
-- Cron Jobs Management module
-- Running Processes detailed view
-- Network Configuration module
+### Planned for v0.4.0
+- Network Configuration module (ip addr/route)
+- Linux Firewall module (iptables/nftables)
 - SSH Server configuration module
+- Apache Webserver management
+- MySQL/PostgreSQL management
+- Hardware/SMART Drive Status
+
+---
+
+## [0.3.0] - 2026-02-14
+
+**v0.3 リリース** - 承認ワークフロー・ユーザー管理・Cronジョブ管理
+
+### Added
+
+#### Approval Workflow（承認ワークフロー）
+- **ApprovalService**: 承認リクエストの作成・承認・拒否・有効期限管理（860行）
+- **Approval API**: 12エンドポイント（作成/承認/拒否/一覧/詳細/キャンセル/期限切れ処理/ポリシー管理）
+- **Approval UI**: 承認待ちリスト、承認操作画面（frontend/dev/approval.html）
+- **HMAC署名**: 承認履歴の改ざん防止機構
+- **承認ポリシー管理**: 操作種別ごとのリスクレベル・必要承認者数・タイムアウト設定
+
+#### Users & Groups Management（ユーザー・グループ管理）
+- **Users API**: ユーザー一覧/詳細/作成/削除/パスワード変更（10エンドポイント）
+- **Groups API**: グループ一覧/作成/削除/メンバー変更（8エンドポイント）
+- **Users UI**: ユーザー管理画面（frontend/dev/users.html）
+- **sudoラッパー**: adminui-user-*.sh, adminui-group-*.sh（9ラッパー）
+- **危険操作の承認フロー連携**: user_add/user_delete/group_add/group_delete は承認必須
+
+#### Cron Jobs Management（Cronジョブ管理）
+- **Cron API**: Cronジョブ一覧/追加/削除/有効無効切替（6エンドポイント）
+- **Cron UI**: Cronジョブ管理画面（frontend/dev/cron.html）
+- **sudoラッパー**: adminui-cron-*.sh（4ラッパー）
+- **コマンドallowlist**: 9コマンドのみ許可（rsync/healthcheck/find/tar/gzip/curl/wget/python3/node）
+
+#### 共通モジュール
+- **validation.py**: 入力検証共通ロジック（特殊文字検出、ユーザー名検証、UID/GID範囲検証）
+- **constants.py**: 禁止ユーザー名100+件、禁止グループ名、許可シェル定義
+
+### Security
+- **4層防御アーキテクチャ**: Frontend→API→Service→Wrapper の多段検証
+- **STRIDE脅威分析**: Users(11件)/Cron(7件)/Approval(8件) の脅威分析完了
+- **Allowlistポリシー文書化**: 全モジュールのallowlist/denylistを文書化
+
+### Testing
+- **テストカバレッジ**: 92.69%（462件PASS）
+- **セキュリティテスト**: approval/users/cron/processes の各種セキュリティテスト追加
+- **統合テスト**: approval/users/cron/processes APIの統合テスト追加
+
+---
+
+## [0.2.0] - 2026-02-07
+
+**v0.2 リリース** - Running Processes詳細表示・CI/CD整備
+
+### Added
+
+#### Running Processes（プロセス管理）
+- **Processes API**: プロセス一覧取得・詳細表示・フィルタリング・ソート機能
+- **Processes UI**: プロセス管理画面（frontend/dev/processes.html、JavaScript連携）
+- **sudoラッパー**: adminui-processes.sh（詳細プロセス情報取得）
+- **CPU/Memoryリアルタイム表示**: 使用率の正確な小数点表示
+
+#### Frontend改善
+- **サイドバー日本語化**: メニュー項目の完全日本語対応（menu-i18n.js、menu-ja.json）
+- **メニュー構造再設計**: Webmin互換のカテゴリ構造に再編成
+- **ユーザー情報UI改善**: ログインユーザー情報のアイコン表示
+
+### Fixed
+- processes.jsのレスポンス構造処理バグ修正
+- CPU/メモリ使用率の整数→浮動小数点変換バグ修正
+- Edge/Safari対応のlocalStorage互換性修正
+- ダッシュボードリダイレクト問題の修正
+
+### CI/CD
+- **CI/CD復旧**: GitHub Actions CI成功率 0% → 100%
+- **ShellCheck**: Bashスクリプトの静的解析追加
+- **セキュリティパターン検出**: shell=True/os.system/eval/exec の自動検出
+- **カバレッジレポート**: htmlcov/アーティファクト生成
 
 ---
 

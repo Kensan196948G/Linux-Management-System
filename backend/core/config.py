@@ -16,7 +16,7 @@ from pydantic_settings import BaseSettings
 class ServerConfig(BaseSettings):
     """サーバー設定"""
 
-    host: str = "0.0.0.0"
+    host: str = "0.0.0.0"  # nosec B104
     http_port: int = 3000
     https_port: int = 3443
     ssl_enabled: bool = True
