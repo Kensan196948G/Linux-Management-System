@@ -574,11 +574,46 @@ async def execute_approved_action(
     current_user: TokenData = Depends(require_permission("execute:approved_action")),
 ):
     """
-    承認済みリクエストの操作を手動実行（v0.4 実装予定）
+    承認済みリクエストの操作を手動実行
 
     - **必要権限**: `execute:approved_action` (Admin)
+    - **前提条件**: リクエストのステータスが `approved` であること
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Manual execution of approved actions will be implemented in v0.4",
-    )
+    try:
+        result = await approval_service.execute_request(
+            request_id=request_id,
+            executor_id=current_user.user_id,
+            executor_name=current_user.username,
+            executor_role=current_user.role,
+        )
+
+        return {
+            "status": "success",
+            "message": "操作を実行しました。",
+            **result,
+        }
+
+    except LookupError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    except NotImplementedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to execute approved action {request_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to execute approved action",
+        )

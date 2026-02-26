@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     rejection_reason  TEXT         NULL,
     execution_result  TEXT         NULL,          -- JSON
     executed_at       TIMESTAMP    NULL,
+    executed_by       VARCHAR(50)  NULL,
 
     -- 制約
     CONSTRAINT chk_status CHECK (

@@ -206,7 +206,15 @@ class ApprovalService:
 
         async with aiosqlite.connect(self.db_path) as db:
             await db.executescript(schema_sql)
-            await db.commit()
+            # 既存DBへの後方互換マイグレーション
+            try:
+                await db.execute(
+                    "ALTER TABLE approval_requests ADD COLUMN executed_by VARCHAR(50) NULL"
+                )
+                await db.commit()
+                logger.info("Migrated approval_requests: added executed_by column")
+            except Exception:
+                pass  # 既にカラムが存在する場合は無視
 
         logger.info("Approval workflow database initialized successfully")
 
@@ -448,12 +456,26 @@ class ApprovalService:
                 "auto_executed": False,
             }
 
-            # 9. 自動実行（v0.4 予定 - 今回はスタブ）
+            # 9. 自動実行
             if auto_execute:
-                # TODO: 自動実行ロジック実装（v0.4）
-                logger.info(
-                    f"Auto-execute is enabled for {request_id}, but not implemented yet (v0.4)"
-                )
+                logger.info(f"Auto-executing approved request {request_id} ({request['request_type']})")
+                try:
+                    exec_result = await self.execute_request(
+                        request_id=request_id,
+                        executor_id=approver_id,
+                        executor_name=approver_name,
+                        executor_role=approver_role,
+                    )
+                    result["auto_executed"] = True
+                    result["execution_result"] = exec_result.get("execution_result")
+                except NotImplementedError as e:
+                    logger.warning(f"Auto-execute skipped for {request_id}: {e}")
+                    result["auto_executed"] = False
+                    result["auto_execute_skipped_reason"] = str(e)
+                except Exception as e:
+                    logger.error(f"Auto-execute failed for {request_id}: {e}")
+                    result["auto_executed"] = False
+                    result["auto_execute_error"] = str(e)
 
             return result
 
@@ -571,7 +593,217 @@ class ApprovalService:
             }
 
     # ===============================================================
-    # 4. リクエスト詳細取得
+    # 4. 承認済みリクエスト実行
+    # ===============================================================
+
+    async def execute_request(
+        self,
+        request_id: str,
+        executor_id: str,
+        executor_name: str,
+        executor_role: str,
+    ) -> dict:
+        """
+        承認済みリクエストの操作を実行
+
+        Args:
+            request_id: リクエストID
+            executor_id: 実行者ユーザーID
+            executor_name: 実行者表示名
+            executor_role: 実行者ロール
+
+        Returns:
+            実行結果辞書
+
+        Raises:
+            LookupError: リクエストが存在しない
+            ValueError: 実行不可（ステータスが approved でない）
+            NotImplementedError: 未対応の operation_type
+        """
+        import asyncio
+
+        from .sudo_wrapper import SudoWrapperError, sudo_wrapper
+
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            # 1. リクエスト取得
+            async with db.execute(
+                "SELECT * FROM approval_requests WHERE id = ?",
+                (request_id,),
+            ) as cursor:
+                request = await cursor.fetchone()
+
+            if not request:
+                raise LookupError(f"Approval request not found: {request_id}")
+
+            # 2. ステータスチェック（approved のみ実行可能）
+            if request["status"] != "approved":
+                raise ValueError(
+                    f"Request {request_id} cannot be executed: "
+                    f"status is '{request['status']}', expected 'approved'"
+                )
+
+            request_type = request["request_type"]
+            payload = json.loads(request["request_payload"])
+            executed_at = datetime.utcnow()
+
+            # 3. operation_type ごとにディスパッチ
+            # ── 未対応の operation_type は NotImplementedError を送出 ──
+            _UNSUPPORTED = {"user_modify", "service_stop", "firewall_modify"}
+            if request_type in _UNSUPPORTED:
+                raise NotImplementedError(
+                    f"Auto-execution of '{request_type}' is not yet supported. "
+                    "Please execute this operation manually."
+                )
+
+            def _dispatch_sync() -> dict:
+                """sudo_wrapper を同期呼び出し（別スレッドで実行）"""
+                if request_type == "user_add":
+                    return sudo_wrapper.add_user(
+                        username=payload["username"],
+                        password_hash=payload["password_hash"],
+                        shell=payload.get("shell", "/bin/bash"),
+                        gecos=payload.get("gecos", ""),
+                        groups=payload.get("groups"),
+                    )
+                elif request_type == "user_delete":
+                    return sudo_wrapper.delete_user(
+                        username=payload["username"],
+                        remove_home=payload.get("remove_home", False),
+                        backup_home=payload.get("backup_home", False),
+                        force_logout=payload.get("force_logout", False),
+                    )
+                elif request_type == "user_passwd":
+                    return sudo_wrapper.change_user_password(
+                        username=payload["username"],
+                        password_hash=payload["password_hash"],
+                    )
+                elif request_type == "group_add":
+                    return sudo_wrapper.add_group(name=payload["name"])
+                elif request_type == "group_delete":
+                    return sudo_wrapper.delete_group(name=payload["name"])
+                elif request_type == "group_modify":
+                    return sudo_wrapper.modify_group_membership(
+                        group=payload["group"],
+                        action=payload["action"],
+                        user=payload["user"],
+                    )
+                elif request_type == "cron_add":
+                    return sudo_wrapper.add_cron_job(
+                        username=payload["username"],
+                        schedule=payload["schedule"],
+                        command=payload["command"],
+                        arguments=payload.get("arguments", ""),
+                        comment=payload.get("comment", ""),
+                    )
+                elif request_type == "cron_delete":
+                    return sudo_wrapper.remove_cron_job(
+                        username=payload["username"],
+                        line_number=int(payload["line_number"]),
+                    )
+                elif request_type == "cron_modify":
+                    return sudo_wrapper.toggle_cron_job(
+                        username=payload["username"],
+                        line_number=int(payload["line_number"]),
+                        action=payload["action"],
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"No executor defined for operation_type: '{request_type}'"
+                    )
+
+            # 4. 実行（sudo_wrapper はブロッキングなので別スレッドで実行）
+            execution_success = False
+            execution_result: dict = {}
+            try:
+                execution_result = await asyncio.to_thread(_dispatch_sync)
+                execution_success = (
+                    execution_result.get("status") == "success"
+                )
+                if not execution_success:
+                    raise SudoWrapperError(
+                        execution_result.get("message", "Wrapper returned non-success status")
+                    )
+
+            except (SudoWrapperError, NotImplementedError) as exc:
+                # 5a. 実行失敗 → execution_failed に更新
+                new_status = "execution_failed"
+                execution_result = {"status": "error", "message": str(exc)}
+                logger.error(
+                    f"Execution failed for {request_id} ({request_type}): {exc}"
+                )
+            else:
+                # 5b. 実行成功 → executed に更新
+                new_status = "executed"
+                logger.info(
+                    f"Executed approved request {request_id} ({request_type}) by {executor_id}"
+                )
+
+            # 6. ステータス更新
+            await db.execute(
+                """
+                UPDATE approval_requests
+                SET status = ?, executed_at = ?, execution_result = ?,
+                    executed_by = ?
+                WHERE id = ?
+                """,
+                (
+                    new_status,
+                    executed_at.isoformat(),
+                    json.dumps(execution_result, ensure_ascii=False),
+                    executor_id,
+                    request_id,
+                ),
+            )
+
+            # 7. 履歴追加
+            action = "executed" if execution_success else "execution_failed"
+            await self._add_history(
+                db=db,
+                approval_request_id=request_id,
+                action=action,
+                actor_id=executor_id,
+                actor_name=executor_name,
+                actor_role=executor_role,
+                previous_status="approved",
+                new_status=new_status,
+                details={
+                    "request_type": request_type,
+                    "execution_result": execution_result,
+                },
+            )
+
+            await db.commit()
+
+            # 8. 監査ログ（同期メソッド）
+            audit_status = "success" if execution_success else "failure"
+            self.audit_log.record(
+                operation=f"execute_{request_type}",
+                user_id=executor_id,
+                target=f"{request_type}:{request_id}",
+                status=audit_status,
+                details={
+                    "request_id": request_id,
+                    "requester_id": request["requester_id"],
+                    "execution_result": execution_result,
+                },
+            )
+
+            if not execution_success:
+                raise SudoWrapperError(execution_result.get("message", "Execution failed"))
+
+            return {
+                "request_id": request_id,
+                "request_type": request_type,
+                "executed_by": executor_id,
+                "executed_by_name": executor_name,
+                "executed_at": executed_at.isoformat(),
+                "execution_result": execution_result,
+            }
+
+    # ===============================================================
+    # 5. リクエスト詳細取得
     # ===============================================================
 
     async def get_request(self, request_id: str) -> dict:

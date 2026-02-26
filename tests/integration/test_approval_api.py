@@ -618,14 +618,67 @@ class TestApprovalActionsAPI:
         assert response.status_code == 403
 
     def test_execute_request_success_admin(self, test_client, admin_headers):
-        """TC-API-035: Adminによる承認済みリクエストの手動実行（v0.4 スタブ: 501）"""
-        # execute エンドポイントはまだ v0.4 スタブなので 501 を期待
+        """TC-API-035: 存在しないIDで実行すると404を返す"""
         fake_id = "nonexistent-execute-id"
         response = test_client.post(
             f"/api/approval/{fake_id}/execute",
             headers=admin_headers,
         )
-        assert response.status_code == 501
+        assert response.status_code == 404
+
+    def test_execute_approved_request(
+        self, test_client, operator_headers, admin_headers
+    ):
+        """TC-API-036: 承認済みリクエストを手動実行（sudoラッパーをモック）"""
+        from unittest.mock import patch
+
+        # group_add リクエストを作成
+        create_resp = test_client.post(
+            "/api/approval/request",
+            json={
+                "request_type": "group_add",
+                "payload": {"name": "testgroup"},
+                "reason": "テスト用グループ作成",
+            },
+            headers=operator_headers,
+        )
+        assert create_resp.status_code == 201
+        request_id = create_resp.json()["request_id"]
+
+        # Admin が承認
+        test_client.post(
+            f"/api/approval/{request_id}/approve",
+            json={"comment": "承認します"},
+            headers=admin_headers,
+        )
+
+        # sudo_wrapperをモックして実行
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.add_group"
+        ) as mock_exec:
+            mock_exec.return_value = {"status": "success", "message": "Group added"}
+            response = test_client.post(
+                f"/api/approval/{request_id}/execute",
+                headers=admin_headers,
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["request_id"] == request_id
+
+    def test_execute_request_not_approved(
+        self, test_client, operator_headers, admin_headers
+    ):
+        """TC-API-037: pending状態のリクエストを実行しようとすると400を返す"""
+        create_resp = _create_request(test_client, operator_headers)
+        request_id = create_resp.json()["request_id"]
+
+        response = test_client.post(
+            f"/api/approval/{request_id}/execute",
+            headers=admin_headers,
+        )
+        assert response.status_code == 400
 
 
 # ============================================================================
