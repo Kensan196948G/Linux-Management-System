@@ -68,6 +68,7 @@ ROLES = {
             "read:status",
             "read:logs",
             "read:processes",
+            "read:network",
             "read:cron",
             "read:users",
         ],
@@ -78,6 +79,7 @@ ROLES = {
             "read:status",
             "read:logs",
             "read:processes",
+            "read:network",
             "execute:service_restart",
             # Cron ジョブ管理
             "read:cron",
@@ -95,6 +97,7 @@ ROLES = {
             "read:status",
             "read:logs",
             "read:processes",
+            "read:network",
             "execute:service_restart",
             "approve:dangerous_operation",
             # Cron ジョブ管理
@@ -116,6 +119,7 @@ ROLES = {
             "read:status",
             "read:logs",
             "read:processes",
+            "read:network",
             "execute:service_restart",
             "approve:dangerous_operation",
             "manage:users",

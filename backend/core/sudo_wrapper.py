@@ -575,6 +575,58 @@ class SudoWrapper:
             timeout=10,
         )
 
+    # ------------------------------------------------------------------
+    # ネットワーク情報取得（読み取り専用）
+    # ------------------------------------------------------------------
+
+    def get_network_interfaces(self) -> Dict[str, Any]:
+        """
+        ネットワークインターフェース一覧を取得 (ip addr show)
+
+        Returns:
+            インターフェース情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-network.sh", ["interfaces"], timeout=10)
+
+    def get_network_stats(self) -> Dict[str, Any]:
+        """
+        ネットワークインターフェース統計を取得 (ip -s link show)
+
+        Returns:
+            統計情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-network.sh", ["stats"], timeout=10)
+
+    def get_network_connections(self) -> Dict[str, Any]:
+        """
+        アクティブなネットワーク接続を取得 (ss -tlnp)
+
+        Returns:
+            接続情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-network.sh", ["connections"], timeout=10)
+
+    def get_network_routes(self) -> Dict[str, Any]:
+        """
+        ルーティングテーブルを取得 (ip route show)
+
+        Returns:
+            ルーティング情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-network.sh", ["routes"], timeout=10)
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()
