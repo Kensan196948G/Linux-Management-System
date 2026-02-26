@@ -627,6 +627,79 @@ class SudoWrapper:
         """
         return self._execute("adminui-network.sh", ["routes"], timeout=10)
 
+    # ------------------------------------------------------------------
+    # サーバー管理（読み取り専用）
+    # ------------------------------------------------------------------
+
+    #: 許可サーバー名一覧
+    ALLOWED_SERVERS = ("nginx", "apache2", "mysql", "postgresql", "redis")
+
+    def get_all_server_status(self) -> Dict[str, Any]:
+        """
+        全許可サーバーの状態を一括取得 (systemctl show)
+
+        Returns:
+            全サーバー状態の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-servers.sh", ["status"], timeout=15)
+
+    def get_server_status(self, server: str) -> Dict[str, Any]:
+        """
+        指定サーバーの状態を取得
+
+        Args:
+            server: サーバー名（allowlist: nginx/apache2/mysql/postgresql/redis）
+
+        Returns:
+            サーバー状態の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+            ValueError: 不正なサーバー名
+        """
+        if server not in self.ALLOWED_SERVERS:
+            raise ValueError(f"Server not allowed: {server}")
+        return self._execute("adminui-servers.sh", ["status", server], timeout=10)
+
+    def get_server_version(self, server: str) -> Dict[str, Any]:
+        """
+        指定サーバーのバージョン情報を取得
+
+        Args:
+            server: サーバー名
+
+        Returns:
+            バージョン情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+            ValueError: 不正なサーバー名
+        """
+        if server not in self.ALLOWED_SERVERS:
+            raise ValueError(f"Server not allowed: {server}")
+        return self._execute("adminui-servers.sh", ["version", server], timeout=10)
+
+    def get_server_config_info(self, server: str) -> Dict[str, Any]:
+        """
+        指定サーバーの設定ファイル情報を取得（パスと存在確認のみ）
+
+        Args:
+            server: サーバー名
+
+        Returns:
+            設定ファイル情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+            ValueError: 不正なサーバー名
+        """
+        if server not in self.ALLOWED_SERVERS:
+            raise ValueError(f"Server not allowed: {server}")
+        return self._execute("adminui-servers.sh", ["config", server], timeout=10)
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()
