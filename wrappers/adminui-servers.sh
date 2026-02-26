@@ -83,9 +83,10 @@ get_service_status_json() {
     load_state=$(systemctl show "${service}" --property=LoadState 2>/dev/null | cut -d= -f2 || echo "unknown")
     main_pid=$(systemctl show "${service}" --property=MainPID 2>/dev/null | cut -d= -f2 || echo "0")
 
-    # 有効化状態
+    # 有効化状態（stdout を確実に1行に正規化）
     local enabled_state
-    enabled_state=$(systemctl is-enabled "${service}" 2>/dev/null || echo "unknown")
+    enabled_state=$(systemctl is-enabled "${service}" 2>/dev/null | head -1)
+    [ -z "${enabled_state}" ] && enabled_state="unknown"
 
     printf '{"service":"%s","active_state":"%s","sub_state":"%s","load_state":"%s","main_pid":%s,"enabled":"%s"}' \
         "$service" "$active_state" "$running_state" "$load_state" "$main_pid" "$enabled_state"

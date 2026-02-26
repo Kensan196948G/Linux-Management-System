@@ -133,22 +133,21 @@ case "$SUBCOMMAND" in
         fi
 
         # ss -tlnp: TCP listening, numeric, with process info
-        # JSON 形式で出力（ss >= iproute2 5.x で -j フラグ対応）
-        if ss -j -tlnp &>/dev/null 2>&1; then
-            conn_json=$(ss -j -tlnp 2>/dev/null || echo "[]")
-        else
-            # フォールバック: テキスト形式を JSON に変換
-            conn_json=$(ss -tlnp 2>/dev/null | awk '
-                NR==1 { next }  # ヘッダをスキップ
-                {
-                    state=$1; recv=$2; send=$3; local_addr=$4; peer_addr=$5;
-                    process=""
-                    if (NF >= 6) { process=$6 }
-                    printf "{\"state\":\"%s\",\"recv_q\":%s,\"send_q\":%s,\"local_address\":\"%s\",\"peer_address\":\"%s\",\"process\":\"%s\"},",
-                        state, recv, send, local_addr, peer_addr, process
+        # processフィールドの引用符をエスケープして安全なJSONを生成
+        conn_json=$(ss -tlnp 2>/dev/null | awk '
+            NR==1 { next }  # ヘッダをスキップ
+            {
+                state=$1; recv=$2; send=$3; local_addr=$4; peer_addr=$5;
+                process=""
+                if (NF >= 6) {
+                    # 引用符をエスケープ
+                    process=$6
+                    gsub(/"/, "\\\"", process)
                 }
-            ' | sed 's/,$//' | { read -r line; echo "[$line]"; })
-        fi
+                printf "{\"state\":\"%s\",\"recv_q\":%s,\"send_q\":%s,\"local_address\":\"%s\",\"peer_address\":\"%s\",\"process\":\"%s\"},",
+                    state, recv, send, local_addr, peer_addr, process
+            }
+        ' | sed 's/,$//' | { read -r line; echo "[$line]"; })
 
         output_json "success" "connections" "${conn_json:-[]}"
         ;;

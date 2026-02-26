@@ -20,6 +20,7 @@ from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 from ...core.sudo_wrapper import SudoWrapperError
+from ._utils import parse_wrapper_result
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +135,9 @@ async def get_disks(
 
     try:
         result = sudo_wrapper.get_hardware_disks()
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="hardware_disks",
                 user_id=current_user.user_id,
@@ -156,7 +158,7 @@ async def get_disks(
             details={"count": len(result.get("disks", []))},
         )
 
-        return HardwareDisksResponse(**result)
+        return HardwareDisksResponse(**parsed)
 
     except SudoWrapperError as e:
         audit_log.record(
@@ -201,8 +203,9 @@ async def get_disk_usage(
 
     try:
         result = sudo_wrapper.get_hardware_disk_usage()
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="hardware_disk_usage",
                 user_id=current_user.user_id,
@@ -223,7 +226,7 @@ async def get_disk_usage(
             details={"count": len(result.get("usage", []))},
         )
 
-        return HardwareDiskUsageResponse(**result)
+        return HardwareDiskUsageResponse(**parsed)
 
     except SudoWrapperError as e:
         audit_log.record(
@@ -283,8 +286,9 @@ async def get_smart(
 
     try:
         result = sudo_wrapper.get_hardware_smart(device)
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="hardware_smart",
                 user_id=current_user.user_id,
@@ -305,7 +309,7 @@ async def get_smart(
             details={"device": device},
         )
 
-        return HardwareSmartResponse(**result)
+        return HardwareSmartResponse(**parsed)
 
     except ValueError as e:
         raise HTTPException(
@@ -355,8 +359,9 @@ async def get_sensors(
 
     try:
         result = sudo_wrapper.get_hardware_sensors()
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="hardware_sensors",
                 user_id=current_user.user_id,
@@ -377,7 +382,7 @@ async def get_sensors(
             details={},
         )
 
-        return HardwareSensorsResponse(**result)
+        return HardwareSensorsResponse(**parsed)
 
     except SudoWrapperError as e:
         audit_log.record(
@@ -422,8 +427,9 @@ async def get_memory(
 
     try:
         result = sudo_wrapper.get_hardware_memory()
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="hardware_memory",
                 user_id=current_user.user_id,
@@ -444,7 +450,7 @@ async def get_memory(
             details={},
         )
 
-        return HardwareMemoryResponse(**result)
+        return HardwareMemoryResponse(**parsed)
 
     except SudoWrapperError as e:
         audit_log.record(

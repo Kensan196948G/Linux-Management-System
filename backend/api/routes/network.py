@@ -18,6 +18,7 @@ from ...core import get_current_user, require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 from ...core.sudo_wrapper import SudoWrapperError
+from ._utils import parse_wrapper_result
 
 logger = logging.getLogger(__name__)
 
@@ -94,18 +95,19 @@ async def get_interfaces(
 
     try:
         result = sudo_wrapper.get_network_interfaces()
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="network_interfaces",
                 user_id=current_user.user_id,
                 target="network",
                 status="denied",
-                details={"reason": result.get("message", "unknown")},
+                details={"reason": parsed.get("message", result.get("message", "unknown"))},
             )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=result.get("message", "Network information unavailable"),
+                detail=parsed.get("message", result.get("message", "Network information unavailable")),
             )
 
         audit_log.record(
@@ -113,10 +115,10 @@ async def get_interfaces(
             user_id=current_user.user_id,
             target="network",
             status="success",
-            details={"count": len(result.get("interfaces", []))},
+            details={"count": len(parsed.get("interfaces", []))},
         )
 
-        return NetworkInterfacesResponse(**result)
+        return NetworkInterfacesResponse(**parsed)
 
     except SudoWrapperError as e:
         audit_log.record(
@@ -161,8 +163,9 @@ async def get_stats(
 
     try:
         result = sudo_wrapper.get_network_stats()
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="network_stats",
                 user_id=current_user.user_id,
@@ -180,10 +183,10 @@ async def get_stats(
             user_id=current_user.user_id,
             target="network",
             status="success",
-            details={"count": len(result.get("stats", []))},
+            details={"count": len(parsed.get("stats", []))},
         )
 
-        return NetworkStatsResponse(**result)
+        return NetworkStatsResponse(**parsed)
 
     except SudoWrapperError as e:
         audit_log.record(
@@ -228,8 +231,9 @@ async def get_connections(
 
     try:
         result = sudo_wrapper.get_network_connections()
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="network_connections",
                 user_id=current_user.user_id,
@@ -247,10 +251,10 @@ async def get_connections(
             user_id=current_user.user_id,
             target="network",
             status="success",
-            details={"count": len(result.get("connections", []))},
+            details={"count": len(parsed.get("connections", []))},
         )
 
-        return NetworkConnectionsResponse(**result)
+        return NetworkConnectionsResponse(**parsed)
 
     except SudoWrapperError as e:
         audit_log.record(
@@ -295,8 +299,9 @@ async def get_routes(
 
     try:
         result = sudo_wrapper.get_network_routes()
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="network_routes",
                 user_id=current_user.user_id,
@@ -314,10 +319,10 @@ async def get_routes(
             user_id=current_user.user_id,
             target="network",
             status="success",
-            details={"count": len(result.get("routes", []))},
+            details={"count": len(parsed.get("routes", []))},
         )
 
-        return NetworkRoutesResponse(**result)
+        return NetworkRoutesResponse(**parsed)
 
     except SudoWrapperError as e:
         audit_log.record(

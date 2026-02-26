@@ -8,6 +8,7 @@
   GET /api/servers/{server}/config     - 設定ファイル情報
 """
 
+import json
 import logging
 from typing import Any
 
@@ -18,6 +19,7 @@ from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 from ...core.sudo_wrapper import SudoWrapperError
+from ._utils import parse_wrapper_result
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +86,8 @@ class ServerConfigInfoResponse(BaseModel):
 # ===================================================================
 
 
+
+
 def _validate_server_name(server: str) -> None:
     """サーバー名のallowlistチェック"""
     if server not in ALLOWED_SERVERS:
@@ -126,18 +130,19 @@ async def get_all_server_status(
 
     try:
         result = sudo_wrapper.get_all_server_status()
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="server_status_all",
                 user_id=current_user.user_id,
                 target="servers",
                 status="denied",
-                details={"reason": result.get("message", "unknown")},
+                details={"reason": parsed.get("message", result.get("message", "unknown"))},
             )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=result.get("message", "Server status unavailable"),
+                detail=parsed.get("message", result.get("message", "Server status unavailable")),
             )
 
         audit_log.record(
@@ -145,10 +150,10 @@ async def get_all_server_status(
             user_id=current_user.user_id,
             target="servers",
             status="success",
-            details={"count": len(result.get("servers", []))},
+            details={"count": len(parsed.get("servers", []))},
         )
 
-        return AllServerStatusResponse(**result)
+        return AllServerStatusResponse(**parsed)
 
     except SudoWrapperError as e:
         audit_log.record(
@@ -197,18 +202,19 @@ async def get_server_status(
 
     try:
         result = sudo_wrapper.get_server_status(server)
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="server_status",
                 user_id=current_user.user_id,
                 target=server,
                 status="denied",
-                details={"reason": result.get("message", "unknown")},
+                details={"reason": parsed.get("message", result.get("message", "unknown"))},
             )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=result.get("message", "Server status unavailable"),
+                detail=parsed.get("message", result.get("message", "Server status unavailable")),
             )
 
         audit_log.record(
@@ -219,7 +225,7 @@ async def get_server_status(
             details={"server": server},
         )
 
-        return ServerStatusResponse(**result)
+        return ServerStatusResponse(**parsed)
 
     except ValueError as e:
         raise HTTPException(
@@ -273,18 +279,19 @@ async def get_server_version(
 
     try:
         result = sudo_wrapper.get_server_version(server)
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="server_version",
                 user_id=current_user.user_id,
                 target=server,
                 status="denied",
-                details={"reason": result.get("message", "unknown")},
+                details={"reason": parsed.get("message", result.get("message", "unknown"))},
             )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=result.get("message", "Server version unavailable"),
+                detail=parsed.get("message", result.get("message", "Server version unavailable")),
             )
 
         audit_log.record(
@@ -292,10 +299,10 @@ async def get_server_version(
             user_id=current_user.user_id,
             target=server,
             status="success",
-            details={"server": server, "version": result.get("version", "unknown")},
+            details={"server": server, "version": parsed.get("version", "unknown")},
         )
 
-        return ServerVersionResponse(**result)
+        return ServerVersionResponse(**parsed)
 
     except ValueError as e:
         raise HTTPException(
@@ -349,18 +356,19 @@ async def get_server_config_info(
 
     try:
         result = sudo_wrapper.get_server_config_info(server)
+        parsed = parse_wrapper_result(result)
 
-        if result.get("status") == "error":
+        if parsed.get("status") == "error" or result.get("status") == "error":
             audit_log.record(
                 operation="server_config_info",
                 user_id=current_user.user_id,
                 target=server,
                 status="denied",
-                details={"reason": result.get("message", "unknown")},
+                details={"reason": parsed.get("message", result.get("message", "unknown"))},
             )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=result.get("message", "Server config info unavailable"),
+                detail=parsed.get("message", result.get("message", "Server config info unavailable")),
             )
 
         audit_log.record(
@@ -371,7 +379,7 @@ async def get_server_config_info(
             details={"server": server},
         )
 
-        return ServerConfigInfoResponse(**result)
+        return ServerConfigInfoResponse(**parsed)
 
     except ValueError as e:
         raise HTTPException(
