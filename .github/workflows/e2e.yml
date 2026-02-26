@@ -39,6 +39,7 @@ jobs:
 
       - name: Make wrapper scripts executable
         run: |
+          mkdir -p test-results
           chmod +x wrappers/*.sh || true
 
       - name: Run API E2E tests
@@ -46,6 +47,10 @@ jobs:
           pytest tests/e2e/test_api_e2e.py -v -m e2e \
             --timeout=60 \
             --no-header \
+            --junitxml=test-results/e2e-api-results.xml \
+            --cov=backend \
+            --cov-report=html:htmlcov/e2e \
+            --cov-report=xml:coverage-e2e.xml \
             -rN \
             2>&1 || true
 
@@ -54,8 +59,20 @@ jobs:
           pytest tests/e2e/test_frontend_e2e.py -v -m e2e \
             --timeout=60 \
             --no-header \
+            --junitxml=test-results/e2e-frontend-results.xml \
             -rN \
             2>&1 || true
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-coverage-report
+          path: |
+            htmlcov/e2e/
+            coverage-e2e.xml
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Upload Playwright report
         if: always()

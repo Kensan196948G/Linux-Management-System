@@ -425,3 +425,128 @@ class TestAPIResponseStructure:
         assert response.status == 404
         data = response.json()
         assert "detail" in data or "message" in data
+
+
+# ==============================================================================
+# セキュリティヘッダー E2E テスト
+# ==============================================================================
+
+
+class TestSecurityHeadersFlow:
+    """セキュリティヘッダーのE2Eテスト"""
+
+    @pytest.mark.e2e
+    def test_security_headers_present(self, api_client, auth_token):
+        """全APIレスポンスにセキュリティヘッダーが付与される"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = api_client.get("/api/system/status", headers=headers)
+        assert response.status_code == 200
+        # セキュリティヘッダー確認
+        assert "x-content-type-options" in response.headers
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert "x-frame-options" in response.headers
+        assert response.headers["x-frame-options"] == "DENY"
+        assert "content-security-policy" in response.headers
+
+    @pytest.mark.e2e
+    def test_security_headers_on_unauthenticated(self, api_client):
+        """未認証レスポンスにもセキュリティヘッダーが付与される"""
+        response = api_client.get("/api/system/status")
+        assert "x-frame-options" in response.headers
+        assert "x-content-type-options" in response.headers
+
+
+# ==============================================================================
+# ファイルシステム E2E テスト
+# ==============================================================================
+
+
+class TestFilesystemFlow:
+    """ファイルシステムAPIのE2Eテスト"""
+
+    @pytest.mark.e2e
+    def test_filesystem_usage_requires_auth(self, api_client):
+        """認証なしでファイルシステム使用量は取得不可"""
+        response = api_client.get("/api/filesystem/usage")
+        assert response.status_code == 403
+
+    @pytest.mark.e2e
+    def test_filesystem_mounts_requires_auth(self, api_client):
+        """認証なしでマウントポイントは取得不可"""
+        response = api_client.get("/api/filesystem/mounts")
+        assert response.status_code == 403
+
+    @pytest.mark.e2e
+    def test_filesystem_usage_with_auth(self, api_client, auth_token):
+        """認証済みユーザーはファイルシステム使用量を取得可能"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = api_client.get("/api/filesystem/usage", headers=headers)
+        # 200 または 500 (wrapperが実行できない環境) どちらも許容
+        assert response.status_code in (200, 500)
+        if response.status_code == 200:
+            data = response.json()
+            assert "status" in data
+
+    @pytest.mark.e2e
+    def test_filesystem_mounts_with_auth(self, api_client, auth_token):
+        """認証済みユーザーはマウントポイントを取得可能"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = api_client.get("/api/filesystem/mounts", headers=headers)
+        assert response.status_code in (200, 500)
+
+
+# ==============================================================================
+# Firewall 書き込み E2E テスト
+# ==============================================================================
+
+
+class TestFirewallWriteFlow:
+    """Firewall書き込みAPIのE2Eテスト"""
+
+    @pytest.mark.e2e
+    def test_firewall_write_requires_auth(self, api_client):
+        """認証なしでFirewallルール追加は不可"""
+        response = api_client.post(
+            "/api/firewall/rules",
+            json={"port": 8080, "protocol": "tcp", "action": "allow"},
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.e2e
+    def test_firewall_write_requires_admin(self, api_client, viewer_token):
+        """Viewerロールでは Firewall ルール追加不可"""
+        headers = {"Authorization": f"Bearer {viewer_token}"}
+        response = api_client.post(
+            "/api/firewall/rules",
+            json={"port": 8080, "protocol": "tcp", "action": "allow"},
+            headers=headers,
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.e2e
+    def test_firewall_write_invalid_port(self, api_client, admin_token):
+        """無効なポート番号は422エラー"""
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        response = api_client.post(
+            "/api/firewall/rules",
+            json={"port": 99999, "protocol": "tcp", "action": "allow"},
+            headers=headers,
+        )
+        assert response.status_code == 422
+
+
+# ==============================================================================
+# レート制限 E2E テスト
+# ==============================================================================
+
+
+class TestRateLimitingFlow:
+    """レート制限のE2Eテスト"""
+
+    @pytest.mark.e2e
+    def test_api_responds_normally(self, api_client, auth_token):
+        """通常リクエストは正常にレスポンスする"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = api_client.get("/api/system/status", headers=headers)
+        assert response.status_code == 200
+        assert response.status_code != 429

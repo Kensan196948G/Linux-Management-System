@@ -9,71 +9,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added (v0.5.0相当)
-- **フロントエンド刷新**: Network/Servers/Hardware/監査ログ ページ追加
-  - frontend/dev/network.html: ネットワーク情報ページ（タブ: インターフェース/接続/ルート/統計）
-  - frontend/dev/servers.html: サーバー状態一覧ページ（nginx/apache2/mysql/postgresql/redis）
-  - frontend/dev/hardware.html: ハードウェア情報ページ（タブ: メモリ/ディスク/センサー）
-  - frontend/dev/audit.html: 監査ログ一覧ページ（フィルタ/ページネーション/エクスポート）
-  - frontend/js/api.js: Network/Servers/Hardware APIメソッド追加
-  - frontend/dev/dashboard.html: サイドバーに全新規ページへのリンク追加
+---
 
-- **Firewall モジュール（read-only）**: iptables/nftables/UFW ルール読み取り
-  - wrappers/adminui-firewall.sh: rules/policy/status サブコマンド
-  - GET /api/firewall/rules, /policy, /status
-  - tests/integration/test_firewall_api.py: 22件テスト
+## [0.6.0] - 2026-02-26
 
-- **Package Manager モジュール（apt）**: インストール済み/更新可能/セキュリティパッケージ一覧
-  - wrappers/adminui-packages.sh: list/updates/security サブコマンド
-  - GET /api/packages/installed, /updates, /security
-  - tests/integration/test_packages_api.py: 20件テスト
+**v0.6 リリース** - Approval完全実装・セキュリティ強化・ファイルシステム管理・HTTPS対応
 
-- **承認ワークフロー拡張**: service_stop 操作を承認フローに追加
-  - wrappers/adminui-service-stop.sh: サービス停止ラッパー（allowlist方式）
-  - approval_service.py に service_stop dispatch 追加
+### Added
 
-- **SSH Server モジュール（read-only）**: sshd_config 状態確認・危険設定チェック
-  - wrappers/adminui-ssh.sh: status/config サブコマンド
-  - GET /api/ssh/status, /config
-  - 危険設定自動検出（PermitRootLogin yes / PasswordAuthentication yes 等）
-  - tests/integration/test_ssh_api.py: 20件テスト
+#### Approval Workflow 完全実装
+- **wrappers/adminui-user-modify.sh**: ユーザー属性変更ラッパー（set-shell/set-gecos/add-group/remove-group）
+  - シェル allowlist（7種のみ）、UID < 1000 システムユーザー保護、特権グループ追加禁止
+- **approval_service.py**: user_modify / firewall_modify dispatch 完全実装
+- **sudo_wrapper.py**: modify_user_shell/gecos/add_group/remove_group メソッド追加
+- **tests/integration/test_approval_extended.py**: 17件テスト（全PASS）
 
-- **監査ログ API + UI**: 全操作ログの可視化・エクスポート機能
-  - GET /api/audit/logs: ページネーション付き一覧（Operator: 自分のみ / Admin: 全員）
-  - GET /api/audit/logs/export: CSV/JSON エクスポート（Admin のみ）
-  - frontend/dev/audit.html: フィルタ・ページネーション・エクスポートボタン付き UI
-  - tests/integration/test_audit_api.py: 20件テスト
+#### セキュリティ強化
+- **セキュリティヘッダー middleware**: X-Content-Type-Options / X-Frame-Options / X-XSS-Protection / Referrer-Policy / CSP / HSTS
+- **APIレート制限**: 1分あたり60リクエスト上限（インメモリ）
+- **ログインブルートフォース対策**: 5回失敗→15分ロック
+- **Bandit Medium 0件**: 全 Medium/High 警告解消
 
-- **CI/CD強化**: E2Eテスト専用 workflow 追加
-  - .github/workflows/e2e.yml: Playwright Chromium ヘッドレステスト実行
-  - テストレポートをアーティファクトに保存（playwright-report/）
+#### HTTPS/TLS 対応
+- **config/nginx/adminui.conf**: HTTP→HTTPS 308 リダイレクト + TLS 1.2/1.3 設定
+- **scripts/setup-nginx.sh**: 自己署名証明書または外部証明書インストールスクリプト
+- **docs/guides/production-deploy.md**: 本番デプロイ手順書（日本語）
+
+#### Firewall 書き込みモジュール
+- **wrappers/adminui-firewall-write.sh**: allow-port/deny-port/delete-rule（ポート allowlist）
+- **POST /api/firewall/rules**: UFW ルール追加（承認フロー経由、Admin のみ）
+- **DELETE /api/firewall/rules/{rule_num}**: ルール削除（承認フロー経由）
+- **auth.py**: write:firewall 権限追加（Admin ロール）
+
+#### ファイルシステム管理モジュール
+- **wrappers/adminui-filesystem.sh**: df/du/mounts サブコマンド（パス allowlist）
+- **GET /api/filesystem/usage**: ファイルシステム使用量（85% 警告付き）
+- **GET /api/filesystem/mounts**: マウントポイント一覧
+- **tests/integration/test_filesystem_api.py**: 20件テスト（全PASS）
+
+#### 設定統合UI
+- **frontend/dev/settings.html**: SSH設定/ユーザー管理/Cronジョブ/サービス管理 統合タブページ
 
 ### Changed
-- **auth.py**: 全ロールに `read:firewall`, `read:packages`, `read:ssh` 権限追加
-- **auth.py**: Operator/Approver に `read:audit`, Admin に `read:audit`/`export:audit` 追加
-- **sudo_wrapper.py**: get_firewall_*, get_packages_*, get_ssh_*, stop_service メソッド追加
+- **main.py**: セキュリティヘッダー・レート制限・ログインブルートフォース対策 middleware 追加
+- **tests/conftest.py**: reset_rate_limits autouse fixture 追加（テスト間干渉防止）
+
+### Tests
+- テスト合計: 624 → 709 PASS（+85件）、102 → 39 SKIP（-63件）
 
 ---
 
-### Added (v0.4.1相当)
-- **E2Eテスト実装**: Playwright + pytest-playwright による API/UI E2Eシナリオテスト (40件)
-  - tests/e2e/conftest.py: UvicornTestServer フィクスチャ (ポート18765)
-  - tests/e2e/test_api_e2e.py: 認証/ネットワーク/サーバー/ハードウェア/RBAC シナリオ
-  - tests/e2e/test_frontend_e2e.py: フロントエンドUI + 複数モジュールアクセスフロー
+## [0.5.0] - 2026-02-14
 
-### Fixed (v0.4.1相当)
-- **adminui-servers.sh**: `is-enabled` 出力の改行混入バグを修正 (`head -1` 使用)
-- **adminui-network.sh**: `ss` connections 出力の `process` フィールド内の引用符エスケープ修正
-- **backend/api/routes/servers.py**: Wrapper JSON パース修正（`AllServerStatusResponse` 500エラー解消）
-- **backend/api/routes/network.py**: Wrapper JSON パース修正
-- **backend/api/routes/hardware.py**: Wrapper JSON パース修正
-- **backend/api/routes/_utils.py**: 共通 `parse_wrapper_result` ユーティリティ追加
+**v0.5 リリース** - フロントエンド刷新・Firewall/SSH/Packages/監査ログモジュール・E2Eテスト
 
-### Planned for v0.5.0
-- HTTPS対応（Nginx リバースプロキシ + TLS）
-- Linux Firewall モジュール（iptables/nftables）
-- SSH Server 設定モジュール
-- Approval Workflow: user_modify/service_stop/firewall_modify 対応
+### Added
+
+#### フロントエンド刷新
+- **frontend/dev/network.html**: ネットワーク情報ページ（タブ: インターフェース/接続/ルート/統計）
+- **frontend/dev/servers.html**: サーバー状態一覧ページ（nginx/apache2/mysql/postgresql/redis）
+- **frontend/dev/hardware.html**: ハードウェア情報ページ（タブ: メモリ/ディスク/センサー）
+- **frontend/dev/audit.html**: 監査ログ一覧ページ（フィルタ/ページネーション/エクスポート）
+
+#### Firewall モジュール（read-only）
+- **wrappers/adminui-firewall.sh**: rules/policy/status サブコマンド
+- **GET /api/firewall/rules, /policy, /status**
+- **tests/integration/test_firewall_api.py**: 22件テスト
+
+#### Package Manager モジュール（apt）
+- **wrappers/adminui-packages.sh**: list/updates/security サブコマンド
+- **GET /api/packages/installed, /updates, /security**
+- **tests/integration/test_packages_api.py**: 20件テスト
+
+#### SSH Server モジュール（read-only）
+- **wrappers/adminui-ssh.sh**: status/config サブコマンド（危険設定自動検出）
+- **GET /api/ssh/status, /config**
+- **tests/integration/test_ssh_api.py**: 20件テスト
+
+#### 監査ログ API + UI
+- **GET /api/audit/logs**: ページネーション付き一覧（Operator: 自分のみ / Admin: 全員）
+- **GET /api/audit/logs/export**: CSV/JSON エクスポート（Admin のみ）
+- **tests/integration/test_audit_api.py**: 20件テスト
+
+#### 承認ワークフロー拡張
+- **wrappers/adminui-service-stop.sh**: サービス停止ラッパー
+- **approval_service.py**: service_stop dispatch 追加
+
+#### CI/CD 強化
+- **.github/workflows/e2e.yml**: Playwright E2E テスト専用 workflow
+
+### Changed
+- **auth.py**: read:firewall / read:packages / read:ssh / read:audit / export:audit 権限追加
 
 ---
 

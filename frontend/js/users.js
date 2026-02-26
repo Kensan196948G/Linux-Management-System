@@ -197,18 +197,33 @@ class UserManager {
     /**
      * Render user table
      */
+    /**
+     * Get role badge CSS class
+     */
+    getRoleBadgeClass(role) {
+        if (!role) return 'role-unknown';
+        switch (role) {
+            case 'Admin':    return 'role-admin';
+            case 'Approver': return 'role-approver';
+            case 'Operator': return 'role-operator';
+            case 'Viewer':   return 'role-viewer';
+            default:         return 'role-unknown';
+        }
+    }
+
     renderUserTable() {
-        const tbody = document.getElementById('userTableBody');
+        const tbody = document.getElementById('usersTableBody') || document.getElementById('userTableBody');
         if (!tbody) return;
         tbody.innerHTML = '';
 
         if (this.users.length === 0) {
-            this.showNoData('userTableBody', 'No users found');
+            this.showNoData(tbody.id || 'usersTableBody', 'ユーザーが見つかりません');
             return;
         }
 
         this.users.forEach(user => {
             const row = document.createElement('tr');
+            row.style.cursor = 'pointer';
 
             // Locked user highlight
             if (user.locked) {
@@ -221,63 +236,46 @@ class UserManager {
             nameCell.style.fontWeight = 'bold';
             row.appendChild(nameCell);
 
-            // UID
-            const uidCell = document.createElement('td');
-            uidCell.textContent = user.uid;
-            uidCell.style.textAlign = 'right';
-            row.appendChild(uidCell);
+            // Email
+            const emailCell = document.createElement('td');
+            emailCell.textContent = user.email || '不明';
+            emailCell.style.fontSize = '13px';
+            if (!user.email) emailCell.style.color = '#9ca3af';
+            row.appendChild(emailCell);
 
-            // GID
-            const gidCell = document.createElement('td');
-            gidCell.textContent = user.gid;
-            gidCell.style.textAlign = 'right';
-            row.appendChild(gidCell);
-
-            // Groups
-            const groupsCell = document.createElement('td');
-            if (user.groups && user.groups.length > 0) {
-                user.groups.forEach(g => {
-                    const badge = document.createElement('span');
-                    badge.className = 'group-badge';
-                    badge.textContent = g;
-                    groupsCell.appendChild(badge);
-                });
+            // Role badge
+            const roleCell = document.createElement('td');
+            if (user.role) {
+                const badge = document.createElement('span');
+                badge.className = `role-badge ${this.getRoleBadgeClass(user.role)}`;
+                badge.textContent = user.role;
+                roleCell.appendChild(badge);
             } else {
-                groupsCell.textContent = '-';
+                const badge = document.createElement('span');
+                badge.className = 'role-badge role-unknown';
+                badge.textContent = '不明';
+                roleCell.appendChild(badge);
             }
-            row.appendChild(groupsCell);
-
-            // Home
-            const homeCell = document.createElement('td');
-            homeCell.textContent = user.home || '-';
-            homeCell.style.fontFamily = 'monospace';
-            homeCell.style.fontSize = '12px';
-            row.appendChild(homeCell);
-
-            // Shell
-            const shellCell = document.createElement('td');
-            shellCell.textContent = user.shell || '-';
-            shellCell.style.fontFamily = 'monospace';
-            shellCell.style.fontSize = '12px';
-            row.appendChild(shellCell);
+            row.appendChild(roleCell);
 
             // Status (locked/unlocked)
             const statusCell = document.createElement('td');
             const statusBadge = document.createElement('span');
             if (user.locked) {
                 statusBadge.className = 'status-badge status-locked';
-                statusBadge.textContent = 'Locked';
+                statusBadge.textContent = 'ロック';
             } else {
                 statusBadge.className = 'status-badge status-active';
-                statusBadge.textContent = 'Active';
+                statusBadge.textContent = 'アクティブ';
             }
             statusCell.appendChild(statusBadge);
             row.appendChild(statusCell);
 
             // Last Login
             const loginCell = document.createElement('td');
-            loginCell.textContent = this.formatDateTime(user.last_login);
+            loginCell.textContent = user.last_login ? this.formatDateTime(user.last_login) : '不明';
             loginCell.style.fontSize = '11px';
+            if (!user.last_login) loginCell.style.color = '#9ca3af';
             row.appendChild(loginCell);
 
             // Actions
@@ -288,8 +286,8 @@ class UserManager {
             if (this.isAdmin()) {
                 const pwdBtn = document.createElement('button');
                 pwdBtn.className = 'btn btn-sm btn-outline-warning';
-                pwdBtn.textContent = 'Password';
-                pwdBtn.title = 'Change password';
+                pwdBtn.textContent = 'PW変更';
+                pwdBtn.title = 'パスワード変更';
                 pwdBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.openPasswordModal(user.username);
@@ -298,9 +296,9 @@ class UserManager {
 
                 // Delete button (Admin only)
                 const delBtn = document.createElement('button');
-                delBtn.className = 'btn btn-sm btn-outline-danger';
-                delBtn.textContent = 'Delete';
-                delBtn.title = 'Delete user';
+                delBtn.className = 'btn btn-sm btn-outline-danger ms-1';
+                delBtn.textContent = '削除';
+                delBtn.title = 'ユーザー削除';
                 delBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.handleDeleteUser(user.username);
@@ -674,27 +672,38 @@ class UserManager {
         const body = document.getElementById('userDetailBody');
         if (!body) return;
 
+        const roleBadgeClass = this.getRoleBadgeClass(user.role);
+        const roleDisplay = user.role
+            ? `<span class="role-badge ${roleBadgeClass}">${this.escapeHtml(user.role)}</span>`
+            : '<span class="role-badge role-unknown">不明</span>';
+        const roleNote = this.isAdmin() && user.role
+            ? `<div class="role-note">⚠️ (変更不可: 承認フロー必要)</div>` : '';
+
         body.innerHTML = `
             <div class="row">
                 <div class="col-md-6">
-                    <p><strong>Username:</strong> ${this.escapeHtml(user.username)}</p>
-                    <p><strong>UID:</strong> ${this.escapeHtml(String(user.uid))}</p>
-                    <p><strong>GID:</strong> ${this.escapeHtml(String(user.gid))}</p>
-                    <p><strong>GECOS:</strong> ${this.escapeHtml(user.gecos || '-')}</p>
+                    <p><strong>ユーザー名:</strong> ${this.escapeHtml(user.username)}</p>
+                    <p><strong>メールアドレス:</strong> ${this.escapeHtml(user.email || '不明')}</p>
+                    <p><strong>ロール:</strong> ${roleDisplay}${roleNote}</p>
+                    <p><strong>状態:</strong> ${user.locked
+                        ? '<span class="status-badge status-locked">ロック</span>'
+                        : '<span class="status-badge status-active">アクティブ</span>'}</p>
+                    <p><strong>最終ログイン:</strong> ${this.escapeHtml(user.last_login ? this.formatDateTime(user.last_login) : '不明')}</p>
                 </div>
                 <div class="col-md-6">
-                    <p><strong>Home:</strong> <code>${this.escapeHtml(user.home || '-')}</code></p>
-                    <p><strong>Shell:</strong> <code>${this.escapeHtml(user.shell || '-')}</code></p>
-                    <p><strong>Status:</strong> ${user.locked ? '<span class="status-badge status-locked">Locked</span>' : '<span class="status-badge status-active">Active</span>'}</p>
-                    <p><strong>Last Login:</strong> ${this.escapeHtml(this.formatDateTime(user.last_login))}</p>
+                    <p><strong>UID:</strong> ${this.escapeHtml(user.uid != null ? String(user.uid) : '不明')}</p>
+                    <p><strong>GID:</strong> ${this.escapeHtml(user.gid != null ? String(user.gid) : '不明')}</p>
+                    <p><strong>説明:</strong> ${this.escapeHtml(user.gecos || '-')}</p>
+                    <p><strong>ホーム:</strong> <code>${this.escapeHtml(user.home || '不明')}</code></p>
+                    <p><strong>シェル:</strong> <code>${this.escapeHtml(user.shell || '不明')}</code></p>
                 </div>
             </div>
+            ${user.groups && user.groups.length > 0 ? `
             <hr>
-            <p><strong>Groups:</strong></p>
+            <p><strong>グループ:</strong></p>
             <div class="groups-list">
-                ${(user.groups || []).map(g => `<span class="group-badge">${this.escapeHtml(g)}</span>`).join(' ')}
-                ${(!user.groups || user.groups.length === 0) ? '<span style="color: #6c757d;">(none)</span>' : ''}
-            </div>
+                ${user.groups.map(g => `<span class="group-badge">${this.escapeHtml(g)}</span>`).join(' ')}
+            </div>` : ''}
         `;
 
         const modal = new bootstrap.Modal(document.getElementById('userDetailModal'));
@@ -770,7 +779,7 @@ class UserManager {
     showLoading(tbodyId) {
         const tbody = document.getElementById(tbodyId);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="10" class="loading">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="loading">読み込み中...</td></tr>';
         }
     }
 
@@ -780,7 +789,7 @@ class UserManager {
     showNoData(tbodyId, message) {
         const tbody = document.getElementById(tbodyId);
         if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="10" class="no-data">${this.escapeHtml(message)}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="no-data">${this.escapeHtml(message)}</td></tr>`;
         }
     }
 
@@ -842,8 +851,8 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Auth check
     if (!api.isAuthenticated()) {
-        console.warn('Not authenticated, redirecting to login');
-        window.location.href = '/dev/index.html';
+        console.warn('Not authenticated, redirecting to dashboard');
+        window.location.href = 'dashboard.html';
         return;
     }
 

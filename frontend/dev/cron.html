@@ -78,6 +78,32 @@
             margin-top: 4px;
         }
 
+        /* Cron式内訳グリッド */
+        .cron-breakdown {
+            display: inline-grid;
+            grid-template-columns: repeat(5, auto);
+            gap: 2px 6px;
+            font-size: 10px;
+            margin-top: 3px;
+        }
+        .cron-field-label { color: #6b7280; text-align: center; }
+        .cron-field-value { background: #e0f2fe; color: #0369a1; border-radius: 3px;
+                            padding: 1px 5px; text-align: center; font-weight: 600;
+                            font-family: monospace; font-size: 11px; }
+
+        /* 危険コマンドバッジ */
+        .danger-badge {
+            display: inline-block;
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+            border-radius: 4px;
+            font-size: 11px;
+            padding: 1px 6px;
+            margin-left: 4px;
+            font-weight: 600;
+        }
+
         /* ステータスバッジ */
         .badge-enabled { background-color: #10b981; }
         .badge-disabled { background-color: #6b7280; }
@@ -536,7 +562,7 @@
                                 <th>コマンド</th>
                                 <th>引数</th>
                                 <th>コメント</th>
-                                <th>行番号</th>
+                                <th>次回実行予定</th>
                                 <th>操作</th>
                             </tr>
                         </thead>

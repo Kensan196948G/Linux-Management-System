@@ -6,9 +6,11 @@
   GET /api/network/stats        - インターフェース統計
   GET /api/network/connections  - アクティブな接続
   GET /api/network/routes       - ルーティングテーブル
+  GET /api/network/dns          - DNS設定
 """
 
 import logging
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -337,3 +339,36 @@ async def get_routes(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Network routes retrieval failed: {str(e)}",
         )
+
+
+@router.get("/dns")
+async def get_dns_config(
+    current_user: TokenData = Depends(require_permission("read:network")),
+):
+    """DNS設定を取得（/etc/resolv.conf 読み取り）"""
+    dns_info: dict = {"nameservers": [], "search": [], "domain": None}
+    try:
+        with open("/etc/resolv.conf", "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("nameserver"):
+                    ip = line.split()[1] if len(line.split()) > 1 else ""
+                    # IPアドレスバリデーション（基本）
+                    if re.match(r"^[\d.:a-fA-F]+$", ip):
+                        dns_info["nameservers"].append(ip)
+                elif line.startswith("search"):
+                    dns_info["search"] = line.split()[1:]
+                elif line.startswith("domain"):
+                    parts = line.split()
+                    if len(parts) > 1:
+                        dns_info["domain"] = parts[1]
+    except (OSError, IOError):
+        pass
+    audit_log.record(
+        operation="network_dns_view",
+        user_id=current_user.user_id,
+        target="network",
+        status="success",
+        details={},
+    )
+    return {"status": "success", "dns": dns_info}

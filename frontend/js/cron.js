@@ -212,6 +212,61 @@ class CronManager {
     /**
      * ジョブテーブルを描画
      */
+    /**
+     * Cron式を5フィールドに分解してラベル付きHTMLを返す
+     */
+    parseCronExpression(schedule) {
+        const parts = schedule.trim().split(/\s+/);
+        if (parts.length < 5) return null;
+        const labels = ['分', '時', '日', '月', '曜日'];
+        return labels.map((label, i) => ({ label, value: parts[i] }));
+    }
+
+    /**
+     * Cron式のビジュアル内訳HTMLを生成
+     */
+    renderCronBreakdown(schedule) {
+        const fields = this.parseCronExpression(schedule);
+        if (!fields) return '';
+        return `<div class="cron-breakdown">
+            ${fields.map(f => `<span class="cron-field-label">${this.escapeHtml(f.label)}</span>`).join('')}
+            ${fields.map(f => `<span class="cron-field-value">${this.escapeHtml(f.value)}</span>`).join('')}
+        </div>`;
+    }
+
+    /**
+     * コマンドに危険パターンが含まれるか確認
+     */
+    isDangerousCommand(command, args) {
+        const dangerPatterns = /\b(rm|shutdown|reboot|mkfs|dd|format|fdisk|wipefs|shred)\b/i;
+        return dangerPatterns.test(command) || dangerPatterns.test(args || '');
+    }
+
+    /**
+     * 次回実行予定の簡易表示文字列を返す
+     */
+    estimateNextRun(schedule) {
+        const parts = schedule.trim().split(/\s+/);
+        if (parts.length < 5) return '不明';
+        const [min, hour, dom, month, dow] = parts;
+
+        // 一般的なパターンの人間可読変換
+        if (schedule === '* * * * *')    return '毎分';
+        if (/^\*\/(\d+) \* \* \* \*$/.test(schedule)) {
+            const m = schedule.match(/^\*\/(\d+)/);
+            return m ? `${m[1]}分毎` : schedule;
+        }
+        if (/^0 \* \* \* \*$/.test(schedule)) return '毎時 0分';
+        if (/^\d+ \* \* \* \*$/.test(schedule)) return `毎時 ${min}分`;
+        if (/^\d+ \d+ \* \* \*$/.test(schedule)) return `毎日 ${hour}:${min.padStart(2,'0')}`;
+        if (/^\d+ \d+ \* \* \d$/.test(schedule)) {
+            const days = ['日','月','火','水','木','金','土'];
+            return `毎週${days[parseInt(dow)] || dow}曜 ${hour}:${min.padStart(2,'0')}`;
+        }
+        if (/^\d+ \d+ \d+ \* \*$/.test(schedule)) return `毎月${dom}日 ${hour}:${min.padStart(2,'0')}`;
+        return schedule;
+    }
+
     renderJobTable() {
         const tableBody = document.getElementById('cronJobsTableBody');
         if (!tableBody) return;
@@ -227,30 +282,42 @@ class CronManager {
             return;
         }
 
-        const isAdmin = this.currentUser && this.currentUser.role === 'admin';
+        const isAdmin = this.currentUser && this.currentUser.role === 'Admin';
 
-        tableBody.innerHTML = this.jobs.map(job => `
+        tableBody.innerHTML = this.jobs.map(job => {
+            const isDanger = this.isDangerousCommand(job.command, job.arguments);
+            const dangerBadge = isDanger
+                ? `<span class="danger-badge" title="危険なコマンドパターンが含まれています">⚠️ 危険</span>`
+                : '';
+            const cronBreakdown = this.renderCronBreakdown(job.schedule);
+            const nextRun = this.estimateNextRun(job.schedule);
+
+            return `
             <tr class="${job.enabled ? '' : 'table-secondary'}">
                 <td>
                     <span class="badge ${job.enabled ? 'bg-success' : 'bg-secondary'}">
                         ${job.enabled ? '有効' : '無効'}
                     </span>
                 </td>
-                <td><code>${this.escapeHtml(job.schedule)}</code></td>
+                <td>
+                    <code>${this.escapeHtml(job.schedule)}</code>
+                    ${cronBreakdown}
+                </td>
                 <td title="${this.escapeHtml(job.command)}">
                     <code>${this.escapeHtml(this.getCommandShortName(job.command))}</code>
+                    ${dangerBadge}
                 </td>
                 <td class="text-truncate" style="max-width: 200px;"
                     title="${this.escapeHtml(job.arguments || '')}">
                     ${this.escapeHtml(job.arguments || '-')}
                 </td>
                 <td>${this.escapeHtml(job.comment || '-')}</td>
-                <td>${job.line_number}</td>
+                <td style="font-size:12px; color:#4b5563;">${this.escapeHtml(nextRun)}</td>
                 <td>
                     ${isAdmin ? this.renderJobActions(job) : '<span class="text-muted">-</span>'}
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
 
         // イベントリスナーをアクションボタンに設定
         if (isAdmin) {

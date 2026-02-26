@@ -104,6 +104,45 @@ def base_url(live_server):
 # ==============================================================================
 
 
+@pytest.fixture(scope="session")
+def api_client(live_server):
+    """httpx クライアント（ライブサーバーに接続）"""
+    import httpx
+
+    with httpx.Client(base_url=live_server, timeout=10.0) as client:
+        yield client
+
+
+def _get_token_direct(base_url: str, email: str, password: str) -> str:
+    """httpx 経由でトークンを取得する"""
+    import httpx
+
+    response = httpx.post(
+        f"{base_url}/api/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert response.status_code == 200, f"Login failed: {response.status_code}"
+    return response.json()["access_token"]
+
+
+@pytest.fixture(scope="session")
+def auth_token(live_server):
+    """Operator ユーザーのアクセストークン"""
+    return _get_token_direct(live_server, "operator@example.com", "operator123")
+
+
+@pytest.fixture(scope="session")
+def admin_token(live_server):
+    """Admin ユーザーのアクセストークン"""
+    return _get_token_direct(live_server, "admin@example.com", "admin123")
+
+
+@pytest.fixture(scope="session")
+def viewer_token(live_server):
+    """Viewer ユーザーのアクセストークン"""
+    return _get_token_direct(live_server, "viewer@example.com", "viewer123")
+
+
 def get_api_token(page, base_url: str, email: str, password: str) -> str:
     """
     API 経由でトークンを取得する（ページオブジェクトを通じて）
