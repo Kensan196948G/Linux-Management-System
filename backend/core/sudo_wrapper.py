@@ -897,6 +897,58 @@ class SudoWrapper:
         """
         return self._execute("adminui-ssh.sh", ["config"], timeout=10)
 
+    # ------------------------------------------------------------------
+    # ユーザー属性変更（承認後自動実行）
+    # ------------------------------------------------------------------
+
+    def modify_user_shell(self, username: str, shell: str) -> Dict[str, Any]:
+        """ユーザーのログインシェルを変更 (adminui-user-modify.sh set-shell)"""
+        return self._execute("adminui-user-modify.sh", ["set-shell", username, shell], timeout=15)
+
+    def modify_user_gecos(self, username: str, gecos: str) -> Dict[str, Any]:
+        """ユーザーのGECOS（表示名）を変更 (adminui-user-modify.sh set-gecos)"""
+        return self._execute("adminui-user-modify.sh", ["set-gecos", username, gecos], timeout=15)
+
+    def modify_user_add_group(self, username: str, group: str) -> Dict[str, Any]:
+        """ユーザーをグループに追加 (adminui-user-modify.sh add-group)"""
+        return self._execute("adminui-user-modify.sh", ["add-group", username, group], timeout=15)
+
+    def modify_user_remove_group(self, username: str, group: str) -> Dict[str, Any]:
+        """ユーザーをグループから削除 (adminui-user-modify.sh remove-group)"""
+        return self._execute("adminui-user-modify.sh", ["remove-group", username, group], timeout=15)
+
+    # ------------------------------------------------------------------
+    # ファイアウォール書き込み（承認後自動実行）
+    # ------------------------------------------------------------------
+
+    def allow_firewall_port(self, port: int, protocol: str = "tcp") -> Dict[str, Any]:
+        """UFWポート許可ルール追加"""
+        return self._execute("adminui-firewall-write.sh", ["allow-port", str(port), protocol])
+
+    def deny_firewall_port(self, port: int, protocol: str = "tcp") -> Dict[str, Any]:
+        """UFWポート拒否ルール追加"""
+        return self._execute("adminui-firewall-write.sh", ["deny-port", str(port), protocol])
+
+    def delete_firewall_rule(self, rule_num: int) -> Dict[str, Any]:
+        """UFWルール削除"""
+        return self._execute("adminui-firewall-write.sh", ["delete-rule", str(rule_num)])
+
+    # ------------------------------------------------------------------
+    # ファイルシステム情報取得
+    # ------------------------------------------------------------------
+
+    def get_filesystem_usage(self) -> Dict[str, Any]:
+        """ファイルシステム使用量を取得"""
+        return self._execute("adminui-filesystem.sh", ["df"])
+
+    def get_filesystem_du(self, path: str = "/") -> Dict[str, Any]:
+        """ディレクトリ使用量を取得"""
+        return self._execute("adminui-filesystem.sh", ["du", path])
+
+    def get_filesystem_mounts(self) -> Dict[str, Any]:
+        """マウントポイント一覧を取得"""
+        return self._execute("adminui-filesystem.sh", ["mounts"])
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()

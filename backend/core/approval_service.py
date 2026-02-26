@@ -650,7 +650,7 @@ class ApprovalService:
 
             # 3. operation_type ごとにディスパッチ
             # ── 未対応の operation_type は NotImplementedError を送出 ──
-            _UNSUPPORTED = {"firewall_modify"}
+            _UNSUPPORTED: set = set()
             if request_type in _UNSUPPORTED:
                 raise NotImplementedError(
                     f"Auto-execution of '{request_type}' is not yet supported. "
@@ -663,7 +663,7 @@ class ApprovalService:
                     return sudo_wrapper.add_user(
                         username=payload["username"],
                         password_hash=payload["password_hash"],
-                        shell=payload.get("shell", "/bin/bash"),
+                        shell=payload.get("shell", "/bin/bash"),  # nosec B604 - not subprocess shell
                         gecos=payload.get("gecos", ""),
                         groups=payload.get("groups"),
                     )
@@ -680,13 +680,35 @@ class ApprovalService:
                         password_hash=payload["password_hash"],
                     )
                 elif request_type == "user_modify":
-                    # user_modify: shell/gecos/groupsの変更
-                    # adminui-user-modify.shが未実装のため、
-                    # 現時点では対応操作ごとに個別ラッパーを呼び出す
-                    raise NotImplementedError(
-                        "user_modify executor requires adminui-user-modify.sh wrapper. "
-                        "Please implement wrappers/adminui-user-modify.sh first."
-                    )
+                    # user_modify: shell/gecos/グループ変更
+                    # adminui-user-modify.sh 経由で安全に実行
+                    action = payload.get("action", "")
+                    username = payload["username"]
+                    if action == "set-shell":
+                        return sudo_wrapper.modify_user_shell(
+                            username=username,
+                            shell=payload["shell"],  # nosec B604 - not subprocess shell
+                        )
+                    elif action == "set-gecos":
+                        return sudo_wrapper.modify_user_gecos(
+                            username=username,
+                            gecos=payload.get("gecos", ""),
+                        )
+                    elif action == "add-group":
+                        return sudo_wrapper.modify_user_add_group(
+                            username=username,
+                            group=payload["group"],
+                        )
+                    elif action == "remove-group":
+                        return sudo_wrapper.modify_user_remove_group(
+                            username=username,
+                            group=payload["group"],
+                        )
+                    else:
+                        raise NotImplementedError(
+                            f"user_modify action '{action}' is not supported. "
+                            "Supported: set-shell, set-gecos, add-group, remove-group"
+                        )
                 elif request_type == "group_add":
                     return sudo_wrapper.add_group(name=payload["name"])
                 elif request_type == "group_delete":
@@ -720,6 +742,24 @@ class ApprovalService:
                     return sudo_wrapper.stop_service(
                         service_name=payload["service_name"],
                     )
+                elif request_type == "firewall_modify":
+                    action = payload.get("action", "")
+                    if action == "allow":
+                        return sudo_wrapper.allow_firewall_port(
+                            port=payload["port"],
+                            protocol=payload.get("protocol", "tcp"),
+                        )
+                    elif action == "deny":
+                        return sudo_wrapper.deny_firewall_port(
+                            port=payload["port"],
+                            protocol=payload.get("protocol", "tcp"),
+                        )
+                    elif action == "delete":
+                        return sudo_wrapper.delete_firewall_rule(
+                            rule_num=payload["rule_num"],
+                        )
+                    else:
+                        raise ValueError(f"Unknown firewall action: {action}")
                 else:
                     raise NotImplementedError(
                         f"No executor defined for operation_type: '{request_type}'"

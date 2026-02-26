@@ -1,0 +1,699 @@
+openapi: 3.0.3
+info:
+  title: Linux Management WebUI - Processes API
+  description: |
+    Running Processes モジュール API 仕様書
+
+    **セキュリティ**: 全てのエンドポイントは認証必須（Bearer Token）
+    **権限**: read:processes 権限が必要
+    **監査**: 全ての操作は監査ログに記録される
+  version: 1.0.0
+  contact:
+    name: Linux Management WebUI Team
+    email: security@example.com
+
+servers:
+  - url: https://adminui.example.com/api/v1
+    description: Production server
+  - url: http://localhost:8000/api/v1
+    description: Development server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: processes
+    description: プロセス情報の取得・管理
+
+paths:
+  /processes:
+    get:
+      summary: プロセス一覧取得
+      description: |
+        実行中の全プロセスの一覧を取得します。
+        フィルタ・ソート・ページネーション機能をサポートします。
+      tags:
+        - processes
+      operationId: listProcesses
+      parameters:
+        - name: user
+          in: query
+          description: フィルタ対象ユーザー名（英数字・ハイフン・アンダースコアのみ）
+          required: false
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]+$'
+            maxLength: 64
+          example: www-data
+
+        - name: sort_by
+          in: query
+          description: ソート基準
+          required: false
+          schema:
+            type: string
+            enum: [cpu, memory, pid, name]
+            default: cpu
+          example: cpu
+
+        - name: order
+          in: query
+          description: ソート順
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          example: desc
+
+        - name: limit
+          in: query
+          description: 取得件数（1-1000）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+          example: 100
+
+        - name: offset
+          in: query
+          description: オフセット（ページネーション用）
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          example: 0
+
+      responses:
+        '200':
+          description: プロセス一覧取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessListResponse'
+              examples:
+                success:
+                  summary: 正常レスポンス例
+                  value:
+                    status: success
+                    data:
+                      processes:
+                        - pid: 1234
+                          name: nginx
+                          user: www-data
+                          cpu_percent: 2.5
+                          memory_percent: 1.8
+                          memory_rss_mb: 45.2
+                          state: S
+                          started_at: '2026-02-06T10:00:00Z'
+                          command: '/usr/sbin/nginx -g daemon off;'
+                        - pid: 5678
+                          name: mysql
+                          user: mysql
+                          cpu_percent: 8.3
+                          memory_percent: 12.5
+                          memory_rss_mb: 512.8
+                          state: S
+                          started_at: '2026-02-05T08:30:00Z'
+                          command: '/usr/sbin/mysqld'
+                      total_count: 256
+                      limit: 100
+                      offset: 0
+                    timestamp: '2026-02-06T12:34:56Z'
+
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_user:
+                  summary: 不正なユーザー名
+                  value:
+                    status: error
+                    error_code: INVALID_USER
+                    message: 'Invalid user parameter: special characters not allowed'
+                    details:
+                      field: user
+                      value: 'www-data; rm -rf /'
+                    timestamp: '2026-02-06T12:34:56Z'
+
+                forbidden_char:
+                  summary: 特殊文字検出
+                  value:
+                    status: error
+                    error_code: FORBIDDEN_CHAR
+                    message: 'Forbidden character detected in input'
+                    details:
+                      field: user
+                      forbidden_chars: [';', '|', '&']
+                    timestamp: '2026-02-06T12:34:56Z'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /processes/{pid}:
+    get:
+      summary: プロセス詳細取得
+      description: |
+        指定されたPIDのプロセス詳細情報を取得します。
+        一覧取得よりも詳細な情報（スレッド数、オープンファイル数等）を含みます。
+      tags:
+        - processes
+      operationId: getProcessDetail
+      parameters:
+        - name: pid
+          in: path
+          description: プロセスID（1-999999）
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 999999
+          example: 1234
+
+      responses:
+        '200':
+          description: プロセス詳細取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessDetailResponse'
+              examples:
+                success:
+                  summary: 正常レスポンス例
+                  value:
+                    status: success
+                    data:
+                      pid: 1234
+                      name: nginx
+                      user: www-data
+                      cpu_percent: 2.5
+                      memory_percent: 1.8
+                      memory_rss_mb: 45.2
+                      memory_vms_mb: 120.5
+                      state: S
+                      state_description: Sleeping
+                      ppid: 1
+                      threads: 4
+                      started_at: '2026-02-06T10:00:00Z'
+                      cwd: /var/www/html
+                      command: '/usr/sbin/nginx -g daemon off;'
+                      open_files: 32
+                      connections: 15
+                    timestamp: '2026-02-06T12:34:56Z'
+
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_pid:
+                  summary: 不正なPID
+                  value:
+                    status: error
+                    error_code: INVALID_PID
+                    message: 'Invalid process ID: must be between 1 and 999999'
+                    details:
+                      field: pid
+                      value: -1
+                      constraint: '1-999999'
+                    timestamp: '2026-02-06T12:34:56Z'
+
+        '404':
+          description: プロセス不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: PID不存在
+                  value:
+                    status: error
+                    error_code: PROC_NOT_FOUND
+                    message: 'Process not found'
+                    details:
+                      pid: 99999
+                    timestamp: '2026-02-06T12:34:56Z'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /processes/stats:
+    get:
+      summary: プロセス統計取得
+      description: |
+        全プロセスの統計情報を取得します。
+        総数、状態別カウント、リソース使用率、トッププロセス等を含みます。
+      tags:
+        - processes
+      operationId: getProcessStats
+
+      responses:
+        '200':
+          description: プロセス統計取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessStatsResponse'
+              examples:
+                success:
+                  summary: 正常レスポンス例
+                  value:
+                    status: success
+                    data:
+                      total_processes: 256
+                      running: 3
+                      sleeping: 240
+                      stopped: 0
+                      zombie: 0
+                      total_cpu_percent: 12.5
+                      total_memory_percent: 45.8
+                      total_memory_mb: 2048.5
+                      top_cpu_processes:
+                        - pid: 5678
+                          name: mysql
+                          cpu_percent: 8.3
+                        - pid: 1234
+                          name: nginx
+                          cpu_percent: 2.5
+                        - pid: 9012
+                          name: redis
+                          cpu_percent: 1.8
+                      top_memory_processes:
+                        - pid: 5678
+                          name: mysql
+                          memory_percent: 12.5
+                        - pid: 3456
+                          name: postgres
+                          memory_percent: 8.2
+                        - pid: 1234
+                          name: nginx
+                          memory_percent: 1.8
+                    timestamp: '2026-02-06T12:34:56Z'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Bearer Token による認証
+        トークンには read:processes 権限が必要
+
+  schemas:
+    Process:
+      type: object
+      description: プロセス情報（一覧表示用）
+      required:
+        - pid
+        - name
+        - user
+        - cpu_percent
+        - memory_percent
+        - memory_rss_mb
+        - state
+        - started_at
+        - command
+      properties:
+        pid:
+          type: integer
+          description: プロセスID
+          example: 1234
+          minimum: 1
+          maximum: 999999
+        name:
+          type: string
+          description: プロセス名
+          example: nginx
+          maxLength: 256
+        user:
+          type: string
+          description: 実行ユーザー名
+          example: www-data
+          maxLength: 64
+        cpu_percent:
+          type: number
+          format: float
+          description: CPU使用率（%）
+          example: 2.5
+          minimum: 0
+          maximum: 100
+        memory_percent:
+          type: number
+          format: float
+          description: メモリ使用率（%）
+          example: 1.8
+          minimum: 0
+          maximum: 100
+        memory_rss_mb:
+          type: number
+          format: float
+          description: 常駐メモリサイズ（MB）
+          example: 45.2
+        state:
+          type: string
+          description: プロセス状態
+          enum: [R, S, D, Z, T]
+          example: S
+        started_at:
+          type: string
+          format: date-time
+          description: 起動時刻（ISO 8601形式）
+          example: '2026-02-06T10:00:00Z'
+        command:
+          type: string
+          description: コマンドライン
+          example: '/usr/sbin/nginx -g daemon off;'
+          maxLength: 1024
+
+    ProcessDetail:
+      allOf:
+        - $ref: '#/components/schemas/Process'
+        - type: object
+          description: プロセス詳細情報（追加フィールド）
+          properties:
+            memory_vms_mb:
+              type: number
+              format: float
+              description: 仮想メモリサイズ（MB）
+              example: 120.5
+            state_description:
+              type: string
+              description: プロセス状態の説明
+              example: Sleeping
+            ppid:
+              type: integer
+              description: 親プロセスID
+              example: 1
+            threads:
+              type: integer
+              description: スレッド数
+              example: 4
+            cwd:
+              type: string
+              description: 作業ディレクトリ
+              example: /var/www/html
+            open_files:
+              type: integer
+              description: オープン中のファイル数
+              example: 32
+            connections:
+              type: integer
+              description: ネットワーク接続数
+              example: 15
+
+    ProcessListResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+          example: success
+        data:
+          type: object
+          required:
+            - processes
+            - total_count
+            - limit
+            - offset
+          properties:
+            processes:
+              type: array
+              items:
+                $ref: '#/components/schemas/Process'
+            total_count:
+              type: integer
+              description: 総プロセス数
+              example: 256
+            limit:
+              type: integer
+              description: 取得件数制限
+              example: 100
+            offset:
+              type: integer
+              description: オフセット
+              example: 0
+        timestamp:
+          type: string
+          format: date-time
+          description: レスポンス生成時刻
+          example: '2026-02-06T12:34:56Z'
+
+    ProcessDetailResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+          example: success
+        data:
+          $ref: '#/components/schemas/ProcessDetail'
+        timestamp:
+          type: string
+          format: date-time
+          description: レスポンス生成時刻
+          example: '2026-02-06T12:34:56Z'
+
+    ProcessStatsResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+          example: success
+        data:
+          type: object
+          required:
+            - total_processes
+            - running
+            - sleeping
+            - stopped
+            - zombie
+            - total_cpu_percent
+            - total_memory_percent
+            - total_memory_mb
+            - top_cpu_processes
+            - top_memory_processes
+          properties:
+            total_processes:
+              type: integer
+              description: 総プロセス数
+              example: 256
+            running:
+              type: integer
+              description: 実行中プロセス数
+              example: 3
+            sleeping:
+              type: integer
+              description: スリープ中プロセス数
+              example: 240
+            stopped:
+              type: integer
+              description: 停止中プロセス数
+              example: 0
+            zombie:
+              type: integer
+              description: ゾンビプロセス数
+              example: 0
+            total_cpu_percent:
+              type: number
+              format: float
+              description: 総CPU使用率（%）
+              example: 12.5
+            total_memory_percent:
+              type: number
+              format: float
+              description: 総メモリ使用率（%）
+              example: 45.8
+            total_memory_mb:
+              type: number
+              format: float
+              description: 総メモリ使用量（MB）
+              example: 2048.5
+            top_cpu_processes:
+              type: array
+              description: CPU使用率トップ5
+              maxItems: 5
+              items:
+                type: object
+                required:
+                  - pid
+                  - name
+                  - cpu_percent
+                properties:
+                  pid:
+                    type: integer
+                    example: 5678
+                  name:
+                    type: string
+                    example: mysql
+                  cpu_percent:
+                    type: number
+                    format: float
+                    example: 8.3
+            top_memory_processes:
+              type: array
+              description: メモリ使用率トップ5
+              maxItems: 5
+              items:
+                type: object
+                required:
+                  - pid
+                  - name
+                  - memory_percent
+                properties:
+                  pid:
+                    type: integer
+                    example: 5678
+                  name:
+                    type: string
+                    example: mysql
+                  memory_percent:
+                    type: number
+                    format: float
+                    example: 12.5
+        timestamp:
+          type: string
+          format: date-time
+          description: レスポンス生成時刻
+          example: '2026-02-06T12:34:56Z'
+
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - error_code
+        - message
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+        error_code:
+          type: string
+          description: エラーコード
+          enum:
+            - PROC_NOT_FOUND
+            - INVALID_PID
+            - INVALID_USER
+            - FORBIDDEN_CHAR
+            - WRAPPER_ERROR
+            - TIMEOUT
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - INTERNAL_ERROR
+          example: INVALID_PID
+        message:
+          type: string
+          description: エラーメッセージ
+          example: 'Invalid process ID: must be between 1 and 999999'
+        details:
+          type: object
+          description: エラー詳細情報
+          additionalProperties: true
+          example:
+            field: pid
+            value: -1
+            constraint: '1-999999'
+        timestamp:
+          type: string
+          format: date-time
+          description: エラー発生時刻
+          example: '2026-02-06T12:34:56Z'
+
+  responses:
+    Unauthorized:
+      description: 認証エラー（トークン不正・有効期限切れ）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            error_code: UNAUTHORIZED
+            message: 'Authentication required: invalid or expired token'
+            timestamp: '2026-02-06T12:34:56Z'
+
+    Forbidden:
+      description: 権限不足（read:processes 権限なし）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            error_code: FORBIDDEN
+            message: 'Insufficient permissions: read:processes required'
+            details:
+              required_permission: 'read:processes'
+              user_permissions: ['read:status', 'execute:service_restart']
+            timestamp: '2026-02-06T12:34:56Z'
+
+    InternalServerError:
+      description: 内部サーバーエラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            wrapper_error:
+              summary: sudo ラッパー実行失敗
+              value:
+                status: error
+                error_code: WRAPPER_ERROR
+                message: 'Failed to execute sudo wrapper'
+                details:
+                  wrapper: 'adminui-processes.sh'
+                  stderr: 'Permission denied'
+                timestamp: '2026-02-06T12:34:56Z'
+
+            timeout:
+              summary: タイムアウトエラー
+              value:
+                status: error
+                error_code: TIMEOUT
+                message: 'Request timeout: wrapper execution exceeded 30 seconds'
+                details:
+                  wrapper: 'adminui-processes.sh'
+                  timeout_seconds: 30
+                timestamp: '2026-02-06T12:34:56Z'

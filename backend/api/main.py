@@ -5,6 +5,8 @@ Linux Management System - FastAPI Backend
 """
 
 import logging
+import time
+from collections import defaultdict
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -14,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
-from .routes import approval, audit, auth, cron, firewall, hardware, logs, network, packages, processes, servers, services, ssh, system, users
+from .routes import approval, audit, auth, cron, filesystem, firewall, hardware, logs, network, packages, processes, servers, services, ssh, system, users
 
 # ログ設定
 logging.basicConfig(
@@ -74,6 +76,7 @@ app.include_router(network.router, prefix="/api")
 app.include_router(servers.router, prefix="/api")
 app.include_router(hardware.router, prefix="/api")
 app.include_router(firewall.router, prefix="/api")
+app.include_router(filesystem.router, prefix="/api")
 app.include_router(packages.router, prefix="/api")
 app.include_router(ssh.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
@@ -100,6 +103,89 @@ app.mount(
 # ===================================================================
 # ミドルウェア
 # ===================================================================
+
+# レート制限ストレージ（インメモリ）
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+
+RATE_LIMIT_PER_MINUTE = 60  # 1分あたりのAPIリクエスト上限
+LOGIN_MAX_ATTEMPTS = 5  # ログイン試行上限
+LOGIN_LOCKOUT_SECONDS = 900  # ロック時間（15分）
+
+
+def _clear_rate_limit_state() -> None:
+    """テスト用: レート制限ストレージをクリア"""
+    _rate_limit_store.clear()
+    _login_attempts.clear()
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """セキュリティヘッダーを付与"""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'"
+    )
+    if settings.security.require_https:
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+    return response
+
+
+@app.middleware("http")
+async def rate_limiter(request: Request, call_next):
+    """APIレート制限（1分あたり60リクエスト）"""
+    # 静的ファイルとヘルスチェックは除外
+    path = request.url.path
+    if path.startswith("/static") or path == "/api/health":
+        return await call_next(request)
+
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    window_start = now - 60.0
+
+    # ログインエンドポイントのブルートフォース対策
+    if path == "/api/auth/login" and request.method == "POST":
+        attempts = _login_attempts[client_ip]
+        # ウィンドウ外の試行を削除
+        _login_attempts[client_ip] = [t for t in attempts if t > window_start]
+        if len(_login_attempts[client_ip]) >= LOGIN_MAX_ATTEMPTS:
+            # ロック期間チェック
+            oldest_attempt = _login_attempts[client_ip][0]
+            if now - oldest_attempt < LOGIN_LOCKOUT_SECONDS:
+                logger.warning(f"Login rate limit exceeded: {client_ip}")
+                return JSONResponse(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    content={
+                        "status": "error",
+                        "message": "Too many login attempts. Please try again in 15 minutes.",
+                    },
+                    headers={"Retry-After": str(LOGIN_LOCKOUT_SECONDS)},
+                )
+        _login_attempts[client_ip].append(now)
+
+    # 通常のAPIレート制限
+    requests_in_window = _rate_limit_store[client_ip]
+    _rate_limit_store[client_ip] = [t for t in requests_in_window if t > window_start]
+    if len(_rate_limit_store[client_ip]) >= RATE_LIMIT_PER_MINUTE:
+        logger.warning(f"Rate limit exceeded: {client_ip}")
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"status": "error", "message": "Rate limit exceeded. Please slow down."},
+            headers={"Retry-After": "60"},
+        )
+    _rate_limit_store[client_ip].append(now)
+
+    return await call_next(request)
 
 
 @app.middleware("http")

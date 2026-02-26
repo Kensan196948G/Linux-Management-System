@@ -142,6 +142,7 @@ ROLES = {
             "read:servers",
             "read:hardware",
             "read:firewall",
+            "write:firewall",
             "read:packages",
             "read:ssh",
             "execute:service_restart",

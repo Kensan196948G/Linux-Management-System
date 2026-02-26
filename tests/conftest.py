@@ -180,3 +180,20 @@ def approval_service_with_mock_audit(approval_db_path, audit_log):
     service.audit_log = audit_log
     asyncio.get_event_loop().run_until_complete(service.initialize_db())
     return service
+
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limits():
+    """各テスト前後にAPIレート制限ストレージをリセット"""
+    try:
+        from backend.api.main import _clear_rate_limit_state
+        _clear_rate_limit_state()
+    except ImportError:
+        pass
+    yield
+    try:
+        from backend.api.main import _clear_rate_limit_state
+        _clear_rate_limit_state()
+    except ImportError:
+        pass

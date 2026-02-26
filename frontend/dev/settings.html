@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>統合設定 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .settings-tabs {
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .settings-tabs .nav-link {
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: #6c757d;
+            padding: 12px 20px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .settings-tabs .nav-link.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+            background: none;
+        }
+        .settings-tabs .nav-link:hover:not(.active) {
+            border-bottom-color: #b3d7ff;
+            color: #495057;
+        }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        .config-table td, .config-table th { padding: 10px 14px; font-size: 13px; vertical-align: middle; }
+        .config-table th { background: #f9fafb; font-weight: 600; color: #374151; width: 40%; }
+
+        .danger-value { color: #dc3545; font-weight: bold; }
+        .safe-value { color: #198754; font-weight: bold; }
+        .warn-value { color: #fd7e14; font-weight: bold; }
+
+        .danger-row { background: #fff5f5 !important; }
+        .danger-badge { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 6px; }
+
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .status-running { background: #22c55e; }
+        .status-stopped { background: #ef4444; }
+        .status-unknown { background: #9ca3af; }
+
+        .section-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .section-title { font-size: 15px; font-weight: 600; color: #1f2937; margin-bottom: 14px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+
+        .loading-spinner { text-align: center; padding: 30px; color: #6b7280; font-size: 14px; }
+        .error-box { background: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; padding: 14px; color: #991b1b; font-size: 13px; }
+
+        .action-row { display: flex; align-items: center; gap: 10px; }
+        .external-link { display: inline-flex; align-items: center; gap: 6px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500; }
+        .external-link:hover { background: #dbeafe; color: #1d4ed8; text-decoration: none; }
+
+        .user-row td { font-size: 13px; padding: 8px 12px; }
+        .role-badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .role-admin { background: #dbeafe; color: #1e40af; }
+        .role-viewer { background: #f3f4f6; color: #6b7280; }
+
+        .cron-table td, .cron-table th { font-size: 12px; padding: 8px 10px; vertical-align: middle; }
+        .cron-schedule { font-family: 'Courier New', monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+
+        .service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+        .service-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; background: white; }
+        .service-card.running { border-left: 4px solid #22c55e; }
+        .service-card.stopped { border-left: 4px solid #ef4444; }
+        .service-card.unknown { border-left: 4px solid #9ca3af; }
+        .service-name { font-weight: 600; font-size: 14px; color: #1f2937; margin-bottom: 4px; }
+        .service-status-text { font-size: 12px; color: #6b7280; margin-bottom: 10px; }
+        .btn-restart { font-size: 12px; padding: 4px 12px; }
+        .restart-result { font-size: 11px; margin-top: 6px; min-height: 16px; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <!-- サイドバー -->
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">⚙️ 統合設定</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="reloadCurrentTab()">🔄 更新</button>
+        </div>
+
+        <div class="main-body">
+            <!-- タブナビ -->
+            <ul class="nav settings-tabs" id="settings-tab-nav">
+                <li class="nav-item">
+                    <a class="nav-link active" data-tab="ssh" onclick="switchTab('ssh')">🔐 SSH設定</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-tab="users" onclick="switchTab('users')">👥 ユーザー管理</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-tab="cron" onclick="switchTab('cron')">⏰ Cronジョブ</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-tab="services" onclick="switchTab('services')">🖥️ サービス管理</a>
+                </li>
+            </ul>
+
+            <!-- SSH設定タブ -->
+            <div class="tab-pane active" id="tab-ssh">
+                <div id="ssh-content">
+                    <div class="loading-spinner">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        読み込み中...
+                    </div>
+                </div>
+            </div>
+
+            <!-- ユーザー管理タブ -->
+            <div class="tab-pane" id="tab-users">
+                <div id="users-content">
+                    <div class="loading-spinner">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        読み込み中...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cronジョブタブ -->
+            <div class="tab-pane" id="tab-cron">
+                <div id="cron-content">
+                    <div class="loading-spinner">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        読み込み中...
+                    </div>
+                </div>
+            </div>
+
+            <!-- サービス管理タブ -->
+            <div class="tab-pane" id="tab-services">
+                <div id="services-content">
+                    <div class="loading-spinner">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        読み込み中...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+    // 認証チェック
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = '/login.html';
+    }
+
+    let activeTab = 'ssh';
+    const loadedTabs = new Set();
+
+    function switchTab(tabName) {
+        activeTab = tabName;
+        // タブリンクのactive切り替え
+        document.querySelectorAll('.settings-tabs .nav-link').forEach(el => {
+            el.classList.toggle('active', el.dataset.tab === tabName);
+        });
+        // タブコンテンツの表示切り替え
+        document.querySelectorAll('.tab-pane').forEach(el => {
+            el.classList.toggle('active', el.id === 'tab-' + tabName);
+        });
+        // 未ロードなら初回ロード
+        if (!loadedTabs.has(tabName)) {
+            loadTab(tabName);
+        }
+    }
+
+    function reloadCurrentTab() {
+        loadedTabs.delete(activeTab);
+        loadTab(activeTab);
+    }
+
+    function loadTab(tabName) {
+        loadedTabs.add(tabName);
+        switch (tabName) {
+            case 'ssh':      loadSSH();      break;
+            case 'users':    loadUsers();    break;
+            case 'cron':     loadCron();     break;
+            case 'services': loadServices(); break;
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // SSH設定タブ
+    // ──────────────────────────────────────────────
+    async function loadSSH() {
+        const el = document.getElementById('ssh-content');
+        el.innerHTML = spinner();
+        try {
+            const [configResp, statusResp] = await Promise.allSettled([
+                api.get('/api/ssh/config'),
+                api.get('/api/ssh/status')
+            ]);
+
+            const config = configResp.status === 'fulfilled' ? configResp.value : null;
+            const status = statusResp.status === 'fulfilled' ? statusResp.value : null;
+
+            el.innerHTML = renderSSH(config, status);
+        } catch (e) {
+            el.innerHTML = errorBox('SSH設定の取得に失敗しました: ' + e.message);
+        }
+    }
+
+    function renderSSH(config, status) {
+        // 危険な設定値の定義
+        const dangerous = {
+            PermitRootLogin: v => v && v.toLowerCase() === 'yes',
+            PasswordAuthentication: v => v && v.toLowerCase() === 'yes',
+            PermitEmptyPasswords: v => v && v.toLowerCase() === 'yes',
+            X11Forwarding: v => v && v.toLowerCase() === 'yes',
+        };
+        const warn = {
+            MaxAuthTries: v => v && parseInt(v) > 6,
+            Port: v => v && parseInt(v) === 22,
+        };
+
+        let statusHtml = '';
+        if (status) {
+            const running = status.active === 'active' || status.running === true;
+            statusHtml = `
+            <div class="section-card">
+                <div class="section-title">🔌 SSHサービス状態</div>
+                <table class="table config-table mb-0">
+                    <tbody>
+                        <tr>
+                            <th>サービス状態</th>
+                            <td>
+                                <span class="status-dot ${running ? 'status-running' : 'status-stopped'}"></span>
+                                ${running ? '<span class="safe-value">稼働中</span>' : '<span class="danger-value">停止中</span>'}
+                            </td>
+                        </tr>
+                        ${status.version ? `<tr><th>バージョン</th><td>${esc(status.version)}</td></tr>` : ''}
+                        ${status.pid ? `<tr><th>PID</th><td>${esc(String(status.pid))}</td></tr>` : ''}
+                        ${status.uptime ? `<tr><th>稼働時間</th><td>${esc(status.uptime)}</td></tr>` : ''}
+                    </tbody>
+                </table>
+            </div>`;
+        }
+
+        let configHtml = '';
+        if (config) {
+            const keys = Object.keys(config);
+            const rows = keys.map(key => {
+                const val = config[key];
+                const valStr = val !== null && val !== undefined ? String(val) : '-';
+                const isDanger = dangerous[key] && dangerous[key](valStr);
+                const isWarn = warn[key] && warn[key](valStr);
+                let valClass = '';
+                let badge = '';
+                if (isDanger) { valClass = 'danger-value'; badge = '<span class="danger-badge">⚠ 危険</span>'; }
+                else if (isWarn) { valClass = 'warn-value'; badge = '<span class="danger-badge" style="background:#fef3c7;color:#92400e;">注意</span>'; }
+                else { valClass = 'safe-value'; }
+                return `<tr class="${isDanger ? 'danger-row' : ''}">
+                    <th>${esc(key)}</th>
+                    <td><span class="${valClass}">${esc(valStr)}</span>${badge}</td>
+                </tr>`;
+            }).join('');
+
+            configHtml = `
+            <div class="section-card">
+                <div class="section-title">🔧 SSH設定値 (/etc/ssh/sshd_config)</div>
+                ${keys.length === 0 ? '<p class="text-muted">設定データがありません。</p>' : `
+                <div class="mb-2 small text-muted">
+                    <span style="color:#dc3545">■</span> 危険設定は赤で表示されます。安全な運用のために見直しを検討してください。
+                </div>
+                <table class="table config-table mb-0">
+                    <tbody>${rows}</tbody>
+                </table>`}
+            </div>`;
+        } else {
+            configHtml = `<div class="section-card">${errorBox('SSH設定の取得に失敗しました。APIが利用可能か確認してください。')}</div>`;
+        }
+
+        return statusHtml + configHtml;
+    }
+
+    // ──────────────────────────────────────────────
+    // ユーザー管理タブ
+    // ──────────────────────────────────────────────
+    async function loadUsers() {
+        const el = document.getElementById('users-content');
+        el.innerHTML = spinner();
+        try {
+            const data = await api.get('/api/users/');
+            el.innerHTML = renderUsers(data);
+        } catch (e) {
+            // APIエラーでもリンクは表示する
+            el.innerHTML = renderUsers(null, e.message);
+        }
+    }
+
+    function renderUsers(data, errMsg) {
+        const linkSection = `
+        <div class="section-card">
+            <div class="section-title">👥 ユーザー管理ページ</div>
+            <p class="text-muted small mb-3">詳細なユーザー管理（追加・編集・削除・グループ）はユーザー管理専用ページで行えます。</p>
+            <a href="users.html" class="external-link">👥 ユーザー・グループ管理ページを開く →</a>
+        </div>`;
+
+        if (!data) {
+            return linkSection + (errMsg ? `<div class="section-card">${errorBox('ユーザー一覧の取得に失敗しました: ' + errMsg)}</div>` : '');
+        }
+
+        const users = Array.isArray(data) ? data : (data.users || []);
+        const rows = users.map(u => {
+            const role = u.role || u.is_admin ? 'Admin' : 'Viewer';
+            const isAdmin = (u.role === 'Admin' || u.is_admin);
+            return `<tr class="user-row">
+                <td>${esc(u.username || u.name || '-')}</td>
+                <td>${esc(u.email || '-')}</td>
+                <td><span class="role-badge ${isAdmin ? 'role-admin' : 'role-viewer'}">${esc(role)}</span></td>
+                <td><span class="text-muted small">${esc(u.created_at ? u.created_at.slice(0,10) : '-')}</span></td>
+            </tr>`;
+        }).join('');
+
+        return linkSection + `
+        <div class="section-card">
+            <div class="section-title">👤 ユーザー一覧 (${users.length}件)</div>
+            ${users.length === 0 ? '<p class="text-muted">ユーザーが見つかりません。</p>' : `
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr style="background:#f9fafb;font-size:13px;">
+                        <th>ユーザー名</th><th>メール</th><th>ロール</th><th>作成日</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`}
+        </div>`;
+    }
+
+    // ──────────────────────────────────────────────
+    // Cronジョブタブ
+    // ──────────────────────────────────────────────
+    async function loadCron() {
+        const el = document.getElementById('cron-content');
+        el.innerHTML = spinner();
+        try {
+            const data = await api.get('/api/cron/');
+            el.innerHTML = renderCron(data);
+        } catch (e) {
+            el.innerHTML = renderCron(null, e.message);
+        }
+    }
+
+    function renderCron(data, errMsg) {
+        const linkSection = `
+        <div class="section-card">
+            <div class="section-title">⏰ Cronジョブ管理ページ</div>
+            <p class="text-muted small mb-3">Cronジョブの追加・編集・削除はCronジョブ専用ページで行えます。</p>
+            <a href="cron.html" class="external-link">⏰ Cronジョブ管理ページを開く →</a>
+        </div>`;
+
+        if (!data) {
+            return linkSection + (errMsg ? `<div class="section-card">${errorBox('Cronジョブ一覧の取得に失敗しました: ' + errMsg)}</div>` : '');
+        }
+
+        const jobs = Array.isArray(data) ? data : (data.jobs || data.cron_jobs || []);
+        const rows = jobs.map(j => `<tr>
+            <td>${esc(j.user || 'root')}</td>
+            <td><span class="cron-schedule">${esc(j.schedule || j.cron_expression || '-')}</span></td>
+            <td style="font-family:monospace;font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(j.command || '-')}</td>
+            <td>${esc(j.description || '-')}</td>
+            <td><span class="badge ${j.enabled !== false ? 'bg-success' : 'bg-secondary'}" style="font-size:10px;">${j.enabled !== false ? '有効' : '無効'}</span></td>
+        </tr>`).join('');
+
+        return linkSection + `
+        <div class="section-card">
+            <div class="section-title">📋 Cronジョブ一覧 (${jobs.length}件)</div>
+            ${jobs.length === 0 ? '<p class="text-muted">Cronジョブが見つかりません。</p>' : `
+            <div class="table-responsive">
+            <table class="table table-hover cron-table mb-0">
+                <thead>
+                    <tr style="background:#f9fafb;">
+                        <th>ユーザー</th><th>スケジュール</th><th>コマンド</th><th>説明</th><th>状態</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+            </div>`}
+        </div>`;
+    }
+
+    // ──────────────────────────────────────────────
+    // サービス管理タブ
+    // ──────────────────────────────────────────────
+    async function loadServices() {
+        const el = document.getElementById('services-content');
+        el.innerHTML = spinner();
+        try {
+            const data = await api.get('/api/services/status');
+            el.innerHTML = renderServices(data);
+        } catch (e) {
+            el.innerHTML = renderServices(null, e.message);
+        }
+    }
+
+    function renderServices(data, errMsg) {
+        if (!data) {
+            return `<div class="section-card">${errorBox('サービス一覧の取得に失敗しました: ' + (errMsg || '不明なエラー'))}</div>`;
+        }
+
+        const services = Array.isArray(data) ? data : (data.services || []);
+        const cards = services.map((s, i) => {
+            const running = s.status === 'active' || s.status === 'running' || s.is_running;
+            const statusClass = running ? 'running' : (s.status === 'stopped' || s.status === 'inactive' ? 'stopped' : 'unknown');
+            const statusLabel = running ? '稼働中' : (s.status || '不明');
+            return `
+            <div class="service-card ${statusClass}" id="svc-card-${i}">
+                <div class="service-name">${esc(s.name || s.service_name || s.unit || '-')}</div>
+                <div class="service-status-text">
+                    <span class="status-dot status-${statusClass}"></span>${esc(statusLabel)}
+                    ${s.description ? ' — ' + esc(s.description) : ''}
+                </div>
+                <button class="btn btn-sm btn-outline-warning btn-restart"
+                    onclick="restartService(${i}, '${esc(s.name || s.service_name || s.unit || '')}')">
+                    🔄 再起動
+                </button>
+                <div class="restart-result text-muted" id="svc-result-${i}"></div>
+            </div>`;
+        }).join('');
+
+        return `
+        <div class="section-card">
+            <div class="section-title">🖥️ サービス一覧 (${services.length}件)
+                <span class="text-muted small fw-normal ms-2">— 再起動ボタンは許可リストに登録済みのサービスのみ有効</span>
+            </div>
+            ${services.length === 0 ? '<p class="text-muted">サービスが見つかりません。</p>' : `<div class="service-grid">${cards}</div>`}
+        </div>`;
+    }
+
+    async function restartService(idx, serviceName) {
+        const btn = document.querySelector(`#svc-card-${idx} .btn-restart`);
+        const result = document.getElementById(`svc-result-${idx}`);
+        if (!serviceName) return;
+
+        btn.disabled = true;
+        btn.textContent = '実行中...';
+        result.textContent = '';
+        result.className = 'restart-result text-muted';
+
+        try {
+            const resp = await api.post('/api/services/restart', { service_name: serviceName });
+            result.textContent = '✅ ' + (resp.message || '再起動しました');
+            result.className = 'restart-result text-success';
+        } catch (e) {
+            result.textContent = '❌ ' + (e.message || '再起動に失敗しました');
+            result.className = 'restart-result text-danger';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🔄 再起動';
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // ユーティリティ
+    // ──────────────────────────────────────────────
+    function spinner() {
+        return `<div class="loading-spinner"><div class="spinner-border spinner-border-sm me-2" role="status"></div>読み込み中...</div>`;
+    }
+
+    function errorBox(msg) {
+        return `<div class="error-box">⚠️ ${esc(msg)}</div>`;
+    }
+
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // 初回ロード
+    loadTab('ssh');
+</script>
+</body>
+</html>

@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="lms-api-base-url" content="/api">
+  <meta name="lms-api-mode" content="auto">
+  <title>Linux Management System WebUI Sample</title>
+  <meta name="description" content="Linux管理WebUIの詳細サンプル（HTML + JavaScript + CSS）">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <script>
+    window.__WEBUI_CONFIG__ = window.__WEBUI_CONFIG__ || {};
+    (function () {
+      if (location.protocol !== 'file:') return;
+      function showFileProtocolHint() {
+        if (window.__LMS_WEBUI_BOOTED__) return;
+        var el = document.getElementById('loginMessage');
+        if (!el) return;
+        el.textContent = 'file:// 直開きではこの index.html（ES Modules）はログインできない場合があります。まずは `index.singlefile.html` を開くか、PowerShellで `cd webui-sample; python -m http.server 8080` を実行して http://localhost:8080/ を開いてください。';
+        el.classList.remove('msg-success', 'msg-error', 'msg-warning', 'msg-info');
+        el.classList.add('msg-warning');
+        var form = document.getElementById('loginForm');
+        if (form) {
+          form.addEventListener('submit', function (e) {
+            if (window.__LMS_WEBUI_BOOTED__) return;
+            e.preventDefault();
+          }, { passive: false });
+        }
+      }
+      window.addEventListener('DOMContentLoaded', function () {
+        setTimeout(showFileProtocolHint, 800);
+      });
+    }());
+  </script>
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <div class="mesh"></div>
+  </div>
+
+  <div class="app" id="app">
+    <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+      <div class="login-panel">
+        <div class="login-brand">
+          <p class="eyebrow">Linux Management System</p>
+          <h1 id="loginTitle">安全な Linux 管理 WebUI サンプル</h1>
+          <p class="muted">
+            docs要件（認証・承認・監査・allowlist）を反映した、明るい雰囲気の静的WebUIサンプルです。
+          </p>
+        </div>
+
+        <form id="loginForm" class="login-form" novalidate>
+          <label>
+            <span>メールアドレス</span>
+            <input type="email" id="loginEmail" value="admin@example.com" autocomplete="username" required>
+          </label>
+
+          <label>
+            <span>パスワード</span>
+            <input type="password" id="loginPassword" value="Admin#1234" autocomplete="current-password" required>
+          </label>
+
+          <label>
+            <span>ロール（モック）</span>
+            <select id="loginRole">
+              <option value="Admin">Admin</option>
+              <option value="Approver">Approver</option>
+              <option value="Operator">Operator</option>
+              <option value="Viewer">Viewer</option>
+            </select>
+          </label>
+
+          <div class="inline-note">
+            <span class="note-chip">JWT</span>
+            <span>トークンは `localStorage` に保存（サンプル）。有効期限は 30分として模擬します。</span>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">ログインして開始</button>
+          <p class="form-message" id="loginMessage" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
+    <div class="shell hidden" id="shell">
+      <aside class="sidebar" id="sidebar" aria-label="サイドメニュー">
+        <div class="sidebar-header">
+          <button class="icon-btn mobile-only" id="sidebarCloseBtn" aria-label="メニューを閉じる">✕</button>
+          <div>
+            <p class="eyebrow">Linux管理運用</p>
+            <h2>Control Center</h2>
+          </div>
+        </div>
+
+        <div class="sidebar-user" id="sidebarUserCard">
+          <div class="user-avatar">
+            <span class="avatar-icon" aria-hidden="true">👤</span>
+            <div>
+              <div class="user-name" id="sidebarUsername">-</div>
+              <div class="user-email" id="sidebarEmail">-</div>
+            </div>
+          </div>
+          <div class="role-badge" id="sidebarRoleBadge">-</div>
+        </div>
+
+        <nav class="sidebar-nav" id="sidebarNav">
+          <div class="menu-group">
+            <div class="menu-group-title">トップ</div>
+            <button class="menu-item active" data-scroll-target="sec-dashboard">
+              <span class="menu-item-icon">📊</span>
+              <span class="menu-item-label">ダッシュボード</span>
+            </button>
+          </div>
+
+          <div class="menu-group">
+            <div class="menu-group-title">カテゴリ（8）</div>
+
+            <section class="accordion expanded">
+              <button class="accordion-header" data-accordion-toggle aria-expanded="true">
+                <span class="accordion-title"><span>⚙️</span><span>Linux管理システム</span></span>
+                <span class="accordion-chevron">▾</span>
+              </button>
+              <div class="accordion-panel">
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">システム設定</span><span class="submenu-item-badge badge-muted">計画中</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">システムユーザー</span><span class="submenu-item-badge badge-muted">計画中</span></button>
+                <button class="submenu-item" data-scroll-target="sec-services"><span class="submenu-item-name">システムサーバー</span><span class="submenu-item-badge badge-success">実装済み</span></button>
+                <button class="submenu-item" data-scroll-target="sec-audit"><span class="submenu-item-name">システム操作ログ</span><span class="submenu-item-badge badge-success">実装済み</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">システムテーマ</span><span class="submenu-item-badge badge-muted">計画中</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">システムモジュール</span><span class="submenu-item-badge badge-muted">計画中</span></button>
+              </div>
+            </section>
+
+            <section class="accordion expanded">
+              <button class="accordion-header" data-accordion-toggle aria-expanded="true">
+                <span class="accordion-title"><span>💻</span><span>システム</span></span>
+                <span class="accordion-chevron">▾</span>
+              </button>
+              <div class="accordion-panel">
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">起動・シャットダウン</span><span class="submenu-item-badge badge-outline">v0.2</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">ディスク・ネットワークFS</span><span class="submenu-item-badge badge-outline">v0.2</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">ディスククォータ</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+                <button class="submenu-item" data-scroll-target="sec-systeminfo"><span class="submenu-item-name">ローカルディスク</span><span class="submenu-item-badge badge-success">実装済み</span></button>
+                <button class="submenu-item" data-scroll-target="sec-users"><span class="submenu-item-name">ユーザー・グループ</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">ソフトウェアパッケージ更新</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+                <button class="submenu-item" data-scroll-target="sec-cron"><span class="submenu-item-name">Cronジョブ</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+                <button class="submenu-item" data-scroll-target="sec-processes"><span class="submenu-item-name">実行中プロセス</span><span class="submenu-item-badge badge-success">実装済み</span></button>
+              </div>
+            </section>
+
+            <section class="accordion">
+              <button class="accordion-header" data-accordion-toggle aria-expanded="false">
+                <span class="accordion-title"><span>📜</span><span>システムログ</span></span>
+                <span class="accordion-chevron">▸</span>
+              </button>
+              <div class="accordion-panel">
+                <button class="submenu-item" data-scroll-target="sec-logs"><span class="submenu-item-name">システムログ</span><span class="submenu-item-badge badge-success">実装済み</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">カーネルメッセージ</span><span class="submenu-item-badge badge-outline">v0.2</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">認証ログ</span><span class="submenu-item-badge badge-outline">v0.2</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">アプリケーションログ</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+              </div>
+            </section>
+
+            <section class="accordion">
+              <button class="accordion-header" data-accordion-toggle aria-expanded="false">
+                <span class="accordion-title"><span>🖥️</span><span>サーバー</span></span>
+                <span class="accordion-chevron">▸</span>
+              </button>
+              <div class="accordion-panel">
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">Apache Webサーバー</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">BIND DNSサーバー</span><span class="submenu-item-badge badge-outline">v0.4</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">Postfix / Sendmail</span><span class="submenu-item-badge badge-outline">v0.4</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">MySQL / MariaDB</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">PostgreSQL</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">SSHサーバー</span><span class="submenu-item-badge badge-outline">v0.2</span></button>
+              </div>
+            </section>
+
+            <section class="accordion">
+              <button class="accordion-header" data-accordion-toggle aria-expanded="false">
+                <span class="accordion-title"><span>🌐</span><span>ネットワーク</span></span>
+                <span class="accordion-chevron">▸</span>
+              </button>
+              <div class="accordion-panel">
+                <button class="submenu-item" data-scroll-target="sec-approvals"><span class="submenu-item-name">Linuxファイアウォール</span><span class="submenu-item-badge badge-outline">サンプル</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">ネットワーク設定</span><span class="submenu-item-badge badge-outline">サンプル</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">ルーティング・ゲートウェイ</span><span class="submenu-item-badge badge-outline">サンプル</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">ネットワーク統計</span><span class="submenu-item-badge badge-outline">サンプル</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">帯域幅モニタリング</span><span class="submenu-item-badge badge-outline">サンプル</span></button>
+              </div>
+            </section>
+
+            <section class="accordion">
+              <button class="accordion-header" data-accordion-toggle aria-expanded="false">
+                <span class="accordion-title"><span>🔧</span><span>ハードウェア</span></span>
+                <span class="accordion-chevron">▸</span>
+              </button>
+              <div class="accordion-panel">
+                <button class="submenu-item" data-scroll-target="sec-systeminfo"><span class="submenu-item-name">ローカルディスクパーティション</span><span class="submenu-item-badge badge-outline">サンプル</span></button>
+                <button class="submenu-item" data-scroll-target="sec-systeminfo"><span class="submenu-item-name">システム時刻</span><span class="submenu-item-badge badge-outline">サンプル</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">SMARTドライブ状態</span><span class="submenu-item-badge badge-outline">サンプル</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">センサー (lm-sensors)</span><span class="submenu-item-badge badge-outline">サンプル</span></button>
+              </div>
+            </section>
+
+            <section class="accordion">
+              <button class="accordion-header" data-accordion-toggle aria-expanded="false">
+                <span class="accordion-title"><span>🔗</span><span>クラスタ/ツール</span></span>
+                <span class="accordion-chevron">▸</span>
+              </button>
+              <div class="accordion-panel">
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">クラスタSSH</span><span class="submenu-item-badge badge-outline">v0.5</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">クラスタCronジョブ</span><span class="submenu-item-badge badge-outline">v0.5</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">クラスタユーザー</span><span class="submenu-item-badge badge-outline">v0.5</span></button>
+                <button class="submenu-item disabled critical" disabled><span class="submenu-item-name">コマンドシェル</span><span class="submenu-item-badge badge-danger">禁止</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">ファイルマネージャー</span><span class="submenu-item-badge badge-outline">v0.4</span></button>
+              </div>
+            </section>
+
+            <section class="accordion expanded">
+              <button class="accordion-header" data-accordion-toggle aria-expanded="true">
+                <span class="accordion-title"><span>⚡</span><span>システム設定</span></span>
+                <span class="accordion-chevron">▾</span>
+              </button>
+              <div class="accordion-panel">
+                <button class="submenu-item" data-scroll-target="sec-users"><span class="submenu-item-name">ユーザー管理</span><span class="submenu-item-badge badge-outline">v0.2</span></button>
+                <button class="submenu-item" data-scroll-target="sec-settings-security"><span class="submenu-item-name">セキュリティ設定</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+                <button class="submenu-item" data-scroll-target="sec-settings-audit"><span class="submenu-item-name">監査ログ設定</span><span class="submenu-item-badge badge-outline">v0.2</span></button>
+                <button class="submenu-item disabled" disabled><span class="submenu-item-name">通知設定</span><span class="submenu-item-badge badge-outline">v0.3</span></button>
+                <button class="submenu-item" data-scroll-target="sec-systeminfo"><span class="submenu-item-name">システム情報</span><span class="submenu-item-badge badge-success">実装済み</span></button>
+                <button class="submenu-item" data-scroll-target="sec-about"><span class="submenu-item-name">ライセンス情報</span><span class="submenu-item-badge badge-outline">v0.2</span></button>
+              </div>
+            </section>
+          </div>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="footer-pill">
+            <span>🌐 日本語 UI</span>
+            <small>menu-i18n準拠</small>
+          </div>
+          <button class="btn btn-soft btn-block" id="logoutBtn">ログアウト</button>
+        </div>
+      </aside>
+
+      <div class="sidebar-backdrop hidden" id="sidebarBackdrop" aria-hidden="true"></div>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="topbar-left">
+            <button class="icon-btn mobile-only" id="sidebarOpenBtn" aria-label="メニューを開く">☰</button>
+            <div>
+              <div class="breadcrumb" id="breadcrumb"></div>
+              <h1 class="page-title" id="pageTitle">ダッシュボード</h1>
+            </div>
+          </div>
+          <div class="topbar-right">
+            <div class="live-clock" id="liveClock">--:--:--</div>
+            <button class="btn btn-soft" id="refreshPageBtn">再描画</button>
+          </div>
+        </header>
+
+        <section class="page-surface" id="pageContent" tabindex="-1">
+          <div class="page-stack">
+            <section class="module-section" id="sec-dashboard" data-page-label="ダッシュボード" data-breadcrumb="Home / ダッシュボード">
+              <div class="card hero-card">
+                <div class="hero-copy">
+                  <p class="eyebrow">Webmin思想 + 安全設計（docs反映）</p>
+                  <h2>明るい運用ダッシュボード / 承認・監査・allowlist を中心に設計</h2>
+                  <p class="muted">
+                    `要件定義書_詳細設計仕様書.md`、`api-reference.md`、`approval-workflow-design.md`、`cron-jobs-design.md`、
+                    `users-groups-design.md`、セキュリティ/テスト報告を踏まえた詳細サンプルです。
+                  </p>
+                  <div class="hero-actions">
+                    <button class="btn btn-primary" data-scroll-target="sec-approvals">承認センターへ</button>
+                    <button class="btn btn-soft" data-scroll-target="sec-processes">実行中プロセス</button>
+                    <button class="btn btn-soft" data-scroll-target="sec-cron">Cronジョブ管理</button>
+                  </div>
+                </div>
+                <div class="hero-status">
+                  <div class="status-chip">JWT 30分 / localStorage（サンプル）</div>
+                  <div class="status-chip">root常駐禁止 / sudo wrapper 経由</div>
+                  <div class="status-chip">承認履歴: HMAC署名（設計準拠）</div>
+                  <div class="status-chip">Cron: allowlist + 最小5分 + 最大10件/ユーザー</div>
+                </div>
+              </div>
+
+              <div class="grid cols-4">
+                <article class="card kpi-card">
+                  <div class="kpi-label">CPU 使用率</div>
+                  <div class="kpi-value" id="cpuUsageValue">23.5%</div>
+                  <div class="progress"><div class="progress-fill" id="cpuUsageBar" style="width:23.5%"></div></div>
+                  <div class="kpi-meta">8 cores / `read:status`</div>
+                </article>
+                <article class="card kpi-card">
+                  <div class="kpi-label">メモリ使用率</div>
+                  <div class="kpi-value" id="memUsageValue">43.8%</div>
+                  <div class="progress"><div class="progress-fill mint" id="memUsageBar" style="width:43.8%"></div></div>
+                  <div class="kpi-meta">14,336MB / 32,768MB</div>
+                </article>
+                <article class="card kpi-card">
+                  <div class="kpi-label">ディスク使用率</div>
+                  <div class="kpi-value">45.7%</div>
+                  <div class="progress"><div class="progress-fill amber" style="width:45.7%"></div></div>
+                  <div class="kpi-meta">556GB free / uptime 12d+</div>
+                </article>
+                <article class="card kpi-card">
+                  <div class="kpi-label">承認待ち / Services / Cron</div>
+                  <div class="kpi-value"><span id="pendingCountValue">2</span> / 5 / 3</div>
+                  <div class="chips-row">
+                    <span class="chip chip-warning">pending 2</span>
+                    <span class="chip chip-success">active 5</span>
+                  </div>
+                  <div class="kpi-meta">approval / services / cron 統合ビュー</div>
+                </article>
+              </div>
+
+              <div class="grid cols-12">
+                <article class="card span-7">
+                  <div class="card-header">
+                    <h3>運用サマリー</h3>
+                    <button class="btn btn-mini btn-soft" data-scroll-target="sec-systeminfo">詳細</button>
+                  </div>
+                  <div class="metric-grid">
+                    <div class="metric-tile">
+                      <div class="metric-title">実行中プロセス</div>
+                      <div class="metric-big" id="procTotalValue">7</div>
+                      <div class="metric-foot">R:1 / S:6 / Z:0</div>
+                    </div>
+                    <div class="metric-tile">
+                      <div class="metric-title">トップCPU</div>
+                      <div class="metric-big">postgres</div>
+                      <div class="metric-foot" id="topCpuValue">12.8%</div>
+                    </div>
+                    <div class="metric-tile">
+                      <div class="metric-title">docs精査対象</div>
+                      <div class="metric-big">47</div>
+                      <div class="metric-foot">security docs: 13</div>
+                    </div>
+                    <div class="metric-tile">
+                      <div class="metric-title">OpenAPI docs note</div>
+                      <div class="metric-big">api-reference優先</div>
+                      <div class="metric-foot">`openapi.json` は要確認</div>
+                    </div>
+                  </div>
+                  <table class="table compact">
+                    <thead><tr><th>NIC</th><th>IP</th><th>RX</th><th>TX</th><th>Status</th></tr></thead>
+                    <tbody>
+                      <tr><td>eth0</td><td>10.0.2.15</td><td>28.1 Mbps</td><td>12.4 Mbps</td><td><span class="chip chip-success">UP</span></td></tr>
+                      <tr><td>eth1</td><td>192.168.10.21</td><td>0.8 Mbps</td><td>1.2 Mbps</td><td><span class="chip chip-success">UP</span></td></tr>
+                    </tbody>
+                  </table>
+                </article>
+
+                <article class="card span-5">
+                  <div class="card-header">
+                    <h3>承認待ちリクエスト</h3>
+                    <button class="btn btn-mini btn-soft" data-scroll-target="sec-approvals">承認センター</button>
+                  </div>
+                  <div class="list-stack">
+                    <button class="list-item" data-approval-select="apr-1001">
+                      <div class="list-item-row"><strong>ユーザーアカウント追加</strong><span class="chip chip-risk chip-high">HIGH</span></div>
+                      <div class="list-item-row muted small"><span>operator</span><span>23.0h 残</span></div>
+                      <div class="list-item-row">新規プロジェクトメンバーのアカウント作成</div>
+                    </button>
+                    <button class="list-item" data-approval-select="apr-1002">
+                      <div class="list-item-row"><strong>Cronジョブ追加</strong><span class="chip chip-risk chip-high">HIGH</span></div>
+                      <div class="list-item-row muted small"><span>operator</span><span>21.0h 残</span></div>
+                      <div class="list-item-row">夜間バックアップジョブの追加</div>
+                    </button>
+                  </div>
+                </article>
+              </div>
+
+              <div class="grid cols-12">
+                <article class="card span-7">
+                  <div class="card-header">
+                    <h3>API カタログ（docs反映）</h3>
+                    <button class="btn btn-mini btn-soft" data-scroll-target="sec-about">docsメモ</button>
+                  </div>
+                  <table class="table compact">
+                    <thead><tr><th>Method</th><th>Path</th><th>Permission</th><th>Module</th></tr></thead>
+                    <tbody>
+                      <tr><td><span class="method-pill method-post">POST</span></td><td class="mono">/api/auth/login</td><td class="mono">public</td><td>Auth</td></tr>
+                      <tr><td><span class="method-pill method-get">GET</span></td><td class="mono">/api/system/status</td><td class="mono">read:status</td><td>System</td></tr>
+                      <tr><td><span class="method-pill method-post">POST</span></td><td class="mono">/api/services/restart</td><td class="mono">execute:service_restart</td><td>Services</td></tr>
+                      <tr><td><span class="method-pill method-get">GET</span></td><td class="mono">/api/v1/processes</td><td class="mono">read:processes</td><td>Processes</td></tr>
+                      <tr><td><span class="method-pill method-get">GET</span></td><td class="mono">/api/cron</td><td class="mono">read:cron</td><td>Cron</td></tr>
+                      <tr><td><span class="method-pill method-post">POST</span></td><td class="mono">/api/approval/request</td><td class="mono">request:approval</td><td>Approval</td></tr>
+                    </tbody>
+                  </table>
+                </article>
+
+                <article class="card span-5">
+                  <div class="card-header">
+                    <h3>UI品質の学習ポイント（テスト報告）</h3>
+                  </div>
+                  <div class="timeline">
+                    <div class="timeline-item"><div class="timeline-dot critical"></div><div><div class="timeline-title"><span class="sev-tag sev-critical">CRITICAL</span> DOMContentLoaded漏れでログイン不可</div><div class="timeline-text">フォーム初期化をDOM読込後に実行</div></div></div>
+                    <div class="timeline-item"><div class="timeline-dot critical"></div><div><div class="timeline-title"><span class="sev-tag sev-critical">CRITICAL</span> baseURL相対参照でAPI全404</div><div class="timeline-text">`window.location.origin` に統一</div></div></div>
+                    <div class="timeline-item"><div class="timeline-dot high"></div><div><div class="timeline-title"><span class="sev-tag sev-high">HIGH</span> Processesフィールド名不一致</div><div class="timeline-text">`stat/start/rss` に整合</div></div></div>
+                    <div class="timeline-item"><div class="timeline-dot high"></div><div><div class="timeline-title"><span class="sev-tag sev-high">HIGH</span> `filter_user` パラメータ不一致</div><div class="timeline-text">JavaScript側のクエリキー修正</div></div></div>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="module-section" id="sec-services" data-page-label="システムサーバー" data-breadcrumb="Home / Linux管理システム / システムサーバー">
+              <div class="card banner-card">
+                <div class="banner-icon">⚙️</div>
+                <div>
+                  <h2>サービス管理（systemd / allowlist）</h2>
+                  <p>
+                    `api-reference.md` / `service-management.md` 準拠。再起動は allowlist（nginx / postgresql / redis）のみ。
+                    停止は原則禁止で、`service_stop` 承認リクエストとして扱います。
+                  </p>
+                </div>
+                <div class="hero-actions">
+                  <button class="btn btn-primary" data-open-modal="service-stop">停止申請サンプル</button>
+                  <button class="btn btn-soft" data-scroll-target="sec-approvals">承認センター</button>
+                </div>
+              </div>
+
+              <div class="grid cols-12">
+                <article class="card span-8">
+                  <div class="card-header">
+                    <h3>サービス一覧</h3>
+                    <div class="chips-row">
+                      <span class="chip chip-outline">allowlist: nginx</span>
+                      <span class="chip chip-outline">postgresql</span>
+                      <span class="chip chip-outline">redis</span>
+                    </div>
+                  </div>
+                  <table class="table" id="cronTable">
+                    <thead><tr><th>Service</th><th>Status</th><th>Enabled</th><th>CPU</th><th>Memory</th><th>Actions</th></tr></thead>
+                    <tbody>
+                      <tr data-service-row="nginx">
+                        <td><button class="link-button" data-service-select="nginx"><strong>Nginx Web Server</strong><br><span class="muted small mono">nginx</span></button></td>
+                        <td><span class="chip chip-success service-status-chip" data-service-status="nginx">active</span></td>
+                        <td><span class="chip chip-success">enabled</span></td>
+                        <td data-service-cpu="nginx">5.2%</td>
+                        <td>182MB</td>
+                        <td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-service-restart="nginx">再起動</button><button class="btn btn-mini btn-danger-soft" data-open-modal="service-stop" data-service-name="nginx">停止申請</button></div></td>
+                      </tr>
+                      <tr data-service-row="postgresql">
+                        <td><button class="link-button" data-service-select="postgresql"><strong>PostgreSQL</strong><br><span class="muted small mono">postgresql</span></button></td>
+                        <td><span class="chip chip-success service-status-chip" data-service-status="postgresql">active</span></td>
+                        <td><span class="chip chip-success">enabled</span></td>
+                        <td data-service-cpu="postgresql">8.9%</td>
+                        <td>1,530MB</td>
+                        <td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-service-restart="postgresql">再起動</button><button class="btn btn-mini btn-danger-soft" data-open-modal="service-stop" data-service-name="postgresql">停止申請</button></div></td>
+                      </tr>
+                      <tr data-service-row="redis">
+                        <td><button class="link-button" data-service-select="redis"><strong>Redis</strong><br><span class="muted small mono">redis</span></button></td>
+                        <td><span class="chip chip-success service-status-chip" data-service-status="redis">active</span></td>
+                        <td><span class="chip chip-success">enabled</span></td>
+                        <td data-service-cpu="redis">1.3%</td>
+                        <td>96MB</td>
+                        <td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-service-restart="redis">再起動</button><button class="btn btn-mini btn-danger-soft" data-open-modal="service-stop" data-service-name="redis">停止申請</button></div></td>
+                      </tr>
+                      <tr>
+                        <td><button class="link-button" data-service-select="linux-management-prod"><strong>Linux Management API</strong><br><span class="muted small mono">linux-management-prod</span></button></td>
+                        <td><span class="chip chip-success service-status-chip" data-service-status="linux-management-prod">active</span></td>
+                        <td><span class="chip chip-success">enabled</span></td>
+                        <td data-service-cpu="linux-management-prod">2.6%</td>
+                        <td>242MB</td>
+                        <td><div class="inline-actions"><button class="btn btn-mini btn-soft" disabled>再起動</button><button class="btn btn-mini btn-danger-soft" data-open-modal="service-stop" data-service-name="linux-management-prod">停止申請</button></div></td>
+                      </tr>
+                      <tr>
+                        <td><button class="link-button" data-service-select="sshd"><strong>SSH Server</strong><br><span class="muted small mono">sshd</span></button></td>
+                        <td><span class="chip chip-success service-status-chip" data-service-status="sshd">active</span></td>
+                        <td><span class="chip chip-success">enabled</span></td>
+                        <td data-service-cpu="sshd">0.2%</td>
+                        <td>32MB</td>
+                        <td><div class="inline-actions"><button class="btn btn-mini btn-soft" disabled>再起動</button><button class="btn btn-mini btn-danger-soft" data-open-modal="service-stop" data-service-name="sshd">停止申請</button></div></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div class="inline-note"><span class="note-chip">RBAC</span><span>Viewer は参照のみ、Operator 以上が `execute:service_restart`、危険操作は承認フローへ。</span></div>
+                </article>
+
+                <article class="card span-4">
+                  <div class="card-header">
+                    <h3>ログプレビュー</h3>
+                    <button class="btn btn-mini btn-soft" data-scroll-target="sec-logs">ログ画面へ</button>
+                  </div>
+                  <div class="stack-tight">
+                    <div>
+                      <div><strong id="servicePreviewTitle">Nginx Web Server</strong></div>
+                      <div class="muted small mono" id="servicePreviewName">nginx</div>
+                    </div>
+                    <div class="terminal" id="serviceLogPreview">
+                      <div>Feb 24 09:12:20 nginx: Reloading configuration...</div>
+                      <div>Feb 24 09:12:21 nginx: Configuration reloaded</div>
+                      <div>Feb 24 10:15:13 nginx: GET /api/system/status 200</div>
+                    </div>
+                    <div class="rule-list">
+                      <div class="rule-item"><span>Validation</span><code>^[a-zA-Z0-9_-]+$</code></div>
+                      <div class="rule-item"><span>Allowlist</span><code>nginx, postgresql, redis</code></div>
+                      <div class="rule-item"><span>Audit</span><code>attempt → success/denied/failure</code></div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="module-section" id="sec-processes" data-page-label="実行中プロセス" data-breadcrumb="Home / システム / 実行中プロセス">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h2>実行中プロセス（Running Processes）</h2>
+                    <p class="muted">`processes-module-requirements.md` / `processes-module-design.md` / `processes-security-checklist.md` を反映した参照専用UIサンプル。</p>
+                  </div>
+                  <div class="inline-actions">
+                    <button class="btn btn-soft" id="procRefreshBtn">再取得</button>
+                    <button class="btn btn-primary" id="procAutoBtn" data-proc-auto="off">▶ Auto-refresh (5s)</button>
+                  </div>
+                </div>
+                <div class="controls grid-controls process-controls">
+                  <label>sort_by
+                    <select id="procSort">
+                      <option value="cpu">cpu</option>
+                      <option value="mem">mem</option>
+                      <option value="pid">pid</option>
+                      <option value="time">time</option>
+                    </select>
+                  </label>
+                  <label>filter_user
+                    <select id="procUser">
+                      <option value="">全ユーザー</option>
+                      <option value="adminui">adminui</option>
+                      <option value="www-data">www-data</option>
+                      <option value="postgres">postgres</option>
+                      <option value="redis">redis</option>
+                      <option value="root">root</option>
+                    </select>
+                  </label>
+                  <label>min_cpu
+                    <input id="procMinCpu" type="number" min="0" max="100" step="0.1" value="0">
+                  </label>
+                  <label>min_mem
+                    <input id="procMinMem" type="number" min="0" max="100" step="0.1" value="0">
+                  </label>
+                  <label>limit
+                    <input id="procLimit" type="number" min="1" max="1000" step="1" value="100">
+                  </label>
+                </div>
+                <div class="chips-row">
+                  <span class="chip chip-outline">クエリキー: <code>filter_user</code>（docs整合）</span>
+                  <span class="chip chip-outline">権限: <code>read:processes</code></span>
+                  <span class="chip chip-outline">参照専用 / v0.3以降で kill は承認前提</span>
+                </div>
+              </div>
+
+              <div class="grid cols-4">
+                <article class="card kpi-card"><div class="kpi-label">総プロセス数</div><div class="kpi-value" id="procKpiTotal">7</div><div class="kpi-meta">filtered result</div></article>
+                <article class="card kpi-card"><div class="kpi-label">CPU合計</div><div class="kpi-value" id="procKpiCpu">29.3%</div><div class="progress"><div class="progress-fill coral" id="procCpuBar" style="width:29.3%"></div></div><div class="kpi-meta">top: postgres</div></article>
+                <article class="card kpi-card"><div class="kpi-label">Memory合計</div><div class="kpi-value" id="procKpiMem">25.8%</div><div class="progress"><div class="progress-fill mint" id="procMemBar" style="width:25.8%"></div></div><div class="kpi-meta">RSS集計(概算)</div></article>
+                <article class="card kpi-card"><div class="kpi-label">状態</div><div class="kpi-value" id="procKpiStates">R:1 / S:6</div><div class="kpi-meta">Z:0 / T:0</div></article>
+              </div>
+
+              <div class="grid cols-12">
+                <article class="card span-8">
+                  <div class="card-header"><h3>プロセス一覧</h3><div class="muted small" id="procRowsMeta">7 件表示</div></div>
+                  <div class="table-wrap">
+                    <table class="table table-sticky" id="procTable">
+                      <thead><tr><th>PID</th><th>User</th><th>CPU%</th><th>MEM%</th><th>VSZ</th><th>RSS</th><th>STAT</th><th>START</th><th>TIME</th><th>Command</th></tr></thead>
+                      <tbody>
+                        <tr data-proc-row data-user="postgres" data-cpu="12.8" data-mem="18.5" data-pid="1008"><td class="mono">1008</td><td>postgres</td><td data-proc-cpu>12.8</td><td data-proc-mem>18.5</td><td>2,890,100</td><td>1,560,240</td><td><span class="chip chip-outline mono">S</span></td><td class="mono">Feb24</td><td class="mono">01:12:11</td><td class="mono truncate-cell">/usr/lib/postgresql/16/bin/postgres -D /var/lib/postgresql/16/main</td></tr>
+                        <tr data-proc-row data-user="www-data" data-cpu="7.2" data-mem="2.9" data-pid="1002"><td class="mono">1002</td><td>www-data</td><td data-proc-cpu>7.2</td><td data-proc-mem>2.9</td><td>242,500</td><td>142,120</td><td><span class="chip chip-outline mono">S</span></td><td class="mono">09:20</td><td class="mono">00:15:03</td><td class="mono truncate-cell">nginx: worker process</td></tr>
+                        <tr data-proc-row data-user="adminui" data-cpu="4.6" data-mem="1.8" data-pid="1004"><td class="mono">1004</td><td>adminui</td><td data-proc-cpu>4.6</td><td data-proc-mem>1.8</td><td>398,120</td><td>248,320</td><td><span class="chip chip-outline mono">S</span></td><td class="mono">08:12</td><td class="mono">00:55:22</td><td class="mono truncate-cell">python3 -m uvicorn backend.main:app --port 5012</td></tr>
+                        <tr data-proc-row data-user="redis" data-cpu="2.1" data-mem="1.1" data-pid="1003"><td class="mono">1003</td><td>redis</td><td data-proc-cpu>2.1</td><td data-proc-mem>1.1</td><td>130,212</td><td>98,212</td><td><span class="chip chip-outline mono">S</span></td><td class="mono">Feb23</td><td class="mono">02:01:45</td><td class="mono truncate-cell">/usr/bin/redis-server 127.0.0.1:6379</td></tr>
+                        <tr data-proc-row data-user="adminui" data-cpu="1.3" data-mem="0.8" data-pid="1010"><td class="mono">1010</td><td>adminui</td><td data-proc-cpu>1.3</td><td data-proc-mem>0.8</td><td>220,420</td><td>114,220</td><td><span class="chip chip-outline mono">S</span></td><td class="mono">09:55</td><td class="mono">00:08:02</td><td class="mono truncate-cell">python3 scheduler.py --poll approval</td></tr>
+                        <tr data-proc-row data-user="root" data-cpu="0.4" data-mem="0.2" data-pid="1006"><td class="mono">1006</td><td>root</td><td data-proc-cpu>0.4</td><td data-proc-mem>0.2</td><td>22,012</td><td>12,004</td><td><span class="chip chip-outline mono">Ss</span></td><td class="mono">Feb22</td><td class="mono">00:01:11</td><td class="mono truncate-cell">/sbin/agetty tty1 linux</td></tr>
+                        <tr data-proc-row data-user="www-data" data-cpu="0.9" data-mem="0.5" data-pid="1012"><td class="mono">1012</td><td>www-data</td><td data-proc-cpu>0.9</td><td data-proc-mem>0.5</td><td>210,000</td><td>73,120</td><td><span class="chip chip-outline mono">S</span></td><td class="mono">09:59</td><td class="mono">00:05:41</td><td class="mono truncate-cell">nginx: worker process</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </article>
+
+                <article class="card span-4">
+                  <div class="card-header"><h3>プロセス詳細</h3><div class="muted small">PROC-002</div></div>
+                  <div class="detail-card" id="procDetailCard">
+                    <div class="detail-title-row"><div><h4 id="procDetailName">postgres</h4><div class="muted small mono" id="procDetailId">1008 / postgres</div></div><span class="chip chip-outline mono" id="procDetailStat">S</span></div>
+                    <div class="kv-grid">
+                      <div><span>CPU%</span><strong id="procDetailCpu">12.8</strong></div>
+                      <div><span>MEM%</span><strong id="procDetailMem">18.5</strong></div>
+                      <div><span>PPID</span><strong>1</strong></div>
+                      <div><span>Threads</span><strong>1</strong></div>
+                      <div><span>Open Files</span><strong>28</strong></div>
+                      <div><span>Connections</span><strong>0</strong></div>
+                    </div>
+                    <div class="detail-block"><div class="detail-label">状態説明</div><div id="procDetailStateText">Sleeping</div></div>
+                    <div class="detail-block"><div class="detail-label">CWD</div><code id="procDetailCwd">/var/lib/postgresql</code></div>
+                    <div class="detail-block"><div class="detail-label">Command</div><code id="procDetailCmd">/usr/lib/postgresql/16/bin/postgres -D /var/lib/postgresql/16/main</code></div>
+                    <div class="inline-note"><span class="note-chip">整合性</span><span>フィールド名は wrapper/API 仕様に合わせて `stat/start/rss` を表示。</span></div>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="module-section" id="sec-cron" data-page-label="Cronジョブ" data-breadcrumb="Home / システム / Cronジョブ">
+              <div class="card banner-card">
+                <div class="banner-icon">⏱️</div>
+                <div>
+                  <h2>Cron Jobs 管理（承認フロー統合）</h2>
+                  <p>`cron-jobs-design.md` / `cron-allowlist-policy.md` 準拠。追加・削除・有効/無効切替は承認リクエストとして作成します。</p>
+                </div>
+                <div class="hero-actions">
+                  <button class="btn btn-primary" data-open-modal="cron-add">+ Add Cron Job</button>
+                  <button class="btn btn-soft" data-scroll-target="sec-approvals">承認センター</button>
+                </div>
+              </div>
+
+              <div class="grid cols-4">
+                <article class="card kpi-card"><div class="kpi-label">Jobs / User</div><div class="kpi-value">3 / 10</div><div class="progress"><div class="progress-fill" style="width:30%"></div></div><div class="kpi-meta">最大10件/ユーザー</div></article>
+                <article class="card kpi-card"><div class="kpi-label">最小実行間隔</div><div class="kpi-value">5分</div><div class="kpi-meta">`* * * * *` は拒否</div></article>
+                <article class="card kpi-card"><div class="kpi-label">allowlistコマンド</div><div class="kpi-value">9</div><div class="kpi-meta">LOW/MEDIUM/HIGH分類</div></article>
+                <article class="card kpi-card"><div class="kpi-label">System Pending上限</div><div class="kpi-value">50</div><div class="kpi-meta">設計値</div></article>
+              </div>
+
+              <div class="grid cols-12">
+                <article class="card span-7">
+                  <div class="card-header"><h3>Cronジョブ一覧</h3><div class="chips-row"><span class="chip chip-outline">GET /api/cron</span><span class="chip chip-outline">max_allowed: 10</span></div></div>
+                  <table class="table">
+                    <thead><tr><th>ID</th><th>Owner</th><th>Schedule</th><th>Command</th><th>Status</th><th>Action</th></tr></thead>
+                    <tbody>
+                      <tr data-cron-id="cron_001">
+                        <td class="mono">cron_001</td><td>adminui</td>
+                        <td><div class="mono">0 2 * * *</div><div class="muted small">Every day at 2:00</div></td>
+                        <td><div class="mono">/usr/bin/rsync</div><div class="muted small truncate-cell">-avz /data /backup/data</div></td>
+                        <td><span class="chip chip-success" data-cron-status>Active</span></td>
+                        <td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-cron-toggle="cron_001">[T]</button><button class="btn btn-mini btn-danger-soft" data-open-modal="cron-delete" data-cron-id="cron_001">[D]</button></div></td>
+                      </tr>
+                      <tr data-cron-id="cron_002">
+                        <td class="mono">cron_002</td><td>adminui</td>
+                        <td><div class="mono">*/10 * * * *</div><div class="muted small">Every 10 minutes</div></td>
+                        <td><div class="mono">/usr/local/bin/healthcheck.sh</div><div class="muted small truncate-cell">-</div></td>
+                        <td><span class="chip chip-success" data-cron-status>Active</span></td>
+                        <td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-cron-toggle="cron_002">[T]</button><button class="btn btn-mini btn-danger-soft" data-open-modal="cron-delete" data-cron-id="cron_002">[D]</button></div></td>
+                      </tr>
+                      <tr data-cron-id="cron_003">
+                        <td class="mono">cron_003</td><td>deploy</td>
+                        <td><div class="mono">0 0 1 * *</div><div class="muted small">First day of month</div></td>
+                        <td><div class="mono">/usr/bin/tar</div><div class="muted small truncate-cell">-czf /backup/monthly/app.tar.gz /opt/app/releases</div></td>
+                        <td><span class="chip chip-muted" data-cron-status>Disabled</span></td>
+                        <td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-cron-toggle="cron_003">[T]</button><button class="btn btn-mini btn-danger-soft" data-open-modal="cron-delete" data-cron-id="cron_003">[D]</button></div></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div class="legend-row muted small">[T] = Toggle（有効/無効切替申請） / [D] = Delete（削除申請）</div>
+                </article>
+
+                <article class="card span-5">
+                  <div class="card-header"><h3>プリセット / セキュリティルール</h3></div>
+                  <div class="stack-split">
+                    <div>
+                      <div class="subhead">Preset</div>
+                      <table class="table compact">
+                        <thead><tr><th>プリセット</th><th>Cron式</th><th>説明</th></tr></thead>
+                        <tbody>
+                          <tr><td>Every 5 minutes</td><td class="mono">*/5 * * * *</td><td>5分ごと</td></tr>
+                          <tr><td>Every hour</td><td class="mono">0 * * * *</td><td>毎時0分</td></tr>
+                          <tr><td>Every day at 2:00</td><td class="mono">0 2 * * *</td><td>毎日2:00</td></tr>
+                          <tr><td>Every Monday at 3:00</td><td class="mono">0 3 * * 1</td><td>毎週月曜3:00</td></tr>
+                          <tr><td>First day of month</td><td class="mono">0 0 1 * *</td><td>毎月1日0:00</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <div class="subhead">主な拒否条件</div>
+                      <ul class="plain-list">
+                        <li>allowlist外コマンドは拒否（`COMMAND_NOT_ALLOWED`）</li>
+                        <li>毎分実行禁止（最小間隔 5分）</li>
+                        <li>引数内の禁止文字 `; | & $ ( )` 等を拒否</li>
+                        <li>root など禁止ユーザーの cron 操作を拒否</li>
+                        <li>機密情報パターン検出時は承認画面に警告表示</li>
+                      </ul>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <article class="card">
+                <div class="card-header"><h3>コマンド allowlist カタログ（抜粋）</h3></div>
+                <div class="command-grid">
+                  <div class="command-card"><div class="command-card-head"><code>/usr/bin/rsync</code><span class="chip chip-risk chip-low">LOW</span></div><p>ファイル同期・バックアップ</p><div class="rule-list"><div class="rule-item"><span>forbidden</span><code>--delete, -e</code></div><div class="rule-item"><span>max args</span><code>20</code></div></div></div>
+                  <div class="command-card"><div class="command-card-head"><code>/usr/bin/find</code><span class="chip chip-risk chip-medium">MEDIUM</span></div><p>ファイル検索・クリーンアップ</p><div class="rule-list"><div class="rule-item"><span>forbidden</span><code>-exec, -delete</code></div><div class="rule-item"><span>max args</span><code>15</code></div></div></div>
+                  <div class="command-card"><div class="command-card-head"><code>/usr/bin/python3</code><span class="chip chip-risk chip-high">HIGH</span></div><p>承認済みスクリプト実行</p><div class="rule-list"><div class="rule-item"><span>forbidden</span><code>-c, -m</code></div><div class="rule-item"><span>allowed path</span><code>/opt/adminui/scripts/</code></div></div></div>
+                </div>
+              </article>
+            </section>
+
+            <section class="module-section" id="sec-users" data-page-label="ユーザー・グループ" data-breadcrumb="Home / システム / ユーザー・グループ">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h2>Users & Groups Management</h2>
+                    <p class="muted">`users-groups-design.md` / `users-groups-allowlist-policy.md` / `users-groups-threat-analysis.md` 準拠。Write操作は承認リクエストとして作成。</p>
+                  </div>
+                  <div class="inline-actions">
+                    <button class="btn btn-primary" data-open-modal="user-add">+ Add User (Approval)</button>
+                    <button class="btn btn-soft" data-scroll-target="sec-approvals">承認センター</button>
+                  </div>
+                </div>
+                <div class="tabs" role="tablist" aria-label="Users tabs">
+                  <button class="tab active" data-tab-group="users" data-tab-id="users-list" role="tab" aria-selected="true">Users</button>
+                  <button class="tab" data-tab-group="users" data-tab-id="groups-list" role="tab" aria-selected="false">Groups</button>
+                </div>
+                <div class="controls grid-controls">
+                  <label class="grow">Search <input id="usersSearch" type="search" placeholder="kensan, /home, /bin/bash..."></label>
+                  <label>Status
+                    <select id="usersStatus">
+                      <option value="all">All</option>
+                      <option value="active">Active</option>
+                      <option value="locked">Locked</option>
+                    </select>
+                  </label>
+                  <label class="grow">Group Search <input id="groupsSearch" type="search" placeholder="developers, ops..."></label>
+                </div>
+              </div>
+
+              <div class="grid cols-12">
+                <article class="card span-8 tab-panel active" data-tab-panel="users-list">
+                  <div class="card-header"><h3>Users</h3><div class="muted small">UID >= 1000 のみ表示</div></div>
+                  <table class="table" id="usersTable">
+                    <thead><tr><th>Username</th><th>UID</th><th>Groups</th><th>Home</th><th>Shell</th><th>Status</th><th>Last Login</th><th>Action</th></tr></thead>
+                    <tbody>
+                      <tr data-user-row data-user-name="kensan" data-user-status="active" data-user-groups="users developers"><td><strong>kensan</strong></td><td class="mono">1000</td><td><span class="chip chip-outline">users</span> <span class="chip chip-outline">developers</span></td><td class="mono">/home/kensan</td><td class="mono">/bin/bash</td><td><span class="chip chip-success">Active</span></td><td>02/24 12:10:00</td><td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-quick-approval="user_passwd" data-target-name="kensan">PW変更申請</button><button class="btn btn-mini btn-danger-soft" data-quick-approval="user_delete" data-target-name="kensan">削除申請</button></div></td></tr>
+                      <tr data-user-row data-user-name="deploy" data-user-status="active" data-user-groups="users ops"><td><strong>deploy</strong></td><td class="mono">1001</td><td><span class="chip chip-outline">users</span> <span class="chip chip-outline">ops</span></td><td class="mono">/home/deploy</td><td class="mono">/usr/sbin/nologin</td><td><span class="chip chip-success">Active</span></td><td>02/24 16:03:00</td><td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-quick-approval="user_passwd" data-target-name="deploy">PW変更申請</button><button class="btn btn-mini btn-danger-soft" data-quick-approval="user_delete" data-target-name="deploy">削除申請</button></div></td></tr>
+                      <tr data-user-row data-user-name="batchapp" data-user-status="active" data-user-groups="users analytics"><td><strong>batchapp</strong></td><td class="mono">1002</td><td><span class="chip chip-outline">users</span> <span class="chip chip-outline">analytics</span></td><td class="mono">/home/batchapp</td><td class="mono">/bin/bash</td><td><span class="chip chip-success">Active</span></td><td>02/23 18:30:00</td><td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-quick-approval="user_passwd" data-target-name="batchapp">PW変更申請</button><button class="btn btn-mini btn-danger-soft" data-quick-approval="user_delete" data-target-name="batchapp">削除申請</button></div></td></tr>
+                      <tr data-user-row data-user-name="tempstaff" data-user-status="locked" data-user-groups="users"><td><strong>tempstaff</strong></td><td class="mono">1003</td><td><span class="chip chip-outline">users</span></td><td class="mono">/home/tempstaff</td><td class="mono">/bin/false</td><td><span class="chip chip-muted">Locked</span></td><td>02/21 10:01:00</td><td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-quick-approval="user_passwd" data-target-name="tempstaff">PW変更申請</button><button class="btn btn-mini btn-danger-soft" data-quick-approval="user_delete" data-target-name="tempstaff">削除申請</button></div></td></tr>
+                    </tbody>
+                  </table>
+                </article>
+
+                <article class="card span-8 tab-panel" data-tab-panel="groups-list">
+                  <div class="card-header"><h3>Groups</h3><div class="muted small">GID >= 1000 のみ表示</div></div>
+                  <table class="table" id="groupsTable">
+                    <thead><tr><th>Group</th><th>GID</th><th>Members</th><th>Risk</th><th>Action</th></tr></thead>
+                    <tbody>
+                      <tr data-group-row data-group-name="users"><td><strong>users</strong></td><td class="mono">1000</td><td><span class="chip chip-outline">kensan</span> <span class="chip chip-outline">deploy</span> <span class="chip chip-outline">batchapp</span> <span class="chip chip-outline">tempstaff</span></td><td><span class="chip chip-risk chip-low">LOW</span></td><td><button class="btn btn-mini btn-soft" data-quick-approval="group_modify" data-target-name="users">メンバー変更申請</button></td></tr>
+                      <tr data-group-row data-group-name="developers"><td><strong>developers</strong></td><td class="mono">1001</td><td><span class="chip chip-outline">kensan</span></td><td><span class="chip chip-risk chip-medium">MEDIUM</span></td><td><button class="btn btn-mini btn-soft" data-quick-approval="group_modify" data-target-name="developers">メンバー変更申請</button></td></tr>
+                      <tr data-group-row data-group-name="ops"><td><strong>ops</strong></td><td class="mono">1002</td><td><span class="chip chip-outline">deploy</span></td><td><span class="chip chip-risk chip-medium">MEDIUM</span></td><td><button class="btn btn-mini btn-soft" data-quick-approval="group_modify" data-target-name="ops">メンバー変更申請</button></td></tr>
+                      <tr data-group-row data-group-name="legacyops"><td><strong>legacyops</strong></td><td class="mono">1012</td><td><span class="muted">No members</span></td><td><span class="chip chip-risk chip-high">HIGH</span></td><td><button class="btn btn-mini btn-danger-soft" data-quick-approval="group_delete" data-target-name="legacyops">削除申請</button></td></tr>
+                    </tbody>
+                  </table>
+                </article>
+
+                <aside class="card span-4">
+                  <div class="card-header"><h3>入力・権限・承認ルール</h3></div>
+                  <div class="stack-tight">
+                    <div class="subpanel">
+                      <h4>Username / Group Pattern</h4>
+                      <code>^[a-z_][a-z0-9_-]{0,31}$</code>
+                      <p class="muted small">Frontend / API(Pydantic) / Wrapper の多重検証。</p>
+                    </div>
+                    <div class="subpanel">
+                      <h4>禁止グループ（抜粋）</h4>
+                      <div class="chips-row">
+                        <span class="chip chip-danger">root</span><span class="chip chip-danger">sudo</span><span class="chip chip-danger">wheel</span><span class="chip chip-danger">docker</span><span class="chip chip-danger">lxd</span><span class="chip chip-danger">shadow</span>
+                      </div>
+                      <p class="muted small">Privilege Escalation 対策。変更には人間承認。</p>
+                    </div>
+                    <div class="subpanel">
+                      <h4>Allowed Shells</h4>
+                      <ul class="plain-list mono">
+                        <li>/bin/bash</li><li>/bin/sh</li><li>/usr/bin/zsh</li><li>/usr/sbin/nologin</li><li>/bin/false</li>
+                      </ul>
+                    </div>
+                    <div class="subpanel">
+                      <h4>Rate Limits（抜粋）</h4>
+                      <div class="rule-list">
+                        <div class="rule-item"><span>GET /api/users</span><code>30/min</code></div>
+                        <div class="rule-item"><span>POST /api/users</span><code>5/min</code></div>
+                        <div class="rule-item"><span>DELETE /api/users/{uid}</span><code>3/min</code></div>
+                        <div class="rule-item"><span>pending_requests_per_user</span><code>10</code></div>
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </section>
+
+            <section class="module-section" id="sec-approvals" data-page-label="承認センター" data-breadcrumb="Home / 承認センター">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h2>承認センター（Approval Workflow）</h2>
+                    <p class="muted">`approval-workflow-design.md` / `approval-api-spec.md` / `database/approval-schema.sql` 準拠。状態遷移・自己承認禁止・HMAC履歴を表示。</p>
+                  </div>
+                  <div class="chips-row">
+                    <span class="chip chip-outline">自己承認禁止</span>
+                    <span class="chip chip-outline">HMAC署名履歴</span>
+                    <span class="chip chip-outline">Admin: history/export/stats</span>
+                  </div>
+                </div>
+                <div class="tabs" role="tablist" aria-label="Approvals tabs">
+                  <button class="tab active" data-tab-group="approvals" data-tab-id="ap-pending">承認待ち</button>
+                  <button class="tab" data-tab-group="approvals" data-tab-id="ap-my">自分の申請</button>
+                  <button class="tab" data-tab-group="approvals" data-tab-id="ap-create">承認リクエスト</button>
+                  <button class="tab" data-tab-group="approvals" data-tab-id="ap-history">承認履歴</button>
+                  <button class="tab" data-tab-group="approvals" data-tab-id="ap-policies">承認ポリシー</button>
+                  <button class="tab" data-tab-group="approvals" data-tab-id="ap-stats">統計</button>
+                </div>
+              </div>
+
+              <div class="grid cols-12">
+                <article class="card span-8 tab-panel active" data-tab-panel="ap-pending">
+                  <div class="card-header"><h3>承認待ち一覧</h3><div class="muted small">Approver/Admin 向け</div></div>
+                  <div class="controls grid-controls">
+                    <label>種別
+                      <select id="approvalPendingType">
+                        <option value="all">全種別</option>
+                        <option value="user_add">user_add</option>
+                        <option value="cron_add">cron_add</option>
+                      </select>
+                    </label>
+                    <label>申請者
+                      <select id="approvalPendingRequester">
+                        <option value="all">全申請者</option>
+                        <option value="operator">operator</option>
+                      </select>
+                    </label>
+                    <div class="inline-note grow"><span class="note-chip">制約</span><span>Approver/Adminのみ閲覧。自己承認は禁止。</span></div>
+                  </div>
+                  <table class="table" id="approvalPendingTable">
+                    <thead><tr><th>ID</th><th>種別</th><th>申請者</th><th>リスク</th><th>理由</th><th>期限</th><th>状態</th><th>操作</th></tr></thead>
+                    <tbody>
+                      <tr data-approval-row data-approval-id="apr-1001" data-approval-type="user_add" data-approval-requester="operator" data-approval-status="pending"><td class="mono">apr-1001</td><td>ユーザーアカウント追加</td><td>operator</td><td><span class="chip chip-risk chip-high">HIGH</span></td><td>新規プロジェクトメンバーのアカウント作成</td><td>23.0h 残</td><td><span class="chip chip-warning approval-status-chip">pending</span></td><td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-approval-select="apr-1001">詳細</button><button class="btn btn-mini btn-success-soft" data-open-modal="approval-action" data-approval-op="approve" data-approval-id="apr-1001">承認</button><button class="btn btn-mini btn-danger-soft" data-open-modal="approval-action" data-approval-op="reject" data-approval-id="apr-1001">拒否</button></div></td></tr>
+                      <tr data-approval-row data-approval-id="apr-1002" data-approval-type="cron_add" data-approval-requester="operator" data-approval-status="pending"><td class="mono">apr-1002</td><td>Cronジョブ追加</td><td>operator</td><td><span class="chip chip-risk chip-high">HIGH</span></td><td>夜間バックアップジョブの追加</td><td>21.0h 残</td><td><span class="chip chip-warning approval-status-chip">pending</span></td><td><div class="inline-actions"><button class="btn btn-mini btn-soft" data-approval-select="apr-1002">詳細</button><button class="btn btn-mini btn-success-soft" data-open-modal="approval-action" data-approval-op="approve" data-approval-id="apr-1002">承認</button><button class="btn btn-mini btn-danger-soft" data-open-modal="approval-action" data-approval-op="reject" data-approval-id="apr-1002">拒否</button></div></td></tr>
+                    </tbody>
+                  </table>
+                </article>
+
+                <article class="card span-8 tab-panel" data-tab-panel="ap-my">
+                  <div class="card-header"><h3>自分の申請一覧</h3><div class="muted small">GET /api/approval/my-requests</div></div>
+                  <div class="controls grid-controls">
+                    <label>ステータス
+                      <select id="approvalMyStatus">
+                        <option value="all">全て</option>
+                        <option value="pending">pending</option>
+                        <option value="approved">approved</option>
+                        <option value="rejected">rejected</option>
+                        <option value="executed">executed</option>
+                        <option value="expired">expired</option>
+                      </select>
+                    </label>
+                  </div>
+                  <table class="table" id="approvalMyTable">
+                    <thead><tr><th>ID</th><th>種別</th><th>状態</th><th>理由</th><th>作成</th><th>操作</th></tr></thead>
+                    <tbody>
+                      <tr data-my-approval-row data-approval-status="pending"><td class="mono">apr-1001</td><td>user_add</td><td><span class="chip chip-warning">pending</span></td><td>新規プロジェクトメンバーのアカウント作成</td><td>02/24 17:00</td><td><button class="btn btn-mini btn-danger-soft" data-open-modal="approval-action" data-approval-op="cancel" data-approval-id="apr-1001">キャンセル</button></td></tr>
+                      <tr data-my-approval-row data-approval-status="pending"><td class="mono">apr-1002</td><td>cron_add</td><td><span class="chip chip-warning">pending</span></td><td>夜間バックアップジョブの追加</td><td>02/24 15:00</td><td><button class="btn btn-mini btn-danger-soft" data-open-modal="approval-action" data-approval-op="cancel" data-approval-id="apr-1002">キャンセル</button></td></tr>
+                      <tr data-my-approval-row data-approval-status="rejected"><td class="mono">apr-1004</td><td>group_delete</td><td><span class="chip chip-danger">rejected</span></td><td>legacyops を削除</td><td>02/23 12:00</td><td><button class="btn btn-mini btn-soft" data-approval-select="apr-1004">詳細</button></td></tr>
+                    </tbody>
+                  </table>
+                </article>
+
+                <article class="card span-8 tab-panel" data-tab-panel="ap-create">
+                  <div class="card-header"><h3>承認リクエスト作成</h3></div>
+                  <form class="form-grid" id="approvalDraftForm" data-form="approval-draft">
+                    <label><span>操作種別</span>
+                      <select id="approvalDraftType">
+                        <option value="user_add">ユーザーアカウント追加 (user_add)</option>
+                        <option value="user_delete">ユーザーアカウント削除 (user_delete)</option>
+                        <option value="group_add">グループ追加 (group_add)</option>
+                        <option value="cron_add">Cronジョブ追加 (cron_add)</option>
+                        <option value="cron_modify">Cronジョブ変更 (cron_modify)</option>
+                        <option value="service_stop">サービス停止 (service_stop)</option>
+                        <option value="firewall_modify">ファイアウォール変更 (firewall_modify)</option>
+                      </select>
+                    </label>
+                    <div class="subpanel span-2">
+                      <h4>操作パラメータ（サンプル）</h4>
+                      <div class="form-grid compact-form" id="approvalDraftFields">
+                        <label><span>username</span><input type="text" data-approval-field="username" value="newuser"></label>
+                        <label><span>group</span><input type="text" data-approval-field="group" value="developers"></label>
+                        <label><span>home</span><input type="text" data-approval-field="home" value="/home/newuser"></label>
+                        <label><span>shell</span><input type="text" data-approval-field="shell" value="/bin/bash"></label>
+                      </div>
+                    </div>
+                    <label class="span-2"><span>申請理由（1-1000文字）</span><textarea id="approvalDraftReason" rows="4">新規運用作業のため承認を依頼します。</textarea></label>
+                    <div class="subpanel span-2">
+                      <h4>プレビュー</h4>
+                      <div class="preview-grid">
+                        <div><span>request_type</span><code id="approvalPreviewType">user_add</code></div>
+                        <div><span>risk_level</span><span id="approvalPreviewRisk" class="chip chip-risk chip-high">HIGH</span></div>
+                        <div><span>approver_roles</span><code id="approvalPreviewRoles">Approver, Admin</code></div>
+                        <div><span>timeout</span><code id="approvalPreviewTimeout">24h</code></div>
+                        <div class="span-2"><span>payload</span><pre id="approvalPreviewPayload">{"username":"newuser","group":"developers","home":"/home/newuser","shell":"/bin/bash"}</pre></div>
+                      </div>
+                    </div>
+                    <div class="form-actions span-2">
+                      <button class="btn btn-soft" type="button" data-approval-draft-reset>テンプレート再読込</button>
+                      <button class="btn btn-primary" type="submit">承認リクエスト送信</button>
+                    </div>
+                  </form>
+                </article>
+
+                <article class="card span-8 tab-panel" data-tab-panel="ap-history">
+                  <div class="card-header"><h3>承認履歴</h3><div class="inline-actions"><button class="btn btn-mini btn-soft" data-export="csv">CSV Export</button><button class="btn btn-mini btn-soft" data-export="json">JSON Export</button></div></div>
+                  <div class="controls grid-controls">
+                    <label>集計期間
+                      <select id="approvalPeriod"><option value="7d">7d</option><option value="30d" selected>30d</option><option value="90d">90d</option><option value="365d">365d</option></select>
+                    </label>
+                    <label>結果
+                      <select id="approvalHistoryStatus"><option value="all">全結果</option><option value="approved">approved</option><option value="rejected">rejected</option><option value="executed">executed</option><option value="expired">expired</option></select>
+                    </label>
+                  </div>
+                  <table class="table" id="approvalHistoryTable">
+                    <thead><tr><th>日時</th><th>種別</th><th>申請者</th><th>承認者</th><th>結果</th><th>操作</th></tr></thead>
+                    <tbody>
+                      <tr data-history-row data-history-status="approved"><td>02/24 10:00</td><td>service_stop</td><td>approver1</td><td>admin</td><td><span class="chip chip-success">approved</span></td><td><button class="btn btn-mini btn-soft" data-approval-select="apr-1003">詳細</button></td></tr>
+                      <tr data-history-row data-history-status="rejected"><td>02/23 12:00</td><td>group_delete</td><td>operator</td><td>admin</td><td><span class="chip chip-danger">rejected</span></td><td><button class="btn btn-mini btn-soft" data-approval-select="apr-1004">詳細</button></td></tr>
+                      <tr data-history-row data-history-status="executed"><td>02/22 20:00</td><td>cron_modify</td><td>operator2</td><td>approver1</td><td><span class="chip chip-success">executed</span></td><td><button class="btn btn-mini btn-soft" data-approval-select="apr-1005">詳細</button></td></tr>
+                      <tr data-history-row data-history-status="expired"><td>02/21 08:00</td><td>firewall_modify</td><td>operator</td><td>-</td><td><span class="chip chip-muted">expired</span></td><td><button class="btn btn-mini btn-soft" data-approval-select="apr-1006">詳細</button></td></tr>
+                    </tbody>
+                  </table>
+                </article>
+
+                <article class="card span-8 tab-panel" data-tab-panel="ap-policies">
+                  <div class="card-header"><h3>承認ポリシー一覧</h3><div class="muted small">GET /api/approval/policies</div></div>
+                  <table class="table compact">
+                    <thead><tr><th>operation_type</th><th>説明</th><th>Risk</th><th>Approver</th><th>Timeout</th></tr></thead>
+                    <tbody>
+                      <tr><td class="mono">user_add</td><td>ユーザーアカウント追加</td><td><span class="chip chip-risk chip-high">HIGH</span></td><td><span class="chip chip-outline">Approver</span> <span class="chip chip-outline">Admin</span></td><td>24h</td></tr>
+                      <tr><td class="mono">user_delete</td><td>ユーザーアカウント削除</td><td><span class="chip chip-risk chip-critical">CRITICAL</span></td><td><span class="chip chip-outline">Admin</span></td><td>12h</td></tr>
+                      <tr><td class="mono">cron_add</td><td>Cronジョブ追加</td><td><span class="chip chip-risk chip-high">HIGH</span></td><td><span class="chip chip-outline">Approver</span> <span class="chip chip-outline">Admin</span></td><td>24h</td></tr>
+                      <tr><td class="mono">service_stop</td><td>サービス停止</td><td><span class="chip chip-risk chip-critical">CRITICAL</span></td><td><span class="chip chip-outline">Admin</span></td><td>12h</td></tr>
+                    </tbody>
+                  </table>
+                </article>
+
+                <article class="card span-8 tab-panel" data-tab-panel="ap-stats">
+                  <div class="card-header"><h3>承認統計（30d）</h3><div class="muted small">GET /api/approval/stats / Admin only</div></div>
+                  <div class="metric-grid">
+                    <div class="metric-tile"><div class="metric-title">総リクエスト</div><div class="metric-big">45</div></div>
+                    <div class="metric-tile"><div class="metric-title">Pending</div><div class="metric-big">5</div></div>
+                    <div class="metric-tile"><div class="metric-title">Approval Rate</div><div class="metric-big">75.8%</div></div>
+                    <div class="metric-tile"><div class="metric-title">平均承認時間</div><div class="metric-big">4.2h</div></div>
+                  </div>
+                  <div class="bar-panels">
+                    <div class="subpanel">
+                      <h4>by_type</h4>
+                      <div class="bar-line"><div class="bar-line-top"><span>user_add</span><strong>15</strong></div><div class="progress"><div class="progress-fill" style="width:100%"></div></div></div>
+                      <div class="bar-line"><div class="bar-line-top"><span>cron_add</span><strong>10</strong></div><div class="progress"><div class="progress-fill" style="width:66%"></div></div></div>
+                      <div class="bar-line"><div class="bar-line-top"><span>cron_modify</span><strong>8</strong></div><div class="progress"><div class="progress-fill" style="width:53%"></div></div></div>
+                      <div class="bar-line"><div class="bar-line-top"><span>service_stop</span><strong>7</strong></div><div class="progress"><div class="progress-fill" style="width:46%"></div></div></div>
+                    </div>
+                    <div class="subpanel">
+                      <h4>by_risk_level</h4>
+                      <div class="bar-line"><div class="bar-line-top"><span>HIGH</span><strong>30</strong></div><div class="progress"><div class="progress-fill" style="width:100%"></div></div></div>
+                      <div class="bar-line"><div class="bar-line-top"><span>MEDIUM</span><strong>10</strong></div><div class="progress"><div class="progress-fill" style="width:33%"></div></div></div>
+                      <div class="bar-line"><div class="bar-line-top"><span>CRITICAL</span><strong>5</strong></div><div class="progress"><div class="progress-fill" style="width:16%"></div></div></div>
+                    </div>
+                  </div>
+                </article>
+
+                <aside class="card span-4">
+                  <div class="card-header"><h3>承認詳細</h3><div class="muted small">GET /api/approval/{id}</div></div>
+                  <div class="detail-card" id="approvalDetailCard">
+                    <div class="detail-title-row"><div><h4 id="approvalDetailTitle">ユーザーアカウント追加</h4><div class="muted small mono" id="approvalDetailId">apr-1001</div></div><span id="approvalDetailStatus" class="chip chip-warning">pending</span></div>
+                    <div class="chips-row"><span id="approvalDetailRisk" class="chip chip-risk chip-high">HIGH</span><span class="chip chip-outline" id="approvalDetailRequesterRole">Operator</span><span class="chip chip-outline">signature_valid: true</span></div>
+                    <div class="detail-block"><div class="detail-label">申請者</div><div id="approvalDetailRequester">operator (user_002)</div></div>
+                    <div class="detail-block"><div class="detail-label">申請理由</div><div id="approvalDetailReason">新規プロジェクトメンバーのアカウント作成</div></div>
+                    <div class="detail-block"><div class="detail-label">Payload</div><pre id="approvalDetailPayload">{"username":"newuser","group":"developers","home":"/home/newuser","shell":"/bin/bash"}</pre></div>
+                    <div class="detail-block"><div class="detail-label">履歴（approval_history / HMAC）</div>
+                      <div class="timeline compact" id="approvalDetailTimeline">
+                        <div class="timeline-item"><div class="timeline-dot info"></div><div><div class="timeline-title">created / operator (Operator)</div><div class="timeline-text">02/24 17:00:00</div></div></div>
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </section>
+
+            <section class="module-section" id="sec-logs" data-page-label="システムログ" data-breadcrumb="Home / システムログ / システムログ">
+              <div class="card">
+                <div class="card-header">
+                  <h2>システムログ閲覧（journalctl相当）</h2>
+                  <div class="chips-row">
+                    <span class="chip chip-outline">権限: <code>read:logs</code></span>
+                    <span class="chip chip-outline">lines: 1..1000</span>
+                    <span class="chip chip-outline">service_name regex</span>
+                  </div>
+                </div>
+                <div class="controls grid-controls">
+                  <label>サービス
+                    <select id="logsService">
+                      <option value="nginx">nginx</option>
+                      <option value="postgresql">postgresql</option>
+                      <option value="redis">redis</option>
+                      <option value="linux-management-prod">linux-management-prod</option>
+                      <option value="sshd">sshd</option>
+                    </select>
+                  </label>
+                  <label>取得行数
+                    <select id="logsLines">
+                      <option value="50">50</option>
+                      <option value="100" selected>100</option>
+                      <option value="250">250</option>
+                      <option value="500">500</option>
+                      <option value="1000">1000</option>
+                    </select>
+                  </label>
+                  <label class="grow">検索 <input id="logsQ" type="search" placeholder="error, denied, nginx..."></label>
+                </div>
+                <div class="terminal tall" id="logsTerminal">
+                  <div>Feb 24 09:12:20 nginx: Reloading configuration...</div>
+                  <div>Feb 24 09:12:21 nginx: Configuration reloaded</div>
+                  <div>Feb 24 10:15:13 nginx: GET /api/system/status 200</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module-section" id="sec-audit" data-page-label="システム操作ログ" data-breadcrumb="Home / Linux管理システム / システム操作ログ">
+              <div class="card">
+                <div class="card-header">
+                  <h2>監査ログ（System Actions Log）</h2>
+                  <div class="inline-actions">
+                    <button class="btn btn-soft" data-export="csv">CSV Export</button>
+                    <button class="btn btn-soft" data-export="json">JSON Export</button>
+                  </div>
+                </div>
+                <div class="inline-note"><span class="note-chip">Audit</span><span>誰が・いつ・何を・結果（attempt/success/denied/failure）を記録。承認系は `approval_id` と紐付け。</span></div>
+                <div class="controls grid-controls">
+                  <label>Operation
+                    <select id="auditOp">
+                      <option value="all">all</option>
+                      <option value="login">login</option>
+                      <option value="system_status_view">system_status_view</option>
+                      <option value="process_list">process_list</option>
+                      <option value="service_restart">service_restart</option>
+                      <option value="user_add_request">user_add_request</option>
+                      <option value="approval_execute">approval_execute</option>
+                    </select>
+                  </label>
+                  <label>Status
+                    <select id="auditStatus">
+                      <option value="all">all</option>
+                      <option value="attempt">attempt</option>
+                      <option value="success">success</option>
+                      <option value="denied">denied</option>
+                      <option value="failure">failure</option>
+                      <option value="pending">pending</option>
+                    </select>
+                  </label>
+                  <label class="grow">Search <input id="auditQ" type="search" placeholder="nginx, approval, denied..."></label>
+                </div>
+                <table class="table compact" id="auditTable">
+                  <thead><tr><th>Timestamp</th><th>Operation</th><th>User</th><th>Role</th><th>Target</th><th>Status</th><th>Details</th></tr></thead>
+                  <tbody>
+                    <tr data-audit-row data-op="login" data-status="success"><td>02/24 17:20:00</td><td class="mono">login</td><td>admin</td><td><span class="chip chip-outline">Admin</span></td><td>session</td><td><span class="chip chip-success">success</span></td><td class="mono small">{"ip":"10.0.2.15"}</td></tr>
+                    <tr data-audit-row data-op="system_status_view" data-status="success"><td>02/24 17:25:00</td><td class="mono">system_status_view</td><td>admin</td><td><span class="chip chip-outline">Admin</span></td><td>system</td><td><span class="chip chip-success">success</span></td><td class="mono small">{"module":"dashboard"}</td></tr>
+                    <tr data-audit-row data-op="process_list" data-status="success"><td>02/24 17:28:00</td><td class="mono">process_list</td><td>admin</td><td><span class="chip chip-outline">Admin</span></td><td>system</td><td><span class="chip chip-success">success</span></td><td class="mono small">{"sort_by":"cpu","returned":7}</td></tr>
+                    <tr data-audit-row data-op="service_restart" data-status="attempt"><td>02/24 17:32:00</td><td class="mono">service_restart</td><td>operator</td><td><span class="chip chip-outline">Operator</span></td><td>nginx</td><td><span class="chip chip-warning">attempt</span></td><td class="mono small">{"before":"active"}</td></tr>
+                    <tr data-audit-row data-op="service_restart" data-status="denied"><td>02/24 17:32:01</td><td class="mono">service_restart</td><td>operator</td><td><span class="chip chip-outline">Operator</span></td><td>linux-management-prod</td><td><span class="chip chip-danger">denied</span></td><td class="mono small">{"reason":"allowlist外"}</td></tr>
+                    <tr data-audit-row data-op="user_add_request" data-status="pending"><td>02/24 17:40:00</td><td class="mono">user_add_request</td><td>operator</td><td><span class="chip chip-outline">Operator</span></td><td>apr-1001</td><td><span class="chip chip-warning">pending</span></td><td class="mono small">{"request_type":"user_add"}</td></tr>
+                    <tr data-audit-row data-op="approval_execute" data-status="success"><td>02/24 17:45:00</td><td class="mono">approval_execute</td><td>approver1</td><td><span class="chip chip-outline">Approver</span></td><td>apr-1005</td><td><span class="chip chip-success">success</span></td><td class="mono small">{"action":"approve"}</td></tr>
+                    <tr data-audit-row data-op="injection_attempt" data-status="denied"><td>02/24 17:50:00</td><td class="mono">injection_attempt</td><td>operator</td><td><span class="chip chip-outline">Operator</span></td><td>cron.arguments</td><td><span class="chip chip-danger">denied</span></td><td class="mono small">{"detected":";"}</td></tr>
+                  </tbody>
+                </table>
+                <div class="card-split">
+                  <div class="subpanel">
+                    <h4>必須フィールド（Users & Groups policy反映）</h4>
+                    <ul class="plain-list mono"><li>timestamp</li><li>operation</li><li>user_id / username / role</li><li>source_ip</li><li>status</li></ul>
+                  </div>
+                  <div class="subpanel">
+                    <h4>絶対に記録しない項目</h4>
+                    <div class="chips-row"><span class="chip chip-danger">password</span><span class="chip chip-danger">password_hash</span><span class="chip chip-danger">token</span><span class="chip chip-danger">session_id</span></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module-section" id="sec-settings-security" data-page-label="セキュリティ設定" data-breadcrumb="Home / システム設定 / セキュリティ設定">
+              <div class="card">
+                <div class="card-header"><h2>セキュリティ設定（Policy View / Sample）</h2><div class="chips-row"><span class="chip chip-risk chip-high">HIGH</span><span class="chip chip-warning">変更は人間承認</span></div></div>
+                <p class="muted">実設定の編集ではなく、docs で定義されたセキュリティ方針を確認するためのサンプル画面です。</p>
+                <div class="grid cols-4">
+                  <article class="card inset">
+                    <div class="card-header"><h3>Global Principles</h3></div>
+                    <ul class="plain-list"><li>Allowlist First</li><li>Deny by Default</li><li>shell=True 禁止 / 配列渡し</li><li>root常駐禁止 / sudo最小化</li><li>監査証跡必須</li></ul>
+                  </article>
+                  <article class="card inset">
+                    <div class="card-header"><h3>Processes Module</h3></div>
+                    <div class="rule-list"><div class="rule-item"><span>Risk</span><code>LOW</code></div><div class="rule-item"><span>Permission</span><code>read:processes</code></div><div class="rule-item"><span>PID Range</span><code>1..999999</code></div><div class="rule-item"><span>Timeout</span><code>10s</code></div></div>
+                  </article>
+                  <article class="card inset">
+                    <div class="card-header"><h3>Users & Groups</h3></div>
+                    <div class="rule-list"><div class="rule-item"><span>Pattern</span><code>^[a-z_][a-z0-9_-]{0,31}$</code></div><div class="rule-item"><span>UID/GID</span><code>1000..59999</code></div><div class="rule-item"><span>Password</span><code>8-128 + complexity</code></div><div class="rule-item"><span>Writes</span><code>approval required</code></div></div>
+                  </article>
+                  <article class="card inset">
+                    <div class="card-header"><h3>Cron Jobs</h3></div>
+                    <div class="rule-list"><div class="rule-item"><span>Allowlist Commands</span><code>9</code></div><div class="rule-item"><span>Min Interval</span><code>5 minutes</code></div><div class="rule-item"><span>Max Jobs/User</span><code>10</code></div><div class="rule-item"><span>Args Security</span><code>forbidden chars</code></div></div>
+                  </article>
+                </div>
+              </div>
+            </section>
+
+            <section class="module-section" id="sec-settings-audit" data-page-label="監査ログ設定" data-breadcrumb="Home / システム設定 / 監査ログ設定">
+              <div class="grid cols-12">
+                <article class="card span-7">
+                  <div class="card-header"><h2>監査ログ設定（Sample UI）</h2><button class="btn btn-primary" data-action="settings-save">設定を保存（モック）</button></div>
+                  <form class="form-grid">
+                    <label><span>保存期間（日）</span><input type="number" min="7" max="3650" value="365"></label>
+                    <label><span>エクスポート形式</span><select><option>CSV + JSON</option><option>CSV only</option><option>JSON only</option></select></label>
+                    <label><span>高リスク操作通知</span><select><option>有効（メール + Slack）</option><option>有効（メールのみ）</option><option>無効</option></select></label>
+                    <label><span>HMAC署名検証バッチ</span><select><option>5分ごと</option><option>15分ごと</option><option>1時間ごと</option></select></label>
+                    <label class="span-2"><span>サニタイズ除外リスト（閲覧専用）</span><textarea rows="3" readonly>password, password_hash, token, session_id</textarea></label>
+                  </form>
+                </article>
+                <article class="card span-5">
+                  <div class="card-header"><h3>運用メモ</h3></div>
+                  <div class="timeline">
+                    <div class="timeline-item"><div class="timeline-dot info"></div><div><div class="timeline-title">追記専用・改ざん防止</div><div class="timeline-text">approval_history は DELETE / UPDATE 禁止想定（アプリ層で強制）</div></div></div>
+                    <div class="timeline-item"><div class="timeline-dot warning"></div><div><div class="timeline-title">人間承認が必要な変更</div><div class="timeline-text">保管期間短縮、通知無効化、署名検証緩和、sudoers変更</div></div></div>
+                    <div class="timeline-item"><div class="timeline-dot success"></div><div><div class="timeline-title">監査イベント例</div><div class="timeline-text">user_add_request / cron_modify_execute / injection_attempt</div></div></div>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="module-section" id="sec-systeminfo" data-page-label="システム情報" data-breadcrumb="Home / システム設定 / システム情報">
+              <div class="grid cols-12">
+                <article class="card span-8">
+                  <div class="card-header"><h2>システム情報 / 運用設定サマリー</h2><div class="chips-row"><span class="chip chip-success">systemd managed</span><span class="chip chip-success">svc-adminui non-root</span></div></div>
+                  <div class="detail-card">
+                    <div class="kv-grid">
+                      <div><span>Service User</span><strong>svc-adminui</strong></div>
+                      <div><span>Root常駐</span><strong>禁止</strong></div>
+                      <div><span>sudoers思想</span><strong>adminui-* wrapper only</strong></div>
+                      <div><span>API Auth</span><strong>JWT Bearer</strong></div>
+                      <div><span>開発 service</span><strong>linux-management-dev.service</strong></div>
+                      <div><span>本番 service</span><strong>linux-management-prod.service</strong></div>
+                    </div>
+                    <div class="detail-block">
+                      <div class="detail-label">service-management.md 反映項目</div>
+                      <ul class="plain-list">
+                        <li>起動・停止・再起動・状態確認・ログ確認（journalctl）</li>
+                        <li>自動起動 enable/disable</li>
+                        <li>本番準備: service user / wrappers / sudoers / .env 配置</li>
+                        <li>監視: journald log rotation, resource usage</li>
+                      </ul>
+                    </div>
+                  </div>
+                </article>
+                <article class="card span-4">
+                  <div class="card-header"><h3>ストレージ / ハードウェア概況</h3></div>
+                  <div class="subpanel">
+                    <h4>Disk</h4>
+                    <div class="metric-big">468 / 1024 GB</div>
+                    <div class="progress"><div class="progress-fill amber" style="width:45.7%"></div></div>
+                  </div>
+                  <div class="subpanel">
+                    <h4>Local Disk（sample）</h4>
+                    <ul class="plain-list mono"><li>/ : 180GB / 300GB (60%)</li><li>/var : 120GB / 250GB (48%)</li><li>/backup : 168GB / 474GB (35%)</li></ul>
+                  </div>
+                  <div class="subpanel">
+                    <h4>System Time</h4>
+                    <div class="mono" id="systemTimeLabel">--</div>
+                  </div>
+                </article>
+              </div>
+
+              <article class="card">
+                <div class="card-header"><h3>sudo / wrapper 設計ポリシー（要件定義・sudoers-config・service-management 反映）</h3></div>
+                <div class="command-grid">
+                  <div class="command-card"><div class="command-card-head"><strong>直接コマンド禁止</strong></div><p>sudoers では wrapper のみ許可</p><code>svc-adminui ALL=(root) NOPASSWD: /usr/local/sbin/adminui-*</code></div>
+                  <div class="command-card"><div class="command-card-head"><strong>入力検証</strong></div><p>API + Service + Wrapper の多重防御</p><code>regex / allowlist / forbidden chars</code></div>
+                  <div class="command-card"><div class="command-card-head"><strong>実行記録</strong></div><p>実行前後の監査証跡</p><code>attempt → success / denied / failure</code></div>
+                  <div class="command-card"><div class="command-card-head"><strong>人間承認必須</strong></div><p>sudoers変更・危険操作追加・allowlist緩和</p><code>docs各所で明記</code></div>
+                </div>
+              </article>
+            </section>
+
+            <section class="module-section" id="sec-about" data-page-label="ライセンス情報" data-breadcrumb="Home / システム設定 / ライセンス情報">
+              <div class="grid cols-12">
+                <article class="card span-7">
+                  <div class="card-header"><h2>About / License（サンプル）</h2><div class="chips-row"><span class="chip chip-outline">WebUI Sample v0.1</span><span class="chip chip-outline">HTML + CSS + JS</span></div></div>
+                  <div class="detail-card">
+                    <div class="detail-block"><div class="detail-label">目的</div><div>docs 群（要件・API・設計・セキュリティ・テスト報告）を反映した詳細なWebUIサンプルの提示。</div></div>
+                    <div class="detail-block"><div class="detail-label">反映済みモジュール</div><div>Dashboard / Services / Logs / Processes / Cron / Users & Groups / Approval / Audit / Settings / System Information</div></div>
+                    <div class="detail-block"><div class="detail-label">docs棚卸しメモ</div><ul class="plain-list"><li>docs 配下: 47ファイル（うち Markdown 43）</li><li>セキュリティ関連 docs: 13ファイル</li><li>`openapi.json` はこの環境でパース確認が必要（本サンプルは `api-reference.md` 優先反映）</li></ul></div>
+                  </div>
+                </article>
+                <article class="card span-5">
+                  <div class="card-header"><h3>docs 棚卸しサマリー</h3></div>
+                  <div class="metric-grid two">
+                    <div class="metric-tile"><div class="metric-title">総ファイル数</div><div class="metric-big">47</div></div>
+                    <div class="metric-tile"><div class="metric-title">Security Docs</div><div class="metric-big">13</div></div>
+                  </div>
+                  <table class="table compact">
+                    <thead><tr><th>カテゴリ</th><th>件数</th><th>概要</th></tr></thead>
+                    <tbody>
+                      <tr><td>要件・全体設計</td><td>4</td><td>README / 要件定義 / 開発環境 / セッション</td></tr>
+                      <tr><td>API・データ仕様</td><td>6</td><td>api-reference / approval-api / openapi / schema</td></tr>
+                      <tr><td>モジュール設計</td><td>8</td><td>approval / cron / processes / users-groups</td></tr>
+                      <tr><td>セキュリティ</td><td>13</td><td>脅威分析 / ポリシー / review</td></tr>
+                      <tr><td>WebUI・テスト・検証</td><td>16</td><td>login/e2e/menu/v0.3/test reports</td></tr>
+                    </tbody>
+                  </table>
+                </article>
+              </div>
+
+              <article class="card">
+                <div class="card-header"><h3>主要APIエンドポイント（サンプル内参照用）</h3></div>
+                <table class="table compact">
+                  <thead><tr><th>Method</th><th>Path</th><th>Module</th><th>Permission</th><th>Notes</th></tr></thead>
+                  <tbody>
+                    <tr><td><span class="method-pill method-post">POST</span></td><td class="mono">/api/auth/login</td><td>Auth</td><td class="mono">public</td><td>JWT取得</td></tr>
+                    <tr><td><span class="method-pill method-get">GET</span></td><td class="mono">/api/auth/me</td><td>Auth</td><td class="mono">authenticated</td><td>現在ユーザー情報</td></tr>
+                    <tr><td><span class="method-pill method-get">GET</span></td><td class="mono">/api/system/status</td><td>System</td><td class="mono">read:status</td><td>CPU/Memory/Disk</td></tr>
+                    <tr><td><span class="method-pill method-post">POST</span></td><td class="mono">/api/services/restart</td><td>Services</td><td class="mono">execute:service_restart</td><td>allowlist再起動</td></tr>
+                    <tr><td><span class="method-pill method-get">GET</span></td><td class="mono">/api/logs/{service_name}</td><td>Logs</td><td class="mono">read:logs</td><td>lines=1..1000</td></tr>
+                    <tr><td><span class="method-pill method-get">GET</span></td><td class="mono">/api/v1/processes</td><td>Processes</td><td class="mono">read:processes</td><td>sort/filter/limit</td></tr>
+                    <tr><td><span class="method-pill method-get">GET</span></td><td class="mono">/api/cron</td><td>Cron</td><td class="mono">read:cron</td><td>自分のジョブ一覧</td></tr>
+                    <tr><td><span class="method-pill method-post">POST</span></td><td class="mono">/api/users</td><td>Users</td><td class="mono">write:users</td><td>承認申請作成</td></tr>
+                    <tr><td><span class="method-pill method-post">POST</span></td><td class="mono">/api/approval/request</td><td>Approval</td><td class="mono">request:approval</td><td>承認申請作成</td></tr>
+                    <tr><td><span class="method-pill method-get">GET</span></td><td class="mono">/api/approval/stats</td><td>Approval</td><td class="mono">view:approval_stats</td><td>Adminのみ</td></tr>
+                  </tbody>
+                </table>
+              </article>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-layer" id="modalLayer" aria-live="polite"></div>
+  <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
+
+  <template id="cronAddTemplate">
+    <div class="modal-backdrop" data-close-modal="true">
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="cronAddTitle">
+        <form data-form="cron-add">
+          <div class="modal-header">
+            <h3 class="modal-title" id="cronAddTitle">Add Cron Job (Approval Request)</h3>
+            <button type="button" class="icon-btn" data-close-modal="true" aria-label="閉じる">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-grid compact-form">
+              <label><span>Preset</span>
+                <select name="preset" id="cronPresetSelect">
+                  <option value="*/5 * * * *">Every 5 minutes</option>
+                  <option value="0 * * * *">Every hour</option>
+                  <option value="0 2 * * *" selected>Every day at 2:00</option>
+                  <option value="0 3 * * 1">Every Monday at 3:00</option>
+                  <option value="0 0 1 * *">First day of month</option>
+                </select>
+              </label>
+              <label><span>Schedule (Cron)</span><input type="text" name="schedule" value="0 2 * * *" required></label>
+              <label class="span-2"><span>Command (allowlist only)</span>
+                <select name="command" required>
+                  <option>/usr/bin/rsync</option>
+                  <option>/usr/local/bin/healthcheck.sh</option>
+                  <option>/usr/bin/find</option>
+                  <option>/usr/bin/tar</option>
+                  <option>/usr/bin/gzip</option>
+                  <option>/usr/bin/curl</option>
+                  <option>/usr/bin/wget</option>
+                  <option>/usr/bin/python3</option>
+                  <option>/usr/bin/node</option>
+                </select>
+              </label>
+              <label class="span-2"><span>Arguments</span><input type="text" name="arguments" value="-avz /data /backup/data" maxlength="512"></label>
+              <label class="span-2"><span>Comment</span><input type="text" name="comment" value="Daily data backup" maxlength="256"></label>
+              <label class="span-2"><span>Reason *</span><textarea name="reason" rows="3" minlength="10" maxlength="500" required>Nightly backup of application data</textarea></label>
+            </div>
+            <div class="inline-note"><span class="note-chip">Policy</span><span>毎分実行禁止 / allowlist外コマンド拒否 / 引数の禁止文字検査 / 承認フロー必須</span></div>
+            <p class="form-message" data-modal-message></p>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-soft" data-close-modal="true">Cancel</button>
+            <button type="submit" class="btn btn-primary">Submit Approval Request</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </template>
+
+  <template id="userAddTemplate">
+    <div class="modal-backdrop" data-close-modal="true">
+      <div class="modal-panel modal-lg" role="dialog" aria-modal="true" aria-labelledby="userAddTitle">
+        <form data-form="user-add">
+          <div class="modal-header">
+            <h3 class="modal-title" id="userAddTitle">Add User - Approval Request</h3>
+            <button type="button" class="icon-btn" data-close-modal="true" aria-label="閉じる">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-grid compact-form">
+              <label><span>Username</span><input name="username" type="text" pattern="[a-z_][a-z0-9_-]{0,31}" value="newuser" required></label>
+              <label><span>Shell</span>
+                <select name="shell">
+                  <option>/bin/bash</option><option>/bin/sh</option><option>/usr/bin/zsh</option><option>/usr/sbin/nologin</option><option>/bin/false</option>
+                </select>
+              </label>
+              <label><span>Password</span><input name="password" type="password" value="Strong#Pass123" required></label>
+              <label><span>Confirm</span><input name="confirm" type="password" value="Strong#Pass123" required></label>
+              <label class="span-2"><span>Groups (comma separated)</span><input name="groups" type="text" value="users,developers"></label>
+              <label class="span-2"><span>Home Directory</span><input name="home" type="text" value="/home/newuser"></label>
+              <label class="span-2"><span>Reason *</span><textarea name="reason" rows="3" minlength="10" maxlength="500" required>新規プロジェクトメンバーのため作成</textarea></label>
+            </div>
+            <div class="subpanel">
+              <h4>Password Policy Checklist</h4>
+              <ul class="plain-list"><li>8-128文字</li><li>大文字 / 小文字 / 数字 / 記号を各1文字以上</li><li>username を含まない</li><li>common password denylist 回避</li></ul>
+            </div>
+            <p class="form-message" data-modal-message></p>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-soft" data-close-modal="true">Cancel</button>
+            <button type="submit" class="btn btn-primary">Submit Approval Request</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </template>
+
+  <template id="approvalActionTemplate">
+    <div class="modal-backdrop" data-close-modal="true">
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="approvalActionTitle">
+        <form data-form="approval-action">
+          <div class="modal-header">
+            <h3 class="modal-title" id="approvalActionTitle">承認操作</h3>
+            <button type="button" class="icon-btn" data-close-modal="true" aria-label="閉じる">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="subpanel">
+              <div class="rule-list">
+                <div class="rule-item"><span>ID</span><code data-approval-modal-id>apr-1001</code></div>
+                <div class="rule-item"><span>Operation</span><code data-approval-modal-op>approve</code></div>
+              </div>
+            </div>
+            <label>
+              <span data-approval-modal-label>コメント</span>
+              <textarea name="message" rows="4" placeholder="確認しました。" data-approval-modal-textarea></textarea>
+            </label>
+            <p class="form-message" data-modal-message></p>
+            <input type="hidden" name="approvalId">
+            <input type="hidden" name="op">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-soft" data-close-modal="true">キャンセル</button>
+            <button type="submit" class="btn btn-primary" data-approval-modal-submit>実行</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </template>
+
+  <template id="serviceStopTemplate">
+    <div class="modal-backdrop" data-close-modal="true">
+      <div class="modal-panel modal-sm" role="dialog" aria-modal="true" aria-labelledby="serviceStopTitle">
+        <form data-form="service-stop">
+          <div class="modal-header">
+            <h3 class="modal-title" id="serviceStopTitle">サービス停止申請</h3>
+            <button type="button" class="icon-btn" data-close-modal="true" aria-label="閉じる">✕</button>
+          </div>
+          <div class="modal-body">
+            <label><span>Service</span><input name="service" value="nginx" readonly></label>
+            <label><span>Reason *</span><textarea name="reason" rows="3" minlength="10" maxlength="500" required>メンテナンス作業のためサービス停止を申請します。</textarea></label>
+            <p class="form-message" data-modal-message></p>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-soft" data-close-modal="true">キャンセル</button>
+            <button type="submit" class="btn btn-primary">承認リクエスト送信</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </template>
+
+  <template id="confirmTemplate">
+    <div class="modal-backdrop" data-close-modal="true">
+      <div class="modal-panel modal-sm" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <h3 class="modal-title">確認</h3>
+          <button class="icon-btn" data-close-modal="true" aria-label="閉じる">✕</button>
+        </div>
+        <div class="modal-body">
+          <p id="confirmMessage">操作を実行しますか？</p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-soft" data-close-modal="true">キャンセル</button>
+          <button class="btn btn-primary" id="confirmOkBtn">実行</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PORT=9224
+PORT=9223
 RESTART_DELAY=3
 
 # 初期プロンプト（ヒアドキュメントで定義：バッククォートや二重引用符を安全に含む）
@@ -34,7 +34,6 @@ GitHub（リモート origin）および GitHub Actions 上の自動実行と整
 - **全 Hooks 機能**：テスト実行、lint、フォーマッタ、ログ出力などの開発フロー自動化に利用してよい。
 - **全 Git WorkTree 機能**：機能ブランチ/PR 単位での作業ディレクトリ分離に利用してよい。
 - **全 MCP 機能**：GitHub API、Issue/PR 情報、外部ドキュメント・監視など必要な範囲で利用してよい。
-  なお **Codex MCP**（`mcp__codex__codex`）が利用可能な場合、コード生成タスクを Codex に委譲してよい（詳細は末尾「Claude × Codex 開発体制」参照）。
 - **全 Agent Teams 機能**：複数の Claude Code インスタンスをチームとして協調動作させてよい（後述のポリシーに従うこと）。
 - **標準機能**：ファイル編集、検索、テスト実行、シェルコマンド実行など通常の開発作業を行ってよい。
 
@@ -119,10 +118,10 @@ export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 
 ## 【ブラウザ自動化ツール使い分けガイド】
 
-このプロジェクトではブラウザ自動化に **Puppeteer MCP** と **Playwright MCP** の2つが利用可能です。
+このプロジェクトではブラウザ自動化に **ChromeDevTools MCP** と **Playwright MCP** の2つが利用可能です。
 以下のガイドラインに従って適切なツールを選択してください。
 
-### Puppeteer MCP を使用すべき場合
+### ChromeDevTools MCP を使用すべき場合
 
 **状況**：既存のブラウザインスタンスに接続してデバッグ・検証を行う場合
 
@@ -153,14 +152,14 @@ curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
 \`\`\`
 
 **利用可能なMCPツール**：
-- \`mcp__plugin_puppeteer_puppeteer__navigate_page\`: ページ遷移
-- \`mcp__plugin_puppeteer_puppeteer__click\`: 要素クリック
-- \`mcp__plugin_puppeteer_puppeteer__fill\`: フォーム入力
-- \`mcp__plugin_puppeteer_puppeteer__evaluate_script\`: JavaScriptコード実行
-- \`mcp__plugin_puppeteer_puppeteer__take_screenshot\`: スクリーンショット取得
-- \`mcp__plugin_puppeteer_puppeteer__get_console_message\`: コンソールログ取得
-- \`mcp__plugin_puppeteer_puppeteer__list_network_requests\`: ネットワークリクエスト一覧
-- （その他、\`mcp__plugin_puppeteer_puppeteer__*\` で利用可能なツールを検索）
+- \`mcp__chrome-devtools__navigate_page\`: ページ遷移
+- \`mcp__chrome-devtools__click\`: 要素クリック
+- \`mcp__chrome-devtools__fill\`: フォーム入力
+- \`mcp__chrome-devtools__evaluate_script\`: JavaScriptコード実行
+- \`mcp__chrome-devtools__take_screenshot\`: スクリーンショット取得
+- \`mcp__chrome-devtools__get_console_message\`: コンソールログ取得
+- \`mcp__chrome-devtools__list_network_requests\`: ネットワークリクエスト一覧
+- （その他、\`mcp__chrome-devtools__*\` で利用可能なツールを検索）
 
 ### Playwright MCP を使用すべき場合
 
@@ -200,7 +199,7 @@ curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
 
 \`\`\`
 既存ブラウザの状態（ログイン・Cookie等）を利用したい？
-├─ YES → Puppeteer MCP
+├─ YES → ChromeDevTools MCP
 │         （Windows側ブラウザに接続、環境変数 MCP_CHROME_DEBUG_PORT 使用）
 │
 └─ NO  → 以下をさらに判断
@@ -208,23 +207,23 @@ curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
           ├─ 自動テスト・CI/CD統合？ → Playwright MCP
           ├─ スクレイピング？ → Playwright MCP
           ├─ クロスブラウザ検証？ → Playwright MCP
-          └─ 手動操作との併用が必要？ → Puppeteer MCP
+          └─ 手動操作との併用が必要？ → ChromeDevTools MCP
 \`\`\`
 
 ### 注意事項
 
 1. **Xサーバ不要（重要）**：LinuxホストにXサーバがインストールされていなくても、両ツールとも動作します
-   - **Puppeteer MCP**: Windows側のブラウザに接続するため、Linux側にXサーバ不要（SSHポートフォワーディング経由）
+   - **ChromeDevTools MCP**: Windows側のブラウザに接続するため、Linux側にXサーバ不要（SSHポートフォワーディング経由）
    - **Playwright MCP**: Linux側でヘッドレスブラウザを起動するため、Xサーバ不要
    - ⚠️ **選択基準はXサーバの有無ではありません**。既存ブラウザ（ログイン状態等）を使うか、クリーンな環境かで判断してください
-2. **ポート範囲**：Puppeteer MCPは9222～9229の範囲で動作（config.jsonで設定）
+2. **ポート範囲**：ChromeDevTools MCPは9222～9229の範囲で動作（config.jsonで設定）
 3. **並行利用**：両ツールは同時に使用可能（異なるユースケースで併用可）
 4. **ツール検索**：利用可能なツールを確認するには \`ToolSearch\` を使用してキーワード検索（例：\`ToolSearch "chrome-devtools screenshot"\`）
-5. **ChromeDevTools 優先原則**：ユーザーがブラウザ操作を依頼した場合、**既存のWindows側ブラウザ（Puppeteer MCP）を優先使用**してください。Playwrightは自動テスト・スクレイピング・クリーンな環境が必要な場合のみ使用
+5. **ChromeDevTools 優先原則**：ユーザーがブラウザ操作を依頼した場合、**既存のWindows側ブラウザ（ChromeDevTools MCP）を優先使用**してください。Playwrightは自動テスト・スクレイピング・クリーンな環境が必要な場合のみ使用
 
 ### 推奨ワークフロー
 
-1. **開発・デバッグフェーズ**：Puppeteer MCPで手動操作と併用しながら検証
+1. **開発・デバッグフェーズ**：ChromeDevTools MCPで手動操作と併用しながら検証
 2. **テスト自動化フェーズ**：Playwrightで自動テストスクリプト作成
 3. **CI/CD統合フェーズ**：PlaywrightテストをGitHub Actionsに組み込み
 
@@ -256,73 +255,11 @@ curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
    プロジェクト固有のルール・テスト手順・ブランチ運用方針を要約して報告してください。
 2. その上で、私が指示するタスク（例：機能追加、バグ修正、レビューなど）を
    SubAgent / Hooks / WorkTree / Agent Teams を活用して並列実行しつつ進めてください。
-   コード生成が必要な場合は **Codex MCP**（`ToolSearch "codex"` で可用性を確認）の活用も検討してください。
 3. 各ステップで、GitHub Actions 上でどのように動くか（どのワークフローが動き、
    どのコマンドが実行されるか）も合わせて説明してください。
 4. タスクの規模・性質に応じて、SubAgent（軽量・単一セッション内）と
    Agent Teams（重量・マルチインスタンス）を適切に使い分けてください。
    判断に迷う場合は私に確認してください。
-
-## 【Claude × Codex 開発体制】
-
-### 基本思想
-このセッションは **Claude（開発指揮官）× Codex（実装ドライバー）** のペアプロ体制で動作します。
-
-### 🧠 Claude = 開発指揮官（CTO + PM + アーキテクト）
-
-**統治する能力群（開発OSレベル）:**
-- SubAgents / Agent Teams — 並列・分散実行の指揮
-- Hooks — イベント駆動の自動化制御
-- WorkTree — 並列ブランチ管理
-- MCP群 — 外部ツール・サービス統合
-- Memory群（CLAUDE.md + MEMORY.md + claude-mem + Memory MCP）— 知識の永続化と伝播
-
-**担当領域:**
-| 作業 | 詳細 |
-|------|------|
-| 要件分析・設計判断 | アーキテクチャ設計、トレードオフ評価 |
-| コードレビュー・統合 | Codex 生成コードのレビューとファイルへの書き込み |
-| ファイル操作・git | Read/Edit/Write/Bash による直接操作 |
-| テスト実行・CI確認 | Bash によるテスト実行と結果判定 |
-| オーケストレーション | SubAgents / Agent Teams への指示と統合 |
-| 人間への確認・報告 | CLAUDE.md 第4条に基づく意思決定の委譲 |
-
-### 🤖 Codex = 実装ドライバー（複数の実装担当エンジニア）
-
-**特化能力:**
-- 高速コード生成（関数・クラス・モジュール単位）
-- 定型コードの大量変換・リファクタリング
-- 局所最適化（アルゴリズム改善、型付け強化等）
-- threadId を使った継続的なセッション管理
-
-**MCPツール:**
-- `mcp__codex__codex`: 新規セッションでコード生成 → threadId を保存
-- `mcp__codex__codex_reply`: threadId を使って同じコンテキストで継続
-
-### 🔁 シナリオ別ワークフロー
-
-**新機能実装:**
-1. Claude: 要件整理・既存コード調査（Read/Grep）
-2. Claude → Codex: 仕様＋コンテキストを送信（`mcp__codex__codex`）
-3. Codex: コード生成 → threadId を保存
-4. Claude: レビュー後にファイルへ書き込み（Edit/Write）
-
-**バグ修正:**
-1. Claude: バグ箇所特定（Grep/Read）
-2. Claude → Codex: バグ箇所＋エラー情報を送信
-3. Codex: 修正パッチ生成
-4. Claude: Edit で適用 → テスト実行
-
-**大規模リファクタリング:**
-1. Claude: 計画立案 → **人間へ承認取得**（CLAUDE.md 第4条）
-2. Claude → Codex: ファイルごとに依頼（threadId で継続）
-3. Claude: 全変更後にlint・テスト確認
-
-### ⚠️ 運用原則
-- OPENAI_API_KEY 未設定時は Claude 単独で対応（Codex 依存なし）
-- Codex 生成コードは **必ずレビューしてからファイルに書き込む**（自動書き込み禁止）
-- 大規模変更は CLAUDE.md 第4条に従い人間の承認必須
-- ToolSearch "codex" でツールの可用性を随時確認
 INITPROMPTEOF
 )
 
@@ -347,19 +284,6 @@ done
 # 環境変数を設定
 export CLAUDE_CHROME_DEBUG_PORT=${PORT}
 export MCP_CHROME_DEBUG_PORT=${PORT}
-
-# Puppeteer MCP: 既存ブラウザへの接続設定
-echo "🔌 既存ブラウザへの接続準備..."
-WS_ENDPOINT=$(curl -s http://127.0.0.1:${PORT}/json/version 2>/dev/null | jq -r '.webSocketDebuggerUrl' 2>/dev/null)
-
-if [ -n "$WS_ENDPOINT" ] && [ "$WS_ENDPOINT" != "null" ]; then
-  echo "✅ WebSocketエンドポイント取得成功: $WS_ENDPOINT"
-  export PUPPETEER_LAUNCH_OPTIONS="{\\\"browserWSEndpoint\\\": \\\"${WS_ENDPOINT}\\\"}"
-  echo "   Puppeteer MCPは既存ブラウザに接続します"
-else
-  echo "⚠️  既存ブラウザが見つかりません。Puppeteerは新規ブラウザを起動します。"
-  export PUPPETEER_LAUNCH_OPTIONS="{\\\"headless\\\": false, \\\"timeout\\\": 30000}"
-fi
 
 # Agent Teams オーケストレーション有効化
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1

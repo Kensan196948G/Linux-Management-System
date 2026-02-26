@@ -229,3 +229,81 @@ class TestAuditLogRBAC:
         # Viewer は監査ログにアクセス不可
         with pytest.raises(PermissionError, match="Viewer role cannot access"):
             audit_log.query(user_role="Viewer", requesting_user_id="viewer@example.com")
+
+
+# ===================================================================
+# セキュリティヘッダーテスト
+# ===================================================================
+
+
+class TestSecurityHeaders:
+    """セキュリティヘッダーの付与テスト"""
+
+    def test_x_content_type_options_header(self, test_client, auth_headers):
+        """X-Content-Type-Options: nosniff ヘッダーが付与される"""
+        response = test_client.get("/api/system/status", headers=auth_headers)
+        assert "x-content-type-options" in response.headers
+        assert response.headers["x-content-type-options"] == "nosniff"
+
+    def test_x_frame_options_header(self, test_client, auth_headers):
+        """X-Frame-Options: DENY ヘッダーが付与される"""
+        response = test_client.get("/api/system/status", headers=auth_headers)
+        assert "x-frame-options" in response.headers
+        assert response.headers["x-frame-options"] == "DENY"
+
+    def test_x_xss_protection_header(self, test_client, auth_headers):
+        """X-XSS-Protection ヘッダーが付与される"""
+        response = test_client.get("/api/system/status", headers=auth_headers)
+        assert "x-xss-protection" in response.headers
+        assert response.headers["x-xss-protection"] == "1; mode=block"
+
+    def test_referrer_policy_header(self, test_client, auth_headers):
+        """Referrer-Policy ヘッダーが付与される"""
+        response = test_client.get("/api/system/status", headers=auth_headers)
+        assert "referrer-policy" in response.headers
+        assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+
+    def test_content_security_policy_header(self, test_client, auth_headers):
+        """Content-Security-Policy ヘッダーが付与される"""
+        response = test_client.get("/api/system/status", headers=auth_headers)
+        assert "content-security-policy" in response.headers
+        csp = response.headers["content-security-policy"]
+        assert "default-src 'self'" in csp
+        assert "connect-src 'self'" in csp
+
+    def test_security_headers_on_error_response(self, test_client):
+        """エラーレスポンスにもセキュリティヘッダーが付与される"""
+        response = test_client.get("/api/system/status")  # 認証なし
+        # 403/401 でもセキュリティヘッダーは付与されること
+        assert "x-frame-options" in response.headers
+
+
+# ===================================================================
+# レート制限テスト
+# ===================================================================
+
+
+class TestRateLimiting:
+    """APIレート制限テスト"""
+
+    @pytest.fixture(autouse=True)
+    def clear_rate_limits(self):
+        """各テスト前にレート制限ストレージをリセット"""
+        from backend.api.main import _clear_rate_limit_state
+        _clear_rate_limit_state()
+        yield
+        _clear_rate_limit_state()
+
+    def test_normal_requests_pass(self, test_client, auth_headers):
+        """通常のリクエスト数（60以下）は通過する"""
+        response = test_client.get("/api/system/status", headers=auth_headers)
+        assert response.status_code != 429
+
+    def test_login_endpoint_accepts_normal_attempts(self, test_client):
+        """通常回数のログイン試行は通過する"""
+        resp = test_client.post(
+            "/api/auth/login",
+            json={"username": "admin@example.com", "password": "admin"},
+        )
+        # 認証成功/失敗にかかわらず 429 でないこと
+        assert resp.status_code != 429
