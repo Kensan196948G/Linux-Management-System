@@ -700,6 +700,79 @@ class SudoWrapper:
             raise ValueError(f"Server not allowed: {server}")
         return self._execute("adminui-servers.sh", ["config", server], timeout=10)
 
+    # ------------------------------------------------------------------
+    # ハードウェア情報取得（読み取り専用）
+    # ------------------------------------------------------------------
+
+    def get_hardware_disks(self) -> Dict[str, Any]:
+        """
+        ブロックデバイス一覧を取得 (lsblk -J)
+
+        Returns:
+            ディスク一覧の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-hardware.sh", ["disks"], timeout=15)
+
+    def get_hardware_disk_usage(self) -> Dict[str, Any]:
+        """
+        ディスク使用量を取得 (df -P)
+
+        Returns:
+            ディスク使用量の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-hardware.sh", ["disk_usage"], timeout=15)
+
+    def get_hardware_smart(self, device: str) -> Dict[str, Any]:
+        """
+        SMART情報を取得 (smartctl -j -a)
+
+        Args:
+            device: デバイスパス（例: /dev/sda）。allowlist: /dev/sd[a-z], /dev/nvme*
+
+        Returns:
+            SMART情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+            ValueError: 不正なデバイスパス
+        """
+        import re
+
+        # Pythonレベルでのデバイスパス検証（二重チェック）
+        if not re.match(r"^/dev/(sd[a-z]|nvme[0-9]n[0-9]|vd[a-z]|xvd[a-z]|hd[a-z])$", device):
+            raise ValueError(f"Invalid device path: {device}")
+        return self._execute("adminui-hardware.sh", ["smart", device], timeout=30)
+
+    def get_hardware_sensors(self) -> Dict[str, Any]:
+        """
+        温度センサー情報を取得 (sensors -j or /sys/class/thermal/)
+
+        Returns:
+            センサー情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-hardware.sh", ["sensors"], timeout=10)
+
+    def get_hardware_memory(self) -> Dict[str, Any]:
+        """
+        メモリ情報を取得 (/proc/meminfo)
+
+        Returns:
+            メモリ情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-hardware.sh", ["memory"], timeout=10)
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()
