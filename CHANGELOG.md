@@ -9,9 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (v0.4.1相当)
+- **E2Eテスト実装**: Playwright + pytest-playwright による API/UI E2Eシナリオテスト (40件)
+  - tests/e2e/conftest.py: UvicornTestServer フィクスチャ (ポート18765)
+  - tests/e2e/test_api_e2e.py: 認証/ネットワーク/サーバー/ハードウェア/RBAC シナリオ
+  - tests/e2e/test_frontend_e2e.py: フロントエンドUI + 複数モジュールアクセスフロー
+
+### Fixed (v0.4.1相当)
+- **adminui-servers.sh**: `is-enabled` 出力の改行混入バグを修正 (`head -1` 使用)
+- **adminui-network.sh**: `ss` connections 出力の `process` フィールド内の引用符エスケープ修正
+- **backend/api/routes/servers.py**: Wrapper JSON パース修正（`AllServerStatusResponse` 500エラー解消）
+- **backend/api/routes/network.py**: Wrapper JSON パース修正
+- **backend/api/routes/hardware.py**: Wrapper JSON パース修正
+- **backend/api/routes/_utils.py**: 共通 `parse_wrapper_result` ユーティリティ追加
+
 ### Planned for v0.5.0
 - HTTPS対応（Nginx リバースプロキシ + TLS）
-- E2Eテスト実装（Playwright）
 - Linux Firewall モジュール（iptables/nftables）
 - SSH Server 設定モジュール
 - Approval Workflow: user_modify/service_stop/firewall_modify 対応
