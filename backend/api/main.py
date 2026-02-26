@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -46,6 +47,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ===================================================================
+# Nginx リバースプロキシ対応
+# - X-Forwarded-For, X-Forwarded-Proto ヘッダーを信頼
+# - 本番環境では TRUSTED_PROXY_IPS 環境変数で制限可能
+# ===================================================================
+
+_trusted_hosts = getattr(settings, "trusted_hosts", ["*"])
+if _trusted_hosts and _trusted_hosts != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_trusted_hosts)
 
 # ===================================================================
 # ルーターの登録
