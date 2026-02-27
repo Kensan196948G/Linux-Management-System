@@ -11,6 +11,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.10.1] - 2026-02-27
+
+**v0.10.1 リリース** - 本番環境準備完了・Systemd本番サービス稼働
+
+### Added
+
+#### 本番環境 Systemd サービス
+- **systemd/linux-management-prod.service**: 本番環境自動起動サービス
+  - `User=kensan`・`WorkingDirectory=/mnt/LinuxHDD/Linux-Management-Systm`
+  - gunicornパス: `/home/kensan/.local/bin/gunicorn`（user install）
+  - `ExecStartPre=detect-ip.sh` でIP自動検出
+  - `workers=2 / worker-class=uvicorn.workers.UvicornWorker`
+  - `Restart=always / RestartSec=10s`（本番用自動再起動）
+  - `LimitNPROC` 削除（多プロセス環境でのEAGAIN防止）
+
+#### 本番環境バッジ（フロントエンド）
+- **frontend/js/env-config.js**: 本番（赤・PROD）/開発（黄・DEV）バッジを切り替え表示
+- `getApiBaseUrl()`: `/api/info` の `api_base` フィールドを優先
+
+### Changed
+- `config/prod.json`:
+  - `cors_origins`: HTTPSのみ（セキュリティポリシー準拠）
+  - `require_https: true`（セキュリティポリシー遵守）
+  - `ssl_enabled: false`（現在は証明書未設定・HTTP8000で運用）
+  - `allowed_services`: nginx/apache2/postgresql/mysql/redis/postfix/ssh/cronに拡充
+  - `database.path`: プロジェクトディレクトリ配下に変更
+- `backend/api/main.py`:
+  - `GET /api/info`: version=0.10.0、`ssl_enabled`・`api_base`フィールド追加
+  - `validate_production_config`: `require_https` チェックをRuntimeErrorに維持（セキュリティテスト対応）
+
+### Tests
+- **1029 PASS / 0 FAIL / 42 SKIP**（テスト50件増）
+- カバレッジ: 89.22%
+
+### Infrastructure
+- 開発環境 Systemd: **active (running)** ✅  `http://192.168.0.185:5012`
+- 本番環境 Systemd: **active (running)** ✅  `http://192.168.0.185:8000`
+- 両環境が同時稼働・自動起動設定済み
+
+---
+
 ## [0.10.0] - 2026-02-27
 
 **v0.10.0 リリース** - 動的IP検出・URL設定・Systemd自動起動登録
