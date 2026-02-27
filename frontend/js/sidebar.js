@@ -71,6 +71,8 @@ function showPage(pageName) {
         'quotas': 'Disk Quotas - ディスククォータ管理',
         'dbmonitor': 'Database Monitor - DB監視',
         'bandwidth-monitoring': 'Bandwidth Monitoring - 帯域幅監視',
+        'apache': 'Apache Webserver - Apache管理',
+        'postfix': 'Postfix メール - メール管理',
         'smart-status': 'SMART Drive Status - ドライブ健全性',
         'sensors': 'Sensors - ハードウェアセンサー',
     };
@@ -143,6 +145,12 @@ function showPage(pageName) {
         case 'bandwidth-monitoring':
         case 'bandwidth':
             location.href = 'bandwidth.html';
+            return;
+        case 'apache':
+            location.href = 'apache.html';
+            return;
+        case 'postfix':
+            location.href = 'postfix.html';
             return;
         case 'smart-status':
             showSmartStatusPage(mainBody);

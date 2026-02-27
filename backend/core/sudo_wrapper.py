@@ -879,6 +879,42 @@ class SudoWrapper:
         """
         return self._execute("adminui-bandwidth.sh", ["top"], timeout=10)
 
+    # ===================================================================
+    # Apache Webserver 管理メソッド
+    # ===================================================================
+
+    def get_apache_status(self) -> Dict[str, Any]:
+        """Apache サービス状態を取得
+
+        Returns:
+            Apache サービス状態の辞書（active/enabled/version）
+        """
+        return self._execute("adminui-apache.sh", ["status"], timeout=15)
+
+    def get_apache_vhosts(self) -> Dict[str, Any]:
+        """Apache 仮想ホスト一覧を取得
+
+        Returns:
+            仮想ホスト一覧の辞書
+        """
+        return self._execute("adminui-apache.sh", ["vhosts"], timeout=15)
+
+    def get_apache_modules(self) -> Dict[str, Any]:
+        """Apache ロード済みモジュール一覧を取得
+
+        Returns:
+            モジュール一覧の辞書
+        """
+        return self._execute("adminui-apache.sh", ["modules"], timeout=15)
+
+    def get_apache_config_check(self) -> Dict[str, Any]:
+        """Apache 設定ファイル構文チェック
+
+        Returns:
+            構文チェック結果の辞書（syntax_ok: bool）
+        """
+        return self._execute("adminui-apache.sh", ["config-check"], timeout=15)
+
     def get_hardware_disks(self) -> Dict[str, Any]:
         """
         ブロックデバイス一覧を取得 (lsblk -J)
@@ -1336,6 +1372,36 @@ class SudoWrapper:
         if filesystem:
             args.append(filesystem)
         return self._execute("adminui-quotas.sh", args)
+
+    # ────────── Postfix / SMTP ──────────
+
+    def get_postfix_status(self) -> Dict[str, Any]:
+        """Postfix サービス状態を取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-postfix.sh", ["status"])
+
+    def get_postfix_queue(self) -> Dict[str, Any]:
+        """Postfix メールキューを取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-postfix.sh", ["queue"])
+
+    def get_postfix_logs(self, lines: int = 50) -> Dict[str, Any]:
+        """Postfix ログを取得
+
+        Args:
+            lines: 取得行数 (1-200)
+
+        Returns:
+            実行結果の辞書
+        """
+        safe_lines = max(1, min(200, lines))
+        return self._execute("adminui-postfix.sh", ["logs", str(safe_lines)])
 
 
 # グローバルインスタンス

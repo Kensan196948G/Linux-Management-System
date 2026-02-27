@@ -3,6 +3,7 @@ API エンドポイントの統合テスト
 """
 
 import pytest
+from unittest.mock import patch
 
 
 class TestHealthCheck:
@@ -123,3 +124,22 @@ class TestLogsEndpoints:
 
         # lines は 1-1000 に制限されている
         assert response.status_code == 422
+
+
+class TestSystemStatusError:
+    """system.py エラーパスカバレッジ向上"""
+
+    def test_system_status_exception(self, admin_token):
+        """system status が例外で失敗した場合 (raise_server_exceptions=False で 500 を確認)"""
+        from backend.api.main import app
+        from fastapi.testclient import TestClient
+        no_raise_client = TestClient(app, raise_server_exceptions=False)
+        with patch(
+            "backend.api.routes.system.sudo_wrapper.get_system_status",
+            side_effect=Exception("unexpected system error"),
+        ):
+            resp = no_raise_client.get(
+                "/api/system/status",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 500

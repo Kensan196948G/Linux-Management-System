@@ -328,3 +328,72 @@ class TestDBMonitorSecurity:
                 headers={"Authorization": f"Bearer {viewer_token}"},
             )
             assert resp.status_code == 422, f"Expected 422 for db_type={invalid_db}"
+
+
+class TestDBMonitorErrorPaths:
+    """DBモニター エラーパスカバレッジ向上"""
+
+    def test_status_wrapper_error(self, test_client, viewer_token):
+        """TC_DBM_021: status SudoWrapperError → 503"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.dbmonitor.sudo_wrapper.get_db_status",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.get(
+                "/api/dbmonitor/mysql/status",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_processlist_wrapper_error(self, test_client, viewer_token):
+        """TC_DBM_022: processlist SudoWrapperError → 503"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.dbmonitor.sudo_wrapper.get_db_processlist",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.get(
+                "/api/dbmonitor/mysql/processes",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_databases_wrapper_error(self, test_client, viewer_token):
+        """TC_DBM_023: databases SudoWrapperError → 503"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.dbmonitor.sudo_wrapper.get_db_databases",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.get(
+                "/api/dbmonitor/postgresql/databases",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_connections_wrapper_error(self, test_client, viewer_token):
+        """TC_DBM_024: connections SudoWrapperError → 503"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.dbmonitor.sudo_wrapper.get_db_connections",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.get(
+                "/api/dbmonitor/mysql/connections",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_variables_wrapper_error(self, test_client, viewer_token):
+        """TC_DBM_025: variables SudoWrapperError → 503"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.dbmonitor.sudo_wrapper.get_db_variables",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.get(
+                "/api/dbmonitor/mysql/variables",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 503

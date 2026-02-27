@@ -360,3 +360,140 @@ class TestFirewallStatus:
         ):
             resp = client.get("/api/firewall/status", headers=auth_headers)
         assert "timestamp" in resp.json()
+
+
+# ===========================================================
+# POST /api/firewall/rules  (write + approval)
+# ===========================================================
+
+class TestFirewallWriteOperations:
+    """Firewall 書き込み操作テスト（承認フロー・カバレッジ向上）"""
+
+    def test_create_rule_success(self, client, auth_headers):
+        """ルール追加リクエストが 202 accepted で承認待ちになる"""
+        with patch(
+            "backend.api.routes.firewall.approval_service.create_request",
+            new_callable=AsyncMock,
+            return_value={"request_id": "req-001", "status": "pending"},
+        ):
+            resp = client.post(
+                "/api/firewall/rules",
+                json={"action": "allow", "port": 8080, "protocol": "tcp", "reason": "テスト"},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["status"] == "pending_approval"
+        assert "request_id" in data
+
+    def test_create_rule_deny_action(self, client, auth_headers):
+        """deny ルール追加も承認フロー経由で 202"""
+        with patch(
+            "backend.api.routes.firewall.approval_service.create_request",
+            new_callable=AsyncMock,
+            return_value={"request_id": "req-002", "status": "pending"},
+        ):
+            resp = client.post(
+                "/api/firewall/rules",
+                json={"action": "deny", "port": 23, "protocol": "tcp", "reason": "Telnet 禁止"},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 202
+
+    def test_create_rule_forbidden_viewer(self, client, viewer_token):
+        """viewer ロールはルール追加不可"""
+        resp = client.post(
+            "/api/firewall/rules",
+            json={"action": "allow", "port": 80, "protocol": "tcp", "reason": "テスト"},
+            headers={"Authorization": f"Bearer {viewer_token}"},
+        )
+        assert resp.status_code == 403
+
+    def test_create_rule_invalid_port(self, client, auth_headers):
+        """無効なポート番号は拒否"""
+        resp = client.post(
+            "/api/firewall/rules",
+            json={"action": "allow", "port": 99999, "protocol": "tcp", "reason": "テスト"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_create_rule_no_auth(self, client):
+        """未認証は拒否"""
+        resp = client.post(
+            "/api/firewall/rules",
+            json={"action": "allow", "port": 80, "protocol": "tcp", "reason": "テスト"},
+        )
+        assert resp.status_code in (401, 403)
+
+    def test_create_rule_exception_handling(self, client, auth_headers):
+        """approval_service 例外で 500"""
+        with patch(
+            "backend.api.routes.firewall.approval_service.create_request",
+            new_callable=AsyncMock,
+            side_effect=Exception("unexpected error"),
+        ):
+            resp = client.post(
+                "/api/firewall/rules",
+                json={"action": "allow", "port": 80, "protocol": "tcp", "reason": "テスト"},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 500
+
+    def test_delete_rule_success(self, client, auth_headers):
+        """ルール削除リクエストが 202 accepted で承認待ちになる"""
+        with patch(
+            "backend.api.routes.firewall.approval_service.create_request",
+            new_callable=AsyncMock,
+            return_value={"request_id": "req-003", "status": "pending"},
+        ):
+            resp = client.delete(
+                "/api/firewall/rules/1",
+                headers=auth_headers,
+            )
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["status"] == "pending_approval"
+
+    def test_delete_rule_invalid_num(self, client, auth_headers):
+        """無効なルール番号は 422"""
+        resp = client.delete(
+            "/api/firewall/rules/9999",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_delete_rule_forbidden_viewer(self, client, viewer_token):
+        """viewer ロールはルール削除不可"""
+        resp = client.delete(
+            "/api/firewall/rules/1",
+            headers={"Authorization": f"Bearer {viewer_token}"},
+        )
+        assert resp.status_code == 403
+
+    def test_delete_rule_no_auth(self, client):
+        """未認証は拒否"""
+        resp = client.delete("/api/firewall/rules/1")
+        assert resp.status_code in (401, 403)
+
+    def test_delete_rule_exception_handling(self, client, auth_headers):
+        """approval_service 例外で 500"""
+        with patch(
+            "backend.api.routes.firewall.approval_service.create_request",
+            new_callable=AsyncMock,
+            side_effect=Exception("unexpected error"),
+        ):
+            resp = client.delete(
+                "/api/firewall/rules/1",
+                headers=auth_headers,
+            )
+        assert resp.status_code == 500
+
+    def test_rules_exception_handling(self, client, auth_headers):
+        """GET /rules で予期しない例外は 500"""
+        with patch(
+            "backend.api.routes.firewall.sudo_wrapper.get_firewall_rules",
+            side_effect=Exception("unexpected"),
+        ):
+            resp = client.get("/api/firewall/rules", headers=auth_headers)
+        assert resp.status_code == 500

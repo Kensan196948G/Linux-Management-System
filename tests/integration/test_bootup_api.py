@@ -291,3 +291,127 @@ class TestBootupActionAPI:
             json={"action": "shutdown", "delay": "+1", "reason": "テスト"},
         )
         assert resp.status_code in (401, 403)
+
+
+class TestBootupDisableAPI:
+    """bootup disable エンドポイントの追加テスト（カバレッジ向上）"""
+
+    def test_disable_service_admin_success(self, test_client, admin_token):
+        """TC021: Admin がサービス無効化を実行"""
+        from backend.api.routes.bootup import ALLOWED_BOOTUP_SERVICES
+        service = next(iter(ALLOWED_BOOTUP_SERVICES))
+        with patch(
+            "backend.api.routes.bootup.sudo_wrapper.disable_service_at_boot",
+            return_value={"status": "ok", "service": service},
+        ):
+            resp = test_client.post(
+                "/api/bootup/disable",
+                json={"service": service, "reason": "テスト"},
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 202
+        data = resp.json()
+        assert service in data.get("message", "")
+
+    def test_disable_service_not_in_allowlist(self, test_client, admin_token):
+        """TC022: allowlist 外のサービスを無効化しようとすると 400"""
+        resp = test_client.post(
+            "/api/bootup/disable",
+            json={"service": "unknown-service-xyz", "reason": "テスト"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert resp.status_code == 400
+
+    def test_disable_service_injection_rejected(self, test_client, admin_token):
+        """TC023: サービス名にインジェクション文字列を拒否"""
+        resp = test_client.post(
+            "/api/bootup/disable",
+            json={"service": "nginx; rm -rf /", "reason": "テスト"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert resp.status_code == 400
+
+    def test_disable_service_wrapper_error(self, test_client, admin_token):
+        """TC024: SudoWrapperError 発生時 500"""
+        from backend.api.routes.bootup import ALLOWED_BOOTUP_SERVICES
+        from backend.core.sudo_wrapper import SudoWrapperError
+        service = next(iter(ALLOWED_BOOTUP_SERVICES))
+        with patch(
+            "backend.api.routes.bootup.sudo_wrapper.disable_service_at_boot",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.post(
+                "/api/bootup/disable",
+                json={"service": service, "reason": "テスト"},
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 500
+
+    def test_disable_service_forbidden_operator(self, test_client, auth_headers):
+        """TC025: Operator ロールはサービス無効化不可"""
+        resp = test_client.post(
+            "/api/bootup/disable",
+            json={"service": "nginx", "reason": "テスト"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 403
+
+
+class TestBootupStatusWrapperError:
+    """bootup status のエラーパステスト"""
+
+    def test_get_bootup_status_wrapper_error(self, test_client, admin_token):
+        """TC026: ステータス取得で SudoWrapperError 発生時 500"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.bootup.sudo_wrapper.get_bootup_status",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.get(
+                "/api/bootup/status",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 500
+
+    def test_get_bootup_services_wrapper_error(self, test_client, admin_token):
+        """TC027: サービス一覧で SudoWrapperError 発生時 500"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.bootup.sudo_wrapper.get_bootup_services",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.get(
+                "/api/bootup/services",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 500
+
+    def test_enable_service_wrapper_error(self, test_client, admin_token):
+        """TC028: サービス有効化で SudoWrapperError 発生時 500"""
+        from backend.api.routes.bootup import ALLOWED_BOOTUP_SERVICES
+        from backend.core.sudo_wrapper import SudoWrapperError
+        service = next(iter(ALLOWED_BOOTUP_SERVICES))
+        with patch(
+            "backend.api.routes.bootup.sudo_wrapper.enable_service_at_boot",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.post(
+                "/api/bootup/enable",
+                json={"service": service, "reason": "テスト"},
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 500
+
+    def test_schedule_action_wrapper_error(self, test_client, admin_token):
+        """TC029: シャットダウンスケジュールで SudoWrapperError 発生時 500"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.bootup.sudo_wrapper.schedule_shutdown",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.post(
+                "/api/bootup/action",
+                json={"action": "shutdown", "delay": "+1", "reason": "テスト"},
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 500

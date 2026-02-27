@@ -251,3 +251,65 @@ class TestSetTimezoneAPI:
             )
         assert resp.status_code == 200
         assert resp.json()["timezone"] == "UTC"
+
+
+class TestTimeErrorPaths:
+    """system_time.py エラーパスカバレッジ向上"""
+
+    def test_status_wrapper_error(self, test_client, admin_token):
+        """time status SudoWrapperError → 500"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.system_time.sudo_wrapper.get_time_status",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.get(
+                "/api/time/status",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 500
+
+    def test_timezones_wrapper_error(self, test_client, admin_token):
+        """timezones SudoWrapperError → 500"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.system_time.sudo_wrapper.get_timezones",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.get(
+                "/api/time/timezones",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 500
+
+    def test_set_timezone_wrapper_error(self, test_client, admin_token):
+        """set timezone SudoWrapperError → 500"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch(
+            "backend.api.routes.system_time.sudo_wrapper.set_timezone",
+            side_effect=SudoWrapperError("failed"),
+        ):
+            resp = test_client.post(
+                "/api/time/timezone",
+                json={"timezone": "UTC", "reason": "テスト"},
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 500
+
+    def test_timezone_invalid_format(self, test_client, admin_token):
+        """タイムゾーン名に無効文字が含まれる場合 422"""
+        resp = test_client.post(
+            "/api/time/timezone",
+            json={"timezone": "UTC; rm -rf /", "reason": "テスト"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert resp.status_code == 422
+
+    def test_timezone_path_traversal(self, test_client, admin_token):
+        """タイムゾーン名にパストラバーサルが含まれる場合 422"""
+        resp = test_client.post(
+            "/api/time/timezone",
+            json={"timezone": "Asia/../etc/passwd", "reason": "テスト"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert resp.status_code == 422

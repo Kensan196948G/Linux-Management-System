@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apache Webserver - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .badge-active { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-inactive { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-unavail { background: #f3f4f6; color: #6b7280; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-ok { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-error { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .raw-output { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; font-family: monospace; white-space: pre-wrap; max-height: 320px; overflow-y: auto; }
+        .metric-val { font-size: 22px; font-weight: bold; color: #1e293b; }
+        .metric-label { font-size: 12px; color: #6b7280; }
+        .unavail-notice { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px; color: #713f12; font-size: 13px; }
+        .section-sep { border-top: 1px solid #f1f5f9; margin: 16px 0; }
+        .nav-tabs .nav-link.active { color: #2563eb; font-weight: 600; border-bottom: 2px solid #2563eb; background: none; }
+        .nav-tabs .nav-link { color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <!-- サイドバー -->
+    <div id="sidebar-container"></div>
+
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+        <div class="container-fluid py-4">
+            <!-- ヘッダー -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h1 class="h4 mb-0">🌐 Apache Webserver</h1>
+                    <p class="text-muted small mb-0">Apache HTTP Server の状態・仮想ホスト・モジュール・設定チェック</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button id="btnRefresh" class="btn btn-outline-primary btn-sm" onclick="loadAll()">🔄 更新</button>
+                </div>
+            </div>
+
+            <!-- ステータスカード -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <div class="status-card text-center">
+                        <div class="metric-label mb-1">サービス状態</div>
+                        <div id="svcActive" class="metric-val mb-1">-</div>
+                        <span id="badgeActive" class="badge-unavail">取得中...</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="status-card text-center">
+                        <div class="metric-label mb-1">自動起動</div>
+                        <div id="svcEnabled" class="metric-val mb-1">-</div>
+                        <span id="badgeEnabled" class="badge-unavail">取得中...</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="status-card text-center">
+                        <div class="metric-label mb-1">設定構文チェック</div>
+                        <div id="syntaxOk" class="metric-val mb-1">-</div>
+                        <span id="badgeSyntax" class="badge-unavail">取得中...</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="status-card text-center">
+                        <div class="metric-label mb-1">バージョン</div>
+                        <div id="apacheVersion" class="metric-val" style="font-size:13px;">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- タブ -->
+            <ul class="nav nav-tabs mb-3" id="apacheTabs">
+                <li class="nav-item"><a class="nav-link active" href="#" onclick="switchTab('vhosts', this)">🏠 仮想ホスト</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="switchTab('modules', this)">🧩 モジュール</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="switchTab('configcheck', this)">✅ 設定チェック</a></li>
+            </ul>
+
+            <!-- 仮想ホスト -->
+            <div id="tabVhosts">
+                <div class="status-card">
+                    <div class="status-title">🏠 仮想ホスト一覧</div>
+                    <div id="vhostsContent">
+                        <div class="text-center text-muted py-3">読み込み中...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- モジュール -->
+            <div id="tabModules" style="display:none;">
+                <div class="status-card">
+                    <div class="status-title">🧩 ロード済みモジュール</div>
+                    <div id="modulesContent">
+                        <div class="text-center text-muted py-3">読み込み中...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 設定チェック -->
+            <div id="tabConfigcheck" style="display:none;">
+                <div class="status-card">
+                    <div class="status-title">✅ 設定ファイル構文チェック</div>
+                    <div id="configcheckContent">
+                        <div class="text-center text-muted py-3">読み込み中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+const API_BASE = '/api';
+let authToken = localStorage.getItem('authToken') || '';
+
+function getHeaders() {
+    return { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' };
+}
+
+async function apiFetch(path) {
+    const r = await fetch(API_BASE + path, { headers: getHeaders() });
+    if (r.status === 403 || r.status === 401) {
+        window.location.href = '/login.html';
+        return null;
+    }
+    return r.ok ? r.json() : null;
+}
+
+function switchTab(name, el) {
+    document.querySelectorAll('#apacheTabs .nav-link').forEach(a => a.classList.remove('active'));
+    el.classList.add('active');
+    ['vhosts', 'modules', 'configcheck'].forEach(t => {
+        document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = (t === name) ? '' : 'none';
+    });
+    if (name === 'vhosts') loadVhosts();
+    else if (name === 'modules') loadModules();
+    else if (name === 'configcheck') loadConfigCheck();
+    return false;
+}
+
+function renderUnavail(msg) {
+    return `<div class="unavail-notice">⚠️ ${msg || 'Apache がインストールされていないか、利用できません。'}</div>`;
+}
+
+function renderRaw(text) {
+    if (!text) return '<div class="text-muted small">データなし</div>';
+    return `<div class="raw-output">${escHtml(text)}</div>`;
+}
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadStatus() {
+    const d = await apiFetch('/apache/status');
+    if (!d) return;
+    if (d.status === 'unavailable') {
+        document.getElementById('badgeActive').outerHTML = '<span id="badgeActive" class="badge-unavail">未インストール</span>';
+        document.getElementById('badgeEnabled').outerHTML = '<span id="badgeEnabled" class="badge-unavail">-</span>';
+        document.getElementById('svcActive').textContent = '-';
+        document.getElementById('svcEnabled').textContent = '-';
+        document.getElementById('apacheVersion').textContent = '-';
+        return;
+    }
+    const active = d.active || 'unknown';
+    const enabled = d.enabled || 'unknown';
+    document.getElementById('svcActive').textContent = active;
+    document.getElementById('svcEnabled').textContent = enabled;
+    document.getElementById('apacheVersion').textContent = d.version || '-';
+    document.getElementById('badgeActive').className = active === 'active' ? 'badge-active' : 'badge-inactive';
+    document.getElementById('badgeActive').textContent = active;
+    document.getElementById('badgeEnabled').className = enabled === 'enabled' ? 'badge-active' : 'badge-inactive';
+    document.getElementById('badgeEnabled').textContent = enabled;
+}
+
+async function loadVhosts() {
+    const el = document.getElementById('vhostsContent');
+    el.innerHTML = '<div class="text-center text-muted py-3">読み込み中...</div>';
+    const d = await apiFetch('/apache/vhosts');
+    if (!d) return;
+    if (d.status === 'unavailable') { el.innerHTML = renderUnavail(d.message); return; }
+    el.innerHTML = renderRaw(d.vhosts_raw);
+}
+
+async function loadModules() {
+    const el = document.getElementById('modulesContent');
+    el.innerHTML = '<div class="text-center text-muted py-3">読み込み中...</div>';
+    const d = await apiFetch('/apache/modules');
+    if (!d) return;
+    if (d.status === 'unavailable') { el.innerHTML = renderUnavail(d.message); return; }
+    el.innerHTML = renderRaw(d.modules_raw);
+}
+
+async function loadConfigCheck() {
+    const el = document.getElementById('configcheckContent');
+    el.innerHTML = '<div class="text-center text-muted py-3">読み込み中...</div>';
+    const d = await apiFetch('/apache/config-check');
+    if (!d) return;
+    if (d.status === 'unavailable') { el.innerHTML = renderUnavail(d.message); return; }
+
+    const ok = d.syntax_ok;
+    const badge = ok
+        ? '<span class="badge-ok">✅ Syntax OK</span>'
+        : '<span class="badge-error">❌ Syntax Error</span>';
+
+    document.getElementById('syntaxOk').textContent = ok ? 'OK' : 'ERROR';
+    document.getElementById('badgeSyntax').className = ok ? 'badge-ok' : 'badge-error';
+    document.getElementById('badgeSyntax').textContent = ok ? 'Syntax OK' : 'Syntax Error';
+
+    el.innerHTML = `<div class="mb-2">${badge}</div>` + renderRaw(d.output);
+}
+
+async function loadAll() {
+    await loadStatus();
+    loadVhosts();
+}
+
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
+</body>
+</html>

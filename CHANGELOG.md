@@ -11,6 +11,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.2] - 2026-03-01
+
+**v0.9.2 リリース** - Postfix メール管理モジュール・テスト安定化
+
+### Added
+
+#### Postfix メール管理モジュール
+- **wrappers/adminui-postfix.sh**: Postfix 管理ラッパースクリプト
+  - status/queue/logs/mailq サブコマンド（allowlist 制御）
+  - postfix 未インストール環境では `{"status":"unavailable"}` フォールバック
+  - ログ行数を 1〜200 に制限（上限なし入力を拒否）
+  - ShellCheck エラーゼロ確認済み
+- **GET /api/postfix/status**: Postfix サービス状態・バージョン・キュー件数
+- **GET /api/postfix/queue**: メールキュー内容
+- **GET /api/postfix/logs**: Postfix ログ取得（lines=1〜200 パラメータ）
+- **frontend/dev/postfix.html**: Postfix 管理 WebUI（タブ切替・リアルタイム更新）
+- **tests/integration/test_postfix_api.py**: 20件テスト (TC_PTF_001〜020) 全 PASS
+
+### Fixed
+- `tests/integration/test_api.py::TestSystemStatusError`: `raise_server_exceptions=False` を使用して 500 レスポンスを正しくテスト
+- `tests/integration/test_time_api.py::TestTimeErrorPaths`: `get_available_timezones` → `get_timezones` メソッド名修正
+
+### Changed
+- `backend/core/sudo_wrapper.py`: Postfix 3メソッド追加（get_postfix_status/queue/logs）
+- `backend/api/main.py`: postfix router 登録
+- `frontend/js/sidebar.js`: postfix ページルート・タイトル追加
+
+### Tests
+- 979 PASS / 0 FAIL / 41 SKIP
+- カバレッジ: 89.23%（目標 80% 達成）
+
+---
+
+## [0.9.1] - 2026-03-01
+
+**v0.9.1 リリース** - テストカバレッジ向上・エラーパス補完
+
+### Added
+- **tests/integration/test_bootup_api.py**: TestBootupDisableAPI (9件) + TestBootupStatusWrapperError 追加
+- **tests/integration/test_firewall_api.py**: TestFirewallWriteOperations (11件) - POST/DELETE 承認フロー
+- **tests/integration/test_time_api.py**: TestTimeErrorPaths (5件) - SudoWrapperError エラーパス
+- **tests/integration/test_dbmonitor_api.py**: TestDBMonitorErrorPaths (5件) - 各エンドポイント 503 エラー
+
+### Tests
+- 959 PASS / 0 FAIL / 41 SKIP
+- カバレッジ: 89.20%
+
+---
+
+## [0.9.0] - 2026-03-01
+
+**v0.9.0 リリース** - Apache Webserver 管理モジュール
+
+### Added
+
+#### Apache Webserver モジュール
+- **wrappers/adminui-apache.sh**: Apache 管理ラッパースクリプト
+  - status/vhosts/modules/config-check サブコマンド
+  - apache2ctl/apachectl/apache2/httpd を自動検出
+  - 未インストール環境では `{"status":"unavailable"}` フォールバック
+  - ShellCheck エラーゼロ確認済み
+- **GET /api/apache/status**: Apache サービス状態・バージョン
+- **GET /api/apache/vhosts**: バーチャルホスト一覧
+- **GET /api/apache/modules**: 有効化モジュール一覧
+- **GET /api/apache/config-check**: 設定構文検証
+- **frontend/dev/apache.html**: Apache 管理 WebUI（タブ切替・リアルタイム更新）
+- **tests/integration/test_apache_api.py**: 20件テスト (TC_APH_001〜020) 全 PASS
+
+### Changed
+- `backend/core/sudo_wrapper.py`: Apache 4メソッド追加（get_apache_status/vhosts/modules/config_check）
+- `backend/api/main.py`: apache router 登録
+- `frontend/js/sidebar.js`: apache ページルート追加
+
+### Tests
+- 927 PASS / 0 FAIL / 41 SKIP
+- カバレッジ: 86.75%
+
+---
+
 ## [0.8.2] - 2026-03-01
 
 **v0.8.2 リリース** - Bandwidth Monitoring モジュール
