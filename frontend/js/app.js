@@ -169,13 +169,13 @@ async function restartService(serviceName) {
             `;
         } else {
             showAlert(`再起動に失敗しました: ${result.message}`, 'error');
-            resultEl.innerHTML = `<div class="alert alert-error">❌ ${result.message}</div>`;
+            resultEl.innerHTML = `<div class="alert alert-error">❌ ${typeof escapeHtml === 'function' ? escapeHtml(result.message) : ''}</div>`;
         }
 
     } catch (error) {
         console.error('Service restart failed:', error);
         showAlert(`再起動に失敗しました: ${error.message}`, 'error');
-        resultEl.innerHTML = `<div class="alert alert-error">❌ ${error.message}</div>`;
+        resultEl.innerHTML = `<div class="alert alert-error">❌ ${typeof escapeHtml === 'function' ? escapeHtml(error.message) : ''}</div>`;
     }
 }
 

@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (mainBody) {
                 mainBody.innerHTML = `<div class="card" style="border-left:4px solid #ef4444;">
                     <h3 style="color:#ef4444;">⚠️ 初期化エラー</h3>
-                    <p>${error.message}</p>
+                    <p>${typeof escapeHtml === 'function' ? escapeHtml(error.message) : ''}</p>
                     <button class="btn btn-primary" onclick="location.reload()">再読み込み</button>
                 </div>`;
             }
@@ -110,11 +110,11 @@ async function restartService(serviceName) {
             `;
         } else {
             showAlert(`再起動に失敗しました: ${result.message}`, 'error');
-            resultEl.innerHTML = `<div class="alert alert-error">❌ ${result.message}</div>`;
+            resultEl.innerHTML = `<div class="alert alert-error">❌ ${typeof escapeHtml === 'function' ? escapeHtml(result.message) : ''}</div>`;
         }
     } catch (error) {
         console.error('Service restart failed:', error);
         showAlert(`再起動に失敗しました: ${error.message}`, 'error');
-        resultEl.innerHTML = `<div class="alert alert-error">❌ ${error.message}</div>`;
+        resultEl.innerHTML = `<div class="alert alert-error">❌ ${typeof escapeHtml === 'function' ? escapeHtml(error.message) : ''}</div>`;
     }
 }
