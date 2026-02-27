@@ -949,6 +949,85 @@ class SudoWrapper:
         """マウントポイント一覧を取得"""
         return self._execute("adminui-filesystem.sh", ["mounts"])
 
+    # ===================================================================
+    # Bootup / Shutdown 管理
+    # ===================================================================
+
+    def get_bootup_status(self) -> Dict[str, Any]:
+        """起動状態（default target、uptime等）を取得"""
+        return self._execute("adminui-bootup.sh", ["status"])
+
+    def get_bootup_services(self) -> Dict[str, Any]:
+        """起動時有効化サービス一覧を取得"""
+        return self._execute("adminui-bootup.sh", ["services"])
+
+    def enable_service_at_boot(self, service: str) -> Dict[str, Any]:
+        """サービスを起動時に有効化する（承認フロー経由で呼び出すこと）
+
+        Args:
+            service: 有効化するサービス名（allowlist検証済み）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-bootup.sh", ["enable", service])
+
+    def disable_service_at_boot(self, service: str) -> Dict[str, Any]:
+        """サービスを起動時に無効化する（承認フロー経由で呼び出すこと）
+
+        Args:
+            service: 無効化するサービス名（allowlist検証済み）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-bootup.sh", ["disable", service])
+
+    def schedule_shutdown(self, delay: str = "+1") -> Dict[str, Any]:
+        """システムシャットダウンをスケジュールする（承認フロー必須・Admin のみ）
+
+        Args:
+            delay: 遅延指定（+N分、HH:MM、now）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-bootup.sh", ["shutdown", delay], timeout=30)
+
+    def schedule_reboot(self, delay: str = "+1") -> Dict[str, Any]:
+        """システム再起動をスケジュールする（承認フロー必須・Admin のみ）
+
+        Args:
+            delay: 遅延指定（+N分、HH:MM、now）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-bootup.sh", ["reboot", delay], timeout=30)
+
+    # ===================================================================
+    # System Time 管理
+    # ===================================================================
+
+    def get_time_status(self) -> Dict[str, Any]:
+        """システム時刻・タイムゾーン状態を取得"""
+        return self._execute("adminui-time.sh", ["status"])
+
+    def get_timezones(self) -> Dict[str, Any]:
+        """利用可能なタイムゾーン一覧を取得"""
+        return self._execute("adminui-time.sh", ["list-timezones"])
+
+    def set_timezone(self, timezone: str) -> Dict[str, Any]:
+        """タイムゾーンを設定する（承認フロー経由で呼び出すこと）
+
+        Args:
+            timezone: 設定するタイムゾーン（例: Asia/Tokyo）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-time.sh", ["set-timezone", timezone])
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()

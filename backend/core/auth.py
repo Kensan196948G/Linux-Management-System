@@ -76,6 +76,8 @@ ROLES = {
             "read:ssh",
             "read:cron",
             "read:users",
+            "read:bootup",
+            "read:time",
         ],
     ),
     "Operator": UserRole(
@@ -101,6 +103,8 @@ ROLES = {
             "view:approval_policies",
             # 監査ログ（自分のログのみ）
             "read:audit",
+            "read:bootup",
+            "read:time",
         ],
     ),
     "Approver": UserRole(
@@ -130,6 +134,8 @@ ROLES = {
             "view:approval_policies",
             # 監査ログ（自分のログのみ）
             "read:audit",
+            "read:bootup",
+            "read:time",
         ],
     ),
     "Admin": UserRole(
@@ -167,6 +173,12 @@ ROLES = {
             # 監査ログ（全ユーザーのログ閲覧・エクスポート）
             "read:audit",
             "export:audit",
+            # 起動・シャットダウン管理
+            "read:bootup",
+            "write:bootup",
+            # システム時刻管理
+            "read:time",
+            "write:time",
         ],
     ),
 }

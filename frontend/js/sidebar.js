@@ -66,6 +66,7 @@ function showPage(pageName) {
         'netstat': 'Netstat - ネットワーク統計',
         'bandwidth': 'Bandwidth Monitoring - 帯域幅監視',
         'partitions': 'Partitions - パーティション管理',
+        'bootup': 'Bootup and Shutdown - 起動・シャットダウン',
         'system-time': 'System Time - システム時刻',
         'smart-status': 'SMART Drive Status - ドライブ健全性',
         'sensors': 'Sensors - ハードウェアセンサー',
@@ -124,9 +125,12 @@ function showPage(pageName) {
         case 'partitions':
             showPartitionsPage(mainBody);
             break;
+        case 'bootup':
+            location.href = 'bootup.html';
+            return;
         case 'system-time':
-            showSystemTimePage(mainBody);
-            break;
+            location.href = 'time.html';
+            return;
         case 'smart-status':
             showSmartStatusPage(mainBody);
             break;

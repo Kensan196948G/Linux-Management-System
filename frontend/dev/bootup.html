@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>起動・シャットダウン管理 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .metric-item {
+            background: #f9fafb;
+            border-radius: 6px;
+            padding: 12px 16px;
+        }
+        .metric-label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+        .metric-value { font-size: 15px; font-weight: bold; color: #111827; word-break: break-all; }
+        .service-table th { font-size: 12px; color: #6b7280; font-weight: 600; }
+        .service-table td { font-size: 13px; vertical-align: middle; }
+        .badge-enabled { background-color: #d1fae5; color: #065f46; }
+        .badge-disabled { background-color: #fee2e2; color: #991b1b; }
+        .badge-static { background-color: #e0e7ff; color: #3730a3; }
+        .badge-masked { background-color: #f3f4f6; color: #6b7280; }
+        .danger-zone {
+            background: #fff1f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .danger-title { font-size: 15px; font-weight: bold; color: #dc2626; margin-bottom: 12px; }
+        .failed-badge { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 12px; font-size: 13px; }
+        .failed-ok { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 12px; font-size: 13px; }
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .search-box { max-width: 260px; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">⚡ 起動・シャットダウン管理</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-3" id="bootup-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('status')" id="tab-status">📊 起動状態</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('services')" id="tab-services">🔧 サービス管理</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('actions')" id="tab-actions">⚡ システム操作</a>
+                </li>
+            </ul>
+
+            <!-- ── TAB: 起動状態 ──────────────────────────────── -->
+            <div id="pane-status">
+                <div class="status-card" id="bootup-status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">📊 システム起動状態</div>
+                        <span id="status-loading" class="text-muted small">読み込み中...</span>
+                    </div>
+                    <div class="metric-grid" id="status-grid">
+                        <!-- JS で動的生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── TAB: サービス管理 ─────────────────────────── -->
+            <div id="pane-services" style="display:none">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">🔧 起動時サービス一覧</div>
+                        <input
+                            type="text"
+                            class="form-control form-control-sm search-box"
+                            id="service-search"
+                            placeholder="サービス名で絞り込み..."
+                            oninput="filterServices()"
+                        >
+                    </div>
+                    <div id="services-loading" class="text-muted text-center py-4">読み込み中...</div>
+                    <table class="table table-hover service-table" id="services-table" style="display:none">
+                        <thead>
+                            <tr>
+                                <th>サービス名</th>
+                                <th>状態</th>
+                                <th>ベンダープリセット</th>
+                            </tr>
+                        </thead>
+                        <tbody id="services-tbody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ── TAB: システム操作（承認フロー必須） ──────── -->
+            <div id="pane-actions" style="display:none">
+                <!-- 警告バナー -->
+                <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+                    <span class="me-2" style="font-size:20px">⚠️</span>
+                    <div>
+                        <strong>重要:</strong> シャットダウン・再起動・サービス変更は <strong>Admin 権限 + 承認フロー</strong> が必要です。
+                        誤操作によりシステムへのアクセスが不能になる可能性があります。
+                    </div>
+                </div>
+
+                <!-- シャットダウン/再起動 -->
+                <div class="danger-zone">
+                    <div class="danger-title">🔴 システムシャットダウン / 再起動</div>
+                    <p class="text-muted small mb-3">
+                        この操作を実行すると、全ての接続が切断されます。十分に確認してから実行してください。
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">操作種別</label>
+                            <select class="form-select form-select-sm" id="action-type">
+                                <option value="shutdown">🔴 シャットダウン</option>
+                                <option value="reboot">🔄 再起動</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">実行タイミング</label>
+                            <select class="form-select form-select-sm" id="action-delay">
+                                <option value="+1">1分後</option>
+                                <option value="+5">5分後</option>
+                                <option value="+10">10分後</option>
+                                <option value="+30">30分後</option>
+                                <option value="+60">1時間後</option>
+                                <option value="now">今すぐ</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold small">実行理由（必須）</label>
+                            <input
+                                type="text"
+                                class="form-control form-control-sm"
+                                id="action-reason"
+                                placeholder="例: 定期メンテナンスのため"
+                                maxlength="500"
+                            >
+                        </div>
+                        <div class="col-12">
+                            <button
+                                class="btn btn-danger btn-sm"
+                                onclick="confirmSystemAction()"
+                                id="action-btn"
+                            >
+                                ⚡ 実行
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.main-body -->
+    </main>
+</div>
+
+<!-- 確認モーダル -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">⚠️ 操作確認</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="confirm-body">
+                この操作を実行しますか？
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-danger btn-sm" id="confirm-ok-btn">実行する</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/components.js"></script>
+<script>
+// ===================================================================
+// Bootup/Shutdown 管理ページ
+// ===================================================================
+
+const API_BASE = '/api';
+let allServices = [];
+
+// ── 初期化 ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    initSidebar();
+    loadBootupStatus();
+});
+
+// ── タブ切り替え ────────────────────────────────────────────────
+function showTab(tab) {
+    ['status', 'services', 'actions'].forEach(t => {
+        document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+    });
+    if (tab === 'services' && allServices.length === 0) loadServices();
+}
+
+// ── 起動状態取得 ────────────────────────────────────────────────
+async function loadBootupStatus() {
+    const loading = document.getElementById('status-loading');
+    loading.textContent = '読み込み中...';
+
+    try {
+        const data = await apiGet(`${API_BASE}/bootup/status`);
+        renderBootupStatus(data.data || data);
+        loading.textContent = '';
+    } catch (err) {
+        loading.textContent = '';
+        showAlert('danger', `起動状態の取得に失敗しました: ${err.message}`);
+    }
+}
+
+function renderBootupStatus(d) {
+    const grid = document.getElementById('status-grid');
+    const metrics = [
+        { label: '🎯 デフォルトターゲット', value: d.default_target || 'N/A' },
+        { label: '⏱️ 稼働時間', value: d.uptime || 'N/A' },
+        { label: '🕒 最終起動時刻', value: d.last_boot || 'N/A' },
+        {
+            label: '⚠️ 失敗ユニット数',
+            value: `<span class="${d.failed_units > 0 ? 'failed-badge' : 'failed-ok'}">${d.failed_units ?? 0} 件</span>`
+        },
+    ];
+
+    grid.innerHTML = metrics.map(m => `
+        <div class="metric-item">
+            <div class="metric-label">${m.label}</div>
+            <div class="metric-value">${m.value}</div>
+        </div>
+    `).join('');
+}
+
+// ── サービス一覧取得 ────────────────────────────────────────────
+async function loadServices() {
+    const loading = document.getElementById('services-loading');
+    const table = document.getElementById('services-table');
+    loading.style.display = 'block';
+    table.style.display = 'none';
+
+    try {
+        const data = await apiGet(`${API_BASE}/bootup/services`);
+        allServices = (data.data && data.data.services) ? data.data.services : [];
+        renderServices(allServices);
+        loading.style.display = 'none';
+        table.style.display = '';
+    } catch (err) {
+        loading.textContent = `取得失敗: ${err.message}`;
+        showAlert('danger', `サービス一覧の取得に失敗しました: ${err.message}`);
+    }
+}
+
+function renderServices(services) {
+    const tbody = document.getElementById('services-tbody');
+    tbody.innerHTML = services.map(s => {
+        const stateClass = {
+            enabled: 'badge-enabled',
+            disabled: 'badge-disabled',
+            static: 'badge-static',
+            masked: 'badge-masked',
+        }[s.state] || 'badge-static';
+
+        const presetClass = {
+            enabled: 'badge-enabled',
+            disabled: 'badge-disabled',
+        }[s.vendor_preset] || 'badge-static';
+
+        return `
+            <tr>
+                <td><code>${escapeHtml(s.unit || '')}</code></td>
+                <td><span class="badge ${stateClass}">${escapeHtml(s.state || '')}</span></td>
+                <td><span class="badge ${presetClass}">${escapeHtml(s.vendor_preset || 'N/A')}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterServices() {
+    const q = document.getElementById('service-search').value.toLowerCase();
+    const filtered = allServices.filter(s => (s.unit || '').toLowerCase().includes(q));
+    renderServices(filtered);
+}
+
+// ── システム操作（シャットダウン/再起動）──────────────────────
+function confirmSystemAction() {
+    const action = document.getElementById('action-type').value;
+    const delay = document.getElementById('action-delay').value;
+    const reason = document.getElementById('action-reason').value.trim();
+
+    if (!reason) {
+        showAlert('warning', '実行理由を入力してください');
+        return;
+    }
+
+    const actionLabel = action === 'shutdown' ? 'シャットダウン' : '再起動';
+    const delayLabel = delay === 'now' ? '今すぐ' : `${delay.replace('+', '')}分後`;
+
+    document.getElementById('confirm-body').innerHTML = `
+        <div class="alert alert-danger mb-0">
+            <strong>⚠️ 本当に実行しますか？</strong><br>
+            操作: <strong>${actionLabel}</strong><br>
+            タイミング: <strong>${delayLabel}</strong><br>
+            理由: ${escapeHtml(reason)}
+        </div>
+    `;
+
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    document.getElementById('confirm-ok-btn').onclick = () => {
+        modal.hide();
+        executeSystemAction(action, delay, reason);
+    };
+    modal.show();
+}
+
+async function executeSystemAction(action, delay, reason) {
+    const btn = document.getElementById('action-btn');
+    btn.disabled = true;
+    btn.textContent = '実行中...';
+
+    try {
+        const result = await apiPost(`${API_BASE}/bootup/action`, {
+            action,
+            delay,
+            reason,
+        });
+
+        const label = action === 'shutdown' ? 'シャットダウン' : '再起動';
+        showAlert('success', `✅ システム${label}がスケジュールされました。${result.message || ''}`);
+    } catch (err) {
+        showAlert('danger', `❌ 操作に失敗しました: ${err.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ 実行';
+    }
+}
+
+// ── 全更新 ─────────────────────────────────────────────────────
+function refreshAll() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.textContent = '更新中...';
+    allServices = [];
+
+    loadBootupStatus().finally(() => {
+        btn.disabled = false;
+        btn.textContent = '🔄 更新';
+    });
+}
+
+// ── ユーティリティ ──────────────────────────────────────────────
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function showAlert(type, msg) {
+    const area = document.getElementById('alert-area');
+    area.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${msg}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+async function apiGet(url) {
+    const token = localStorage.getItem('token');
+    const resp = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+}
+
+async function apiPost(url, body) {
+    const token = localStorage.getItem('token');
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+}
+</script>
+</body>
+</html>

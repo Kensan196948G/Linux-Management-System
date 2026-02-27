@@ -11,6 +11,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.0] - 2026-02-27
+
+**v0.7 リリース** - Bootup/Shutdown管理・System Time管理・GitHub Copilot統合設定
+
+### Added
+
+#### Bootup/Shutdown 管理モジュール
+- **wrappers/adminui-bootup.sh**: 起動・シャットダウン管理ラッパースクリプト
+  - status/services/enable/disable/shutdown/reboot/poweroff サブコマンド
+  - allowlist 制御、特殊文字チェック、JSON出力
+- **GET /api/bootup/status**: ブートロード情報・起動時間取得
+- **GET /api/bootup/services**: 自動起動設定済みサービス一覧
+- **POST /api/bootup/enable**: 自動起動 enable（Admin のみ）
+- **POST /api/bootup/disable**: 自動起動 disable（Admin のみ）
+- **POST /api/bootup/action**: shutdown/reboot/poweroff 実行（Admin のみ、遅延 allowlist 制御）
+- **tests/integration/test_bootup_api.py**: 38件テスト（全 PASS）
+
+#### System Time 管理モジュール
+- **wrappers/adminui-time.sh**: システム時刻・タイムゾーン管理ラッパースクリプト
+  - パストラバーサル防止、zoneinfo ファイル存在検証
+- **GET /api/time/status**: 現在時刻・タイムゾーン・NTP 状態取得
+- **GET /api/time/timezones**: 利用可能タイムゾーン一覧
+- **POST /api/time/timezone**: タイムゾーン変更（Admin のみ、Pydantic バリデーション）
+- **backend/api/routes/system_time.py**: `time` 組み込みモジュールとの競合回避のため `system_time.py` として命名
+- **tests/integration/test_time_api.py**: 38件テスト（全 PASS）
+
+#### GitHub Copilot 統合設定
+- **.github/copilot-instructions.md**: GitHub Copilot 向けプロジェクト指示書
+  - セキュリティルール、ディレクトリ構造、API追加手順、ロール権限、コーディング規約
+- **.github/copilot/skills/new-module.md**: 新モジュール追加テンプレート
+- **.github/copilot/skills/security-audit.md**: セキュリティ監査スキル定義
+- **.github/copilot/teams/dev-team.md**: SubAgent 7体構成（@Planner/@Architect/@Backend/@Frontend/@Security/@QA/@CIManager）
+
+#### フロントエンド UI
+- **frontend/dev/bootup.html**: 起動管理UI（起動状態・サービス管理・システム操作 3タブ構成、確認モーダル付き）
+- **frontend/dev/time.html**: システム時刻管理UI（リアルタイムクロック・タイムゾーン変更 2タブ構成）
+- **dashboard.html**: 起動・シャットダウン・システム時刻をメニューに追加（実装済みリンク）
+- **frontend/js/sidebar.js**: bootup/system-time ページへのナビゲーション追加
+
+### Fixed
+- **tests/conftest.py**: `asyncio.get_event_loop().run_until_complete()` → `asyncio.run()` に修正（Python 3.12 対応）
+- **backend/core/approval_service.py**: `user_add` 自動実行時の `password_hash` KeyError 修正（デフォルト `"!"` 使用）
+
+### Security
+- Bootup 操作（enable/disable/shutdown/reboot）は Admin ロール限定
+- タイムゾーン変更は Admin ロール限定
+- 遅延値は allowlist `["now", "+1", "+2", "+5", "+10", "+30", "+60"]` で検証
+- タイムゾーン名は正規表現 + zoneinfo ファイル存在の二重チェック
+- `time.py` → `system_time.py` リネーム（Python 組み込み `time` モジュール競合防止）
+
+---
+
 ## [0.6.0] - 2026-02-26
 
 **v0.6 リリース** - Approval完全実装・セキュリティ強化・ファイルシステム管理・HTTPS対応

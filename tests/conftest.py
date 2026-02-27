@@ -166,7 +166,7 @@ def approval_service(approval_db_path):
     from backend.core.approval_service import ApprovalService
 
     service = ApprovalService(db_path=approval_db_path)
-    asyncio.get_event_loop().run_until_complete(service.initialize_db())
+    asyncio.run(service.initialize_db())
     return service
 
 
@@ -178,7 +178,7 @@ def approval_service_with_mock_audit(approval_db_path, audit_log):
 
     service = ApprovalService(db_path=approval_db_path)
     service.audit_log = audit_log
-    asyncio.get_event_loop().run_until_complete(service.initialize_db())
+    asyncio.run(service.initialize_db())
     return service
 
 

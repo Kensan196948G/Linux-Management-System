@@ -660,9 +660,11 @@ class ApprovalService:
             def _dispatch_sync() -> dict:
                 """sudo_wrapper を同期呼び出し（別スレッドで実行）"""
                 if request_type == "user_add":
+                    # password_hash は必須。未指定の場合はロック済みパスワードで作成
+                    password_hash = payload.get("password_hash", "!")
                     return sudo_wrapper.add_user(
                         username=payload["username"],
-                        password_hash=payload["password_hash"],
+                        password_hash=password_hash,
                         shell=payload.get("shell", "/bin/bash"),  # nosec B604 - not subprocess shell
                         gecos=payload.get("gecos", ""),
                         groups=payload.get("groups"),
@@ -675,6 +677,8 @@ class ApprovalService:
                         force_logout=payload.get("force_logout", False),
                     )
                 elif request_type == "user_passwd":
+                    if "password_hash" not in payload:
+                        raise ValueError("user_passwd の実行には password_hash が必要です")
                     return sudo_wrapper.change_user_password(
                         username=payload["username"],
                         password_hash=payload["password_hash"],
