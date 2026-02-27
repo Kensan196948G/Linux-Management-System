@@ -719,6 +719,84 @@ class SudoWrapper:
     # ハードウェア情報取得（読み取り専用）
     # ------------------------------------------------------------------
 
+    # ==================================================================
+    # DB モニタリング（MySQL/PostgreSQL）
+    # ==================================================================
+
+    _ALLOWED_DB_TYPES = ("mysql", "postgresql")
+    _ALLOWED_MYSQL_CMDS = ("status", "processlist", "variables", "databases")
+    _ALLOWED_PG_CMDS = ("status", "connections", "databases", "activity")
+
+    def get_db_status(self, db_type: str) -> Dict[str, Any]:
+        """DB サービス状態を取得
+
+        Args:
+            db_type: データベース種別（mysql/postgresql）
+
+        Returns:
+            DB 状態の辞書
+        """
+        if db_type not in self._ALLOWED_DB_TYPES:
+            raise ValueError(f"DB type not allowed: {db_type}")
+        return self._execute("adminui-dbmonitor.sh", [db_type, "status"], timeout=15)
+
+    def get_db_processlist(self, db_type: str) -> Dict[str, Any]:
+        """DB プロセス一覧を取得（MySQL: SHOW PROCESSLIST / PostgreSQL: pg_stat_activity）
+
+        Args:
+            db_type: データベース種別（mysql/postgresql）
+
+        Returns:
+            プロセス一覧の辞書
+        """
+        if db_type not in self._ALLOWED_DB_TYPES:
+            raise ValueError(f"DB type not allowed: {db_type}")
+        cmd = "processlist" if db_type == "mysql" else "activity"
+        return self._execute("adminui-dbmonitor.sh", [db_type, cmd], timeout=15)
+
+    def get_db_databases(self, db_type: str) -> Dict[str, Any]:
+        """DB データベース一覧を取得
+
+        Args:
+            db_type: データベース種別（mysql/postgresql）
+
+        Returns:
+            データベース一覧の辞書
+        """
+        if db_type not in self._ALLOWED_DB_TYPES:
+            raise ValueError(f"DB type not allowed: {db_type}")
+        return self._execute("adminui-dbmonitor.sh", [db_type, "databases"], timeout=15)
+
+    def get_db_connections(self, db_type: str) -> Dict[str, Any]:
+        """DB 接続一覧を取得（PostgreSQL のみ）
+
+        Args:
+            db_type: データベース種別（postgresql）
+
+        Returns:
+            接続一覧の辞書
+        """
+        if db_type not in self._ALLOWED_DB_TYPES:
+            raise ValueError(f"DB type not allowed: {db_type}")
+        cmd = "connections" if db_type == "postgresql" else "processlist"
+        return self._execute("adminui-dbmonitor.sh", [db_type, cmd], timeout=15)
+
+    def get_db_variables(self, db_type: str) -> Dict[str, Any]:
+        """DB 変数・設定を取得（MySQL: SHOW VARIABLES）
+
+        Args:
+            db_type: データベース種別（mysql）
+
+        Returns:
+            変数の辞書
+        """
+        if db_type not in self._ALLOWED_DB_TYPES:
+            raise ValueError(f"DB type not allowed: {db_type}")
+        cmd = "variables" if db_type == "mysql" else "status"
+        return self._execute("adminui-dbmonitor.sh", [db_type, cmd], timeout=15)
+
+
+
     def get_hardware_disks(self) -> Dict[str, Any]:
         """
         ブロックデバイス一覧を取得 (lsblk -J)
@@ -867,6 +945,33 @@ class SudoWrapper:
             SudoWrapperError: 実行失敗時
         """
         return self._execute("adminui-packages.sh", ["security"], timeout=30)
+
+    def get_packages_upgrade_dryrun(self) -> Dict[str, Any]:
+        """アップグレードのドライランを実行（実際のインストールは行わない）
+
+        Returns:
+            アップグレード対象パッケージの辞書
+        """
+        return self._execute("adminui-packages.sh", ["upgrade-dryrun"], timeout=60)
+
+    def upgrade_package(self, package_name: str) -> Dict[str, Any]:
+        """特定パッケージをアップグレードする（承認フロー経由で呼び出すこと）
+
+        Args:
+            package_name: アップグレード対象パッケージ名
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-packages.sh", ["upgrade", package_name], timeout=120)
+
+    def upgrade_all_packages(self) -> Dict[str, Any]:
+        """全パッケージをアップグレードする（承認フロー経由で呼び出すこと・Admin のみ）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-packages.sh", ["upgrade-all"], timeout=300)
 
 
     # ------------------------------------------------------------------

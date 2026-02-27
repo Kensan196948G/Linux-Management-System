@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DB監視 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .db-tab-btn { font-size: 14px; }
+        .db-tab-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+        .metric-val { font-size: 22px; font-weight: bold; color: #1e293b; }
+        .metric-label { font-size: 12px; color: #6b7280; }
+        .tbl th { font-size: 12px; color: #6b7280; font-weight: 600; }
+        .tbl td { font-size: 13px; vertical-align: middle; }
+        .badge-running { background: #d1fae5; color: #065f46; }
+        .badge-stopped { background: #fee2e2; color: #991b1b; }
+        .badge-unavail { background: #f3f4f6; color: #6b7280; }
+        .section-sep { border-top: 1px solid #f1f5f9; margin: 16px 0; }
+        .unavail-notice { background:#fefce8; border:1px solid #fde047; border-radius:8px; padding:12px; color:#713f12; font-size:13px; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <!-- サイドバー -->
+    <div id="sidebar-container"></div>
+
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+        <div class="container-fluid py-4">
+            <!-- ヘッダー -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h1 class="h4 mb-0">🗄️ データベース監視</h1>
+                    <p class="text-muted small mb-0">MySQL / PostgreSQL の状態・プロセス・データベース監視</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button id="btnRefresh" class="btn btn-outline-primary btn-sm" onclick="loadAll()">🔄 更新</button>
+                </div>
+            </div>
+
+            <!-- DB タブ選択 -->
+            <div class="btn-group mb-3" role="group">
+                <button type="button" class="btn btn-outline-primary db-tab-btn active" id="tabMySQL" onclick="switchDB('mysql')">🐬 MySQL</button>
+                <button type="button" class="btn btn-outline-primary db-tab-btn" id="tabPostgres" onclick="switchDB('postgresql')">🐘 PostgreSQL</button>
+            </div>
+
+            <!-- 状態カード -->
+            <div id="statusSection">
+                <div class="status-card" id="statusCard">
+                    <div class="status-title">DBサービス状態</div>
+                    <div id="statusBody"><div class="text-muted small">読み込み中...</div></div>
+                </div>
+            </div>
+
+            <!-- プロセス / アクティビティ -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">プロセス / アクティビティ</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadProcesses()">🔄 更新</button>
+                </div>
+                <div id="processBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+
+            <!-- データベース一覧 -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">データベース一覧</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadDatabases()">🔄 更新</button>
+                </div>
+                <div id="dbListBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+
+            <!-- 接続一覧 -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">接続一覧</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadConnections()">🔄 更新</button>
+                </div>
+                <div id="connBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+
+            <!-- 変数・設定 (MySQL) -->
+            <div class="status-card" id="varSection">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">変数・設定</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadVariables()">🔄 更新</button>
+                </div>
+                <div id="varBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+let currentDB = 'mysql';
+
+function switchDB(db) {
+    currentDB = db;
+    document.getElementById('tabMySQL').classList.toggle('active', db === 'mysql');
+    document.getElementById('tabPostgres').classList.toggle('active', db === 'postgresql');
+    loadAll();
+}
+
+async function apiFetch(path) {
+    const token = localStorage.getItem('access_token');
+    const resp = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+    return resp.json();
+}
+
+function statusBadge(running, status) {
+    if (status === 'unavailable') return '<span class="badge badge-unavail">利用不可</span>';
+    if (running) return '<span class="badge badge-running">稼働中</span>';
+    return '<span class="badge badge-stopped">停止</span>';
+}
+
+async function loadStatus() {
+    const el = document.getElementById('statusBody');
+    try {
+        const d = await apiFetch(`/api/dbmonitor/${currentDB}/status`);
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${d.message || 'DB クライアントが未インストールです'}</div>`;
+            return;
+        }
+        el.innerHTML = `
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="metric-label">状態</div>
+                <div>${statusBadge(d.running, d.status)}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-label">バージョン</div>
+                <div class="metric-val" style="font-size:14px">${d.version || '-'}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-label">DBタイプ</div>
+                <div class="metric-val" style="font-size:14px">${d.db_type || currentDB}</div>
+            </div>
+        </div>`;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadProcesses() {
+    const el = document.getElementById('processBody');
+    try {
+        const d = await apiFetch(`/api/dbmonitor/${currentDB}/processes`);
+        if (!d.data || d.data.length === 0) {
+            el.innerHTML = '<div class="text-muted small">プロセスなし</div>';
+            return;
+        }
+        const keys = Object.keys(d.data[0]);
+        const header = keys.map(k => `<th>${k}</th>`).join('');
+        const rows = d.data.map(row =>
+            '<tr>' + keys.map(k => `<td>${row[k] ?? ''}</td>`).join('') + '</tr>'
+        ).join('');
+        el.innerHTML = `<div class="table-responsive"><table class="table table-sm tbl"><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="text-muted small mt-1">合計: ${d.count} 件</div>`;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadDatabases() {
+    const el = document.getElementById('dbListBody');
+    try {
+        const d = await apiFetch(`/api/dbmonitor/${currentDB}/databases`);
+        if (!d.data || d.data.length === 0) {
+            el.innerHTML = '<div class="text-muted small">データなし</div>';
+            return;
+        }
+        const items = d.data.map(name => `<span class="badge bg-light text-dark border me-1 mb-1">${name}</span>`).join('');
+        el.innerHTML = `<div>${items}</div><div class="text-muted small mt-1">合計: ${d.count} 件</div>`;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadConnections() {
+    const el = document.getElementById('connBody');
+    try {
+        const d = await apiFetch(`/api/dbmonitor/${currentDB}/connections`);
+        if (!d.data || d.data.length === 0) {
+            el.innerHTML = '<div class="text-muted small">接続なし</div>';
+            return;
+        }
+        const keys = Object.keys(d.data[0]);
+        const header = keys.map(k => `<th>${k}</th>`).join('');
+        const rows = d.data.map(row =>
+            '<tr>' + keys.map(k => `<td>${row[k] ?? ''}</td>`).join('') + '</tr>'
+        ).join('');
+        el.innerHTML = `<div class="table-responsive"><table class="table table-sm tbl"><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadVariables() {
+    const el = document.getElementById('varBody');
+    try {
+        const d = await apiFetch(`/api/dbmonitor/${currentDB}/variables`);
+        if (!d.data) {
+            el.innerHTML = '<div class="text-muted small">データなし</div>';
+            return;
+        }
+        if (typeof d.data === 'object' && !Array.isArray(d.data)) {
+            const rows = Object.entries(d.data).map(([k, v]) =>
+                `<tr><td class="text-muted">${k}</td><td>${v}</td></tr>`
+            ).join('');
+            el.innerHTML = `<div class="table-responsive"><table class="table table-sm tbl"><thead><tr><th>変数名</th><th>値</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        } else {
+            el.innerHTML = `<pre class="small">${JSON.stringify(d.data, null, 2)}</pre>`;
+        }
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+function loadAll() {
+    loadStatus();
+    loadProcesses();
+    loadDatabases();
+    loadConnections();
+    loadVariables();
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    if (typeof loadSidebar === 'function') loadSidebar('dbmonitor');
+    loadAll();
+});
+</script>
+</body>
+</html>

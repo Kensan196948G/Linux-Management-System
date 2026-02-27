@@ -80,6 +80,7 @@ ROLES = {
             "read:time",
             # クォータ管理
             "read:quotas",
+            # DB監視（read:servers 再利用）
         ],
     ),
     "Operator": UserRole(
@@ -143,6 +144,8 @@ ROLES = {
             # クォータ管理
             "read:quotas",
             "write:quotas",
+            # パッケージ管理（個別アップグレード）
+            "write:packages",
         ],
     ),
     "Admin": UserRole(
@@ -189,6 +192,9 @@ ROLES = {
             # クォータ管理
             "read:quotas",
             "write:quotas",
+            # パッケージ管理（個別/全体アップグレード）
+            "write:packages",
+            "execute:upgrade_all",
         ],
     ),
 }

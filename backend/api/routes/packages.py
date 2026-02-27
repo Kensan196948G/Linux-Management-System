@@ -1,17 +1,21 @@
 """
-パッケージ管理 API エンドポイント（読み取り専用）
+パッケージ管理 API エンドポイント
 
 提供エンドポイント:
-  GET /api/packages/installed  - インストール済みパッケージ一覧
-  GET /api/packages/updates    - 更新可能なパッケージ一覧
-  GET /api/packages/security   - セキュリティ更新一覧
+  GET  /api/packages/installed  - インストール済みパッケージ一覧
+  GET  /api/packages/updates    - 更新可能なパッケージ一覧
+  GET  /api/packages/security   - セキュリティ更新一覧
+  GET  /api/packages/upgrade/dryrun - アップグレードのドライラン
+  POST /api/packages/upgrade        - 特定パッケージのアップグレードリクエスト
+  POST /api/packages/upgrade-all    - 全パッケージのアップグレードリクエスト
 """
 
 import logging
+import re
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
@@ -22,6 +26,9 @@ from ._utils import parse_wrapper_result
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/packages", tags=["packages"])
+
+# パッケージ名の許可パターン（dpkg 準拠）
+_PKG_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9+._-]{0,127}$")
 
 
 # ===================================================================
@@ -76,6 +83,38 @@ class SecurityUpdatesResponse(BaseModel):
     count: int = 0
     message: Optional[str] = None
     timestamp: str
+
+
+class UpgradeDryrunResponse(BaseModel):
+    """アップグレードドライランレスポンス"""
+
+    status: str
+    packages: list[Any] = Field(default_factory=list)
+    count: int = 0
+    message: Optional[str] = None
+    timestamp: str
+
+
+class UpgradePackageRequest(BaseModel):
+    """特定パッケージアップグレードリクエスト"""
+
+    package_name: str = Field(..., description="アップグレード対象パッケージ名")
+
+    @field_validator("package_name")
+    @classmethod
+    def validate_package_name(cls, v: str) -> str:
+        """パッケージ名のバリデーション"""
+        if not _PKG_NAME_PATTERN.match(v):
+            raise ValueError(f"Invalid package name: {v}")
+        return v
+
+
+class UpgradeResponse(BaseModel):
+    """アップグレード実行レスポンス"""
+
+    status: str
+    message: str
+    timestamp: str = ""
 
 
 # ===================================================================
@@ -185,4 +224,118 @@ async def get_security_updates(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"内部エラー: {e}",
+        )
+
+
+@router.get(
+    "/upgrade/dryrun",
+    response_model=UpgradeDryrunResponse,
+    summary="アップグレードのドライラン",
+    description="実際にはインストールせず、アップグレード対象パッケージを確認します",
+)
+async def get_upgrade_dryrun(
+    current_user: TokenData = Depends(require_permission("read:packages")),
+) -> UpgradeDryrunResponse:
+    """アップグレードのドライランを実行する（読み取り専用）"""
+    try:
+        result = sudo_wrapper.get_packages_upgrade_dryrun()
+        parsed = parse_wrapper_result(result)
+        audit_log.record(
+            operation="packages_upgrade_dryrun",
+            user_id=current_user.user_id,
+            target="packages",
+            status="success",
+            details={"count": parsed.get("count", 0)},
+        )
+        return UpgradeDryrunResponse(
+            status=parsed.get("status", "success"),
+            packages=parsed.get("packages", []),
+            count=parsed.get("count", 0),
+            message=parsed.get("message"),
+            timestamp=parsed.get("timestamp", ""),
+        )
+    except SudoWrapperError as e:
+        logger.error("Upgrade dryrun error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"ドライランエラー: {e}",
+        )
+
+
+@router.post(
+    "/upgrade",
+    response_model=UpgradeResponse,
+    summary="特定パッケージのアップグレード",
+    description="特定パッケージをアップグレードします（Admin/Approver のみ）",
+)
+async def upgrade_package(
+    request: UpgradePackageRequest,
+    current_user: TokenData = Depends(require_permission("write:packages")),
+) -> UpgradeResponse:
+    """特定パッケージをアップグレードする"""
+    try:
+        result = sudo_wrapper.upgrade_package(request.package_name)
+        parsed = parse_wrapper_result(result)
+        audit_log.record(
+            operation="package_upgrade",
+            user_id=current_user.user_id,
+            target=request.package_name,
+            status="success",
+        )
+        return UpgradeResponse(
+            status=parsed.get("status", "success"),
+            message=parsed.get("message", f"Package {request.package_name} upgraded"),
+            timestamp=parsed.get("timestamp", ""),
+        )
+    except SudoWrapperError as e:
+        logger.error("Package upgrade error: %s", e)
+        audit_log.record(
+            operation="package_upgrade",
+            user_id=current_user.user_id,
+            target=request.package_name,
+            status="error",
+            details={"error": str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"パッケージアップグレードエラー: {e}",
+        )
+
+
+@router.post(
+    "/upgrade-all",
+    response_model=UpgradeResponse,
+    summary="全パッケージのアップグレード",
+    description="更新可能な全パッケージをアップグレードします（Admin のみ）",
+)
+async def upgrade_all_packages(
+    current_user: TokenData = Depends(require_permission("execute:upgrade_all")),
+) -> UpgradeResponse:
+    """全パッケージをアップグレードする"""
+    try:
+        result = sudo_wrapper.upgrade_all_packages()
+        parsed = parse_wrapper_result(result)
+        audit_log.record(
+            operation="packages_upgrade_all",
+            user_id=current_user.user_id,
+            target="all_packages",
+            status="success",
+        )
+        return UpgradeResponse(
+            status=parsed.get("status", "success"),
+            message=parsed.get("message", "All packages upgraded"),
+            timestamp=parsed.get("timestamp", ""),
+        )
+    except SudoWrapperError as e:
+        logger.error("Upgrade all packages error: %s", e)
+        audit_log.record(
+            operation="packages_upgrade_all",
+            user_id=current_user.user_id,
+            target="all_packages",
+            status="error",
+            details={"error": str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"全パッケージアップグレードエラー: {e}",
         )

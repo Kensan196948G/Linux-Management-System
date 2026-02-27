@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-ALLOWED_SUBCOMMANDS=("list" "updates" "security")
+ALLOWED_SUBCOMMANDS=("list" "updates" "security" "upgrade" "upgrade-all" "upgrade-dryrun")
 
 if [ "$#" -ne 1 ]; then
     echo '{"status":"error","message":"Usage: adminui-packages.sh <subcommand>"}' >&2
@@ -158,6 +158,108 @@ print(json.dumps({'status':'success','security_updates':packages,'count':len(pac
         echo "$SECURITY"
     else
         echo '{"status":"success","security_updates":[],"count":0,"message":"No security updates or apt unavailable","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' 
+    fi
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: upgrade-dryrun - アップグレードのドライラン（影響確認）
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "upgrade-dryrun" ]; then
+    if ! command -v apt-get >/dev/null 2>&1; then
+        echo '{"status":"error","message":"apt-get not available"}' >&2
+        exit 1
+    fi
+
+    # ドライランのみ実行（実際のインストールは行わない）
+    RESULT=$(DEBIAN_FRONTEND=noninteractive apt-get upgrade --dry-run -y 2>/dev/null | python3 -c "
+import sys, json, re
+
+to_upgrade = []
+for line in sys.stdin:
+    line = line.rstrip()
+    m = re.match(r'^Inst\s+(\S+)\s+\[(\S+)\]\s+\((\S+)', line)
+    if m:
+        to_upgrade.append({
+            'name': m.group(1),
+            'current_version': m.group(2),
+            'new_version': m.group(3),
+        })
+print(json.dumps({'status':'success','packages':to_upgrade,'count':len(to_upgrade),'timestamp':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'}))
+" 2>/dev/null)
+
+    if [ $? -eq 0 ] && [ -n "$RESULT" ]; then
+        echo "$RESULT"
+    else
+        echo '{"status":"success","packages":[],"count":0,"message":"No packages to upgrade","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+    fi
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: upgrade <package_name> - 特定パッケージのアップグレード
+# （承認フロー経由でのみ呼び出すこと）
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "upgrade" ]; then
+    if [ "$#" -lt 2 ]; then
+        echo '{"status":"error","message":"Usage: adminui-packages.sh upgrade <package_name>"}' >&2
+        exit 1
+    fi
+
+    PACKAGE_NAME="$2"
+
+    # パッケージ名の厳格な検証（英数字・ハイフン・ドット・プラスのみ）
+    if ! echo "$PACKAGE_NAME" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9+._-]{0,127}$'; then
+        echo "{\"status\":\"error\",\"message\":\"Invalid package name: ${PACKAGE_NAME}\"}" >&2
+        exit 1
+    fi
+
+    if ! command -v apt-get >/dev/null 2>&1; then
+        echo '{"status":"error","message":"apt-get not available"}' >&2
+        exit 1
+    fi
+
+    # 指定パッケージが更新可能か確認
+    if ! apt list --upgradable 2>/dev/null | grep -q "^${PACKAGE_NAME}/"; then
+        echo "{\"status\":\"error\",\"message\":\"Package '${PACKAGE_NAME}' is not available for upgrade\"}" >&2
+        exit 1
+    fi
+
+    # アップグレード実行
+    DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y "${PACKAGE_NAME}" 2>&1
+    EXIT_CODE=$?
+
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "{\"status\":\"success\",\"message\":\"Package '${PACKAGE_NAME}' upgraded successfully\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    else
+        echo "{\"status\":\"error\",\"message\":\"Failed to upgrade package '${PACKAGE_NAME}'\",\"exit_code\":${EXIT_CODE}}" >&2
+        exit 1
+    fi
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: upgrade-all - 全パッケージのアップグレード
+# （承認フロー経由でのみ呼び出すこと・Admin のみ）
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "upgrade-all" ]; then
+    if ! command -v apt-get >/dev/null 2>&1; then
+        echo '{"status":"error","message":"apt-get not available"}' >&2
+        exit 1
+    fi
+
+    # 全パッケージアップグレード
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y 2>&1
+    EXIT_CODE=$?
+
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "{\"status\":\"success\",\"message\":\"All packages upgraded successfully\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    else
+        echo "{\"status\":\"error\",\"message\":\"Failed to upgrade all packages\",\"exit_code\":${EXIT_CODE}}" >&2
+        exit 1
     fi
     exit 0
 fi

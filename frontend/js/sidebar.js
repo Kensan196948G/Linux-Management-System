@@ -69,6 +69,7 @@ function showPage(pageName) {
         'bootup': 'Bootup and Shutdown - 起動・シャットダウン',
         'system-time': 'System Time - システム時刻',
         'quotas': 'Disk Quotas - ディスククォータ管理',
+        'dbmonitor': 'Database Monitor - DB監視',
         'smart-status': 'SMART Drive Status - ドライブ健全性',
         'sensors': 'Sensors - ハードウェアセンサー',
     };
@@ -134,6 +135,9 @@ function showPage(pageName) {
             return;
         case 'quotas':
             location.href = 'quotas.html';
+            return;
+        case 'dbmonitor':
+            location.href = 'dbmonitor.html';
             return;
         case 'smart-status':
             showSmartStatusPage(mainBody);
