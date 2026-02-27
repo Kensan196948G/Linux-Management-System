@@ -108,6 +108,8 @@
 
                 // ログイン時刻を記録（リダイレクトバック検知用）
                 sessionStorage.setItem('last_login_time', Date.now().toString());
+                // ユーザーメール/名前をlocalStorageに保存（サイドバー表示用）
+                localStorage.setItem('user_email', email);
                 console.log('✅ Login timestamp saved to sessionStorage');
 
                 // ダッシュボードにリダイレクト（Edge対策で1.5秒に延長）

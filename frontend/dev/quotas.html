@@ -45,9 +45,9 @@
     </style>
 </head>
 <body>
-<div class="wrapper">
+<div class="app-layout">
     <!-- サイドバー -->
-    <div id="sidebar-container"></div>
+    <aside class="sidebar" id="sidebar-container"></aside>
 
     <!-- メインコンテンツ -->
     <div class="main-content">
@@ -187,6 +187,7 @@
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('quotas')):renderSidebar('quotas');</script>
 <script>
 let currentTab = 'users';
 const API_BASE = '/api';

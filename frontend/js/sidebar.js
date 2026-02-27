@@ -172,11 +172,21 @@ function showPage(pageName) {
  * サイドバーのユーザー情報を更新
  */
 function updateSidebarUserInfo(user) {
+    // サイドバーフッターのユーザー名
+    const sidebarUsername = document.getElementById('sidebar-username');
+    if (sidebarUsername) {
+        const name = (user.username || user.email || '-').split('@')[0];
+        sidebarUsername.textContent = name;
+    }
+
     // ユーザーメニュー内の情報を更新
-    document.getElementById('user-menu-username').textContent = user.username || '-';
-    document.getElementById('user-menu-email').textContent = user.email || user.username || '-';
+    const umname = document.getElementById('user-menu-username');
+    if (umname) umname.textContent = user.username || '-';
+    const umemail = document.getElementById('user-menu-email');
+    if (umemail) umemail.textContent = user.email || user.username || '-';
 
     const roleElement = document.getElementById('user-menu-role');
+    if (!roleElement) return;
     roleElement.textContent = user.role || '-';
 
     // ロールに応じたクラスを適用
@@ -210,8 +220,256 @@ document.addEventListener('click', function(event) {
 
     if (userMenu && userMenu.classList.contains('show')) {
         if (!event.target.closest('.user-info')) {
-            userInfo.classList.remove('active');
+            if (userInfo) userInfo.classList.remove('active');
             userMenu.classList.remove('show');
         }
     }
 });
+
+/**
+ * サイドバーHTMLを #sidebar-container に注入する
+ * @param {string} activePage - アクティブページ識別子
+ */
+function renderSidebar(activePage) {
+    const container = document.getElementById('sidebar-container');
+    if (!container) return;
+
+    // クラスを設定（asideタグでない場合に備えて）
+    if (!container.classList.contains('sidebar')) {
+        container.className = 'sidebar';
+    }
+
+    const a = (page) => activePage === page ? ' active' : '';
+
+    // 環境バッジ（URLパスで判定）
+    const isProd = window.location.pathname.includes('/prod/');
+    const envBadge = isProd
+        ? '<span class="env-badge prod" id="env-badge" style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">【本番】</span>'
+        : '<span class="env-badge dev" id="env-badge" style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">【開発】</span>';
+
+    container.innerHTML = `
+        <div class="sidebar-header">
+            <h1 class="sidebar-title">🖥️ Linux管理運用</h1>
+            <p class="sidebar-subtitle">
+                ${envBadge}
+            </p>
+        </div>
+
+        <nav class="sidebar-menu">
+            <!-- ダッシュボード -->
+            <div class="menu-item${a('dashboard')}" onclick="location.href='dashboard.html'">
+                <span class="menu-item-icon">📊</span>
+                <span>ダッシュボード</span>
+            </div>
+
+            <!-- Linux管理システム カテゴリ -->
+            <div class="accordion-item ${['audit','services'].includes(activePage) ? 'open' : ''}">
+                <div class="accordion-header" onclick="toggleAccordion(this)">
+                    <div class="accordion-title"><span>⚙️</span><span>Linux管理システム</span></div>
+                    <span class="accordion-icon">▼</span>
+                </div>
+                <div class="accordion-content">
+                    <div class="accordion-submenu">
+                        <div class="submenu-item disabled">
+                            <div class="submenu-item-name">システム設定</div>
+                            <div class="submenu-item-badge">計画中</div>
+                        </div>
+                        <div class="submenu-item${a('services')}" onclick="location.href='servers.html'">
+                            <div class="submenu-item-name">システムサーバー</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('audit')}" onclick="location.href='audit.html'">
+                            <div class="submenu-item-name">監査ログ</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- システム カテゴリ -->
+            <div class="accordion-item ${['bootup','users','cron','processes','logs'].includes(activePage) ? 'open' : ''}">
+                <div class="accordion-header" onclick="toggleAccordion(this)">
+                    <div class="accordion-title"><span>💻</span><span>システム</span></div>
+                    <span class="accordion-icon">▼</span>
+                </div>
+                <div class="accordion-content">
+                    <div class="accordion-submenu">
+                        <div class="submenu-item${a('bootup')}" onclick="location.href='bootup.html'">
+                            <div class="submenu-item-name">起動・シャットダウン</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('users')}" onclick="location.href='users.html'">
+                            <div class="submenu-item-name">ユーザー・グループ</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('cron')}" onclick="location.href='cron.html'">
+                            <div class="submenu-item-name">Cronジョブ</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('processes')}" onclick="location.href='processes.html'">
+                            <div class="submenu-item-name">実行中プロセス</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('logs')}" onclick="location.href='logs.html'">
+                            <div class="submenu-item-name">システムログ</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 承認ワークフロー -->
+            <div class="menu-item${a('approval')}" onclick="location.href='approval.html'">
+                <span class="menu-item-icon">✅</span>
+                <span>承認ワークフロー</span>
+            </div>
+
+            <!-- サーバー カテゴリ -->
+            <div class="accordion-item ${['servers','apache','postfix','dbmonitor'].includes(activePage) ? 'open' : ''}">
+                <div class="accordion-header" onclick="toggleAccordion(this)">
+                    <div class="accordion-title"><span>🖥️</span><span>サーバー</span></div>
+                    <span class="accordion-icon">▼</span>
+                </div>
+                <div class="accordion-content">
+                    <div class="accordion-submenu">
+                        <div class="submenu-item${a('servers')}" onclick="location.href='servers.html'">
+                            <div class="submenu-item-name">サーバー状態一覧</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('apache')}" onclick="location.href='apache.html'">
+                            <div class="submenu-item-name">Apache Webサーバー</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('postfix')}" onclick="location.href='postfix.html'">
+                            <div class="submenu-item-name">Postfix メール</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('dbmonitor')}" onclick="location.href='dbmonitor.html'">
+                            <div class="submenu-item-name">DBモニター</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ネットワーク カテゴリ -->
+            <div class="accordion-item ${['network','bandwidth'].includes(activePage) ? 'open' : ''}">
+                <div class="accordion-header" onclick="toggleAccordion(this)">
+                    <div class="accordion-title"><span>🌐</span><span>ネットワーク</span></div>
+                    <span class="accordion-icon">▼</span>
+                </div>
+                <div class="accordion-content">
+                    <div class="accordion-submenu">
+                        <div class="submenu-item${a('network')}" onclick="location.href='network.html'">
+                            <div class="submenu-item-name">ネットワーク情報</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('bandwidth')}" onclick="location.href='bandwidth.html'">
+                            <div class="submenu-item-name">帯域幅モニタリング</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ハードウェア カテゴリ -->
+            <div class="accordion-item ${['hardware','time','quotas'].includes(activePage) ? 'open' : ''}">
+                <div class="accordion-header" onclick="toggleAccordion(this)">
+                    <div class="accordion-title"><span>🔧</span><span>ハードウェア</span></div>
+                    <span class="accordion-icon">▼</span>
+                </div>
+                <div class="accordion-content">
+                    <div class="accordion-submenu">
+                        <div class="submenu-item${a('hardware')}" onclick="location.href='hardware.html'">
+                            <div class="submenu-item-name">ハードウェア情報</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('time')}" onclick="location.href='time.html'">
+                            <div class="submenu-item-name">システム時刻</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('quotas')}" onclick="location.href='quotas.html'">
+                            <div class="submenu-item-name">ディスククォータ</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- システム設定 -->
+            <div class="accordion-item ${['settings'].includes(activePage) ? 'open' : ''}">
+                <div class="accordion-header" onclick="toggleAccordion(this)">
+                    <div class="accordion-title"><span>⚡</span><span>システム設定</span></div>
+                    <span class="accordion-icon">▼</span>
+                </div>
+                <div class="accordion-content">
+                    <div class="accordion-submenu">
+                        <div class="submenu-item${a('settings')}" onclick="location.href='settings.html'">
+                            <div class="submenu-item-name">統合設定</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- サイドバーフッター -->
+        <div class="sidebar-footer">
+            <div class="user-info" onclick="toggleUserMenu(event)">
+                <div class="user-avatar" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+                    <span class="avatar-icon">👤</span>
+                    <span class="username" id="sidebar-username">-</span>
+                </div>
+                <span class="user-menu-indicator">▼</span>
+                <div class="user-menu" id="user-menu">
+                    <div class="user-menu-header">
+                        <span class="user-menu-icon">👤</span>
+                        <div class="user-menu-info">
+                            <div class="user-menu-name" id="user-menu-username">-</div>
+                            <div class="user-menu-role" id="user-menu-role">-</div>
+                        </div>
+                    </div>
+                    <div class="user-menu-divider"></div>
+                    <div class="user-menu-items">
+                        <div class="user-menu-item">
+                            <span class="user-menu-item-icon">📧</span>
+                            <span class="user-menu-item-text" id="user-menu-email">-</span>
+                        </div>
+                    </div>
+                    <div class="user-menu-divider"></div>
+                    <button class="btn btn-danger" onclick="logout(); event.stopPropagation();" style="width:100%;font-size:var(--font-size-sm);">ログアウト</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // アコーディオン状態を復元（ページに合わせた展開後に追加状態を適用）
+    restoreAccordionState();
+
+    // 保存済みのユーザー情報を復元
+    try {
+        const email = localStorage.getItem('user_email') || localStorage.getItem('userEmail') || '';
+        if (email) {
+            const uname = email.split('@')[0];
+            const el = document.getElementById('sidebar-username');
+            if (el) el.textContent = uname;
+            const umname = document.getElementById('user-menu-username');
+            if (umname) umname.textContent = uname;
+            const umemail = document.getElementById('user-menu-email');
+            if (umemail) umemail.textContent = email;
+        }
+    } catch(e) {}
+}
+
+/**
+ * logout関数（sidebar.jsから呼ばれる場合の共通実装）
+ */
+if (typeof logout === 'undefined') {
+    window.logout = function() {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('token_type');
+        localStorage.removeItem('user_email');
+        localStorage.removeItem('accordionState');
+        location.href = 'index.html';
+    };
+}

@@ -22,8 +22,8 @@
     </style>
 </head>
 <body>
-<div class="wrapper">
-    <div id="sidebar-container"></div>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
 
     <div class="main-content">
         <div class="container-fluid py-4">
@@ -101,6 +101,7 @@
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('bandwidth')):renderSidebar('bandwidth');</script>
 <script>
 let autoRefreshTimer = null;
 const token = () => localStorage.getItem('access_token');

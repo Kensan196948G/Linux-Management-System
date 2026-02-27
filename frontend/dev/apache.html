@@ -25,9 +25,9 @@
     </style>
 </head>
 <body>
-<div class="wrapper">
+<div class="app-layout">
     <!-- サイドバー -->
-    <div id="sidebar-container"></div>
+    <aside class="sidebar" id="sidebar-container"></aside>
 
     <!-- メインコンテンツ -->
     <div class="main-content">
@@ -49,21 +49,21 @@
                     <div class="status-card text-center">
                         <div class="metric-label mb-1">サービス状態</div>
                         <div id="svcActive" class="metric-val mb-1">-</div>
-                        <span id="badgeActive" class="badge-unavail">取得中...</span>
+                        <span id="badgeActive" class="badge-unavail">-</span>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="status-card text-center">
                         <div class="metric-label mb-1">自動起動</div>
                         <div id="svcEnabled" class="metric-val mb-1">-</div>
-                        <span id="badgeEnabled" class="badge-unavail">取得中...</span>
+                        <span id="badgeEnabled" class="badge-unavail">-</span>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="status-card text-center">
                         <div class="metric-label mb-1">設定構文チェック</div>
                         <div id="syntaxOk" class="metric-val mb-1">-</div>
-                        <span id="badgeSyntax" class="badge-unavail">取得中...</span>
+                        <span id="badgeSyntax" class="badge-unavail">-</span>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -118,6 +118,7 @@
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('apache')):renderSidebar('apache');</script>
 <script>
 const API_BASE = '/api';
 let authToken = localStorage.getItem('access_token') || '';
