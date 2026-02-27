@@ -305,33 +305,29 @@ def authenticate_user(email: str, password: str) -> Optional[User]:
     """
     from .config import settings
 
-    # 開発環境では簡易認証を使用
-    if settings.environment == "development":
-        user_data = DEMO_USERS_DEV.get(email)
+    # デモユーザーから取得（開発・本番共通）
+    # NOTE: 本番DBが実装されるまでの暫定措置
+    user_data = DEMO_USERS_DEV.get(email)
 
-        if not user_data:
-            logger.warning(f"Authentication failed: user not found - {email}")
-            return None
-
-        user = user_data["user"]
-        plain_password = user_data["plain_password"]
-
-        if user.disabled:
-            logger.warning(f"Authentication failed: user disabled - {email}")
-            return None
-
-        # 開発環境: plain text 比較
-        if password != plain_password:
-            logger.warning(f"Authentication failed: invalid password - {email}")
-            return None
-
-        logger.info(f"Authentication successful (DEV mode): {email}")
-        return user
-
-    else:
-        # 本番環境: bcrypt 使用（TODO: データベースから取得）
-        logger.error("Production authentication not implemented yet")
+    if not user_data:
+        logger.warning(f"Authentication failed: user not found - {email}")
         return None
+
+    user = user_data["user"]
+    plain_password = user_data["plain_password"]
+
+    if user.disabled:
+        logger.warning(f"Authentication failed: user disabled - {email}")
+        return None
+
+    # 開発環境: plain text 比較
+    if password != plain_password:
+        logger.warning(f"Authentication failed: invalid password - {email}")
+        return None
+
+    env_label = "DEV" if settings.environment == "development" else "PROD"
+    logger.info(f"Authentication successful ({env_label} mode): {email}")
+    return user
 
 
 # ===================================================================

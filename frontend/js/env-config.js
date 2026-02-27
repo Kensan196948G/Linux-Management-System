@@ -67,14 +67,34 @@
             console.groupEnd();
 
             // 環境バッジを表示（開発環境: 黄、本番環境: 赤）
+            const isProd = info.environment === 'production';
+            const envLabel = isProd ? '【本番】' : '【開発】';
+            const envColor = isProd ? '#dc2626' : '#f59e0b';
+            const envTextColor = isProd ? '#fff' : '#1c1917';
+
+            // document.title を環境に合わせて更新
+            if (document.title) {
+                document.title = document.title
+                    .replace(/【開発】|【本番】/g, envLabel);
+            }
+
+            // ページ内の .env-badge 要素のテキストを動的更新
+            document.querySelectorAll('.env-badge').forEach(function (el) {
+                el.textContent = envLabel;
+                el.style.background = envColor;
+                el.style.color = envTextColor;
+                el.classList.toggle('dev', !isProd);
+                el.classList.toggle('prod', isProd);
+            });
+
+            // 右下固定バッジ
             if (info.environment === 'development' || info.environment === 'production') {
-                const isProd = info.environment === 'production';
                 const badge = document.createElement('div');
                 badge.id = 'env-badge';
                 badge.style.cssText = [
                     'position:fixed', 'bottom:8px', 'right:8px', 'z-index:9999',
-                    `background:${isProd ? '#dc2626' : '#f59e0b'}`,
-                    `color:${isProd ? '#fff' : '#1c1917'}`,
+                    `background:${envColor}`,
+                    `color:${envTextColor}`,
                     'font-size:10px',
                     'font-weight:700', 'padding:3px 8px', 'border-radius:4px',
                     'opacity:0.85', 'pointer-events:none', 'font-family:monospace'
