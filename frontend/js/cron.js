@@ -154,7 +154,7 @@ class CronManager {
             });
 
             // 自分自身を選択状態にする
-            if (this.currentUser && this.currentUser.role !== 'admin') {
+            if (this.currentUser && this.currentUser.role.toLowerCase() !== 'admin') {
                 userSelect.value = this.currentUser.username;
                 this.selectedUsername = this.currentUser.username;
                 userSelect.disabled = true;

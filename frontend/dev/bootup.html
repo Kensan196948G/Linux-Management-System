@@ -6,7 +6,7 @@
     <title>起動・シャットダウン管理 - Linux Management System</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <style>
         .status-card {
             background: white;
@@ -200,8 +200,9 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../js/api.js"></script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/env-config.js"></script>
+    <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
 <script src="../js/components.js"></script>
 <script>
@@ -214,7 +215,7 @@ let allServices = [];
 
 // ── 初期化 ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-    initSidebar();
+    if (typeof initSidebar === 'function') initSidebar();
     loadBootupStatus();
 });
 
@@ -398,7 +399,7 @@ function showAlert(type, msg) {
 }
 
 async function apiGet(url) {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     const resp = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
@@ -410,7 +411,7 @@ async function apiGet(url) {
 }
 
 async function apiPost(url, body) {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     const resp = await fetch(url, {
         method: 'POST',
         headers: {

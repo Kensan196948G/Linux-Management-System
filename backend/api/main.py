@@ -98,6 +98,7 @@ frontend_dir = Path(__file__).parent.parent.parent / "frontend"
 # CSS, JS ファイルの配信
 app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
 app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
+app.mount("/vendor", StaticFiles(directory=str(frontend_dir / "vendor")), name="vendor")
 
 # dev, prod ディレクトリの配信
 app.mount(
@@ -115,7 +116,7 @@ app.mount(
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 _login_attempts: dict[str, list[float]] = defaultdict(list)
 
-RATE_LIMIT_PER_MINUTE = 60  # 1分あたりのAPIリクエスト上限
+RATE_LIMIT_PER_MINUTE = 300  # 1分あたりのAPIリクエスト上限（ダッシュボード等複数呼び出し対応）
 LOGIN_MAX_ATTEMPTS = 5  # ログイン試行上限
 LOGIN_LOCKOUT_SECONDS = 900  # ロック時間（15分）
 
@@ -138,6 +139,7 @@ async def security_headers(request: Request, call_next):
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self' data:; "
         "img-src 'self' data:; "
         "connect-src 'self'"
     )

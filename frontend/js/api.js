@@ -203,12 +203,184 @@ class APIClient {
         });
     }
 
+    async getAllServerStatus() {
+        return await this.request('GET', '/api/servers/status');
+    }
+
+    async getServerStatus(server) {
+        return await this.request('GET', `/api/servers/${server}/status`);
+    }
+
     // ===================================================================
     // ログ API
     // ===================================================================
 
     async getLogs(serviceName, lines = 100) {
         return await this.request('GET', `/api/logs/${serviceName}?lines=${lines}`);
+    }
+
+    // ===================================================================
+    // ユーザー・グループ API
+    // ===================================================================
+
+    async getUsers(limit = 100) {
+        return await this.request('GET', `/api/users?limit=${limit}`);
+    }
+
+    async getUserGroups() {
+        return await this.request('GET', '/api/users/groups/list');
+    }
+
+    // ===================================================================
+    // Cron API
+    // ===================================================================
+
+    async getCronJobs(username = 'root') {
+        return await this.request('GET', `/api/cron/${encodeURIComponent(username)}`);
+    }
+
+    // ===================================================================
+    // 監査ログ API
+    // ===================================================================
+
+    async getAuditLogs(page = 1, perPage = 50) {
+        return await this.request('GET', `/api/audit/logs?page=${page}&per_page=${perPage}`);
+    }
+
+    async exportAuditLogs() {
+        return await this.request('GET', '/api/audit/logs/export');
+    }
+
+    // ===================================================================
+    // 時刻 API
+    // ===================================================================
+
+    async getTimeStatus() {
+        return await this.request('GET', '/api/time/status');
+    }
+
+    async getTimezones() {
+        return await this.request('GET', '/api/time/timezones');
+    }
+
+    // ===================================================================
+    // クォータ API
+    // ===================================================================
+
+    async getQuotasStatus() {
+        return await this.request('GET', '/api/quotas/status');
+    }
+
+    async getQuotaUsers() {
+        return await this.request('GET', '/api/quotas/users');
+    }
+
+    // ===================================================================
+    // 帯域幅 API
+    // ===================================================================
+
+    async getBandwidthSummary() {
+        return await this.request('GET', '/api/bandwidth/summary');
+    }
+
+    async getBandwidthInterfaces() {
+        return await this.request('GET', '/api/bandwidth/interfaces');
+    }
+
+    async getBandwidthLive() {
+        return await this.request('GET', '/api/bandwidth/live');
+    }
+
+    // ===================================================================
+    // DB モニター API
+    // ===================================================================
+
+    async getDbStatus(dbType = 'mysql') {
+        return await this.request('GET', `/api/dbmonitor/${dbType}/status`);
+    }
+
+    async getDbProcesses(dbType = 'mysql') {
+        return await this.request('GET', `/api/dbmonitor/${dbType}/processes`);
+    }
+
+    // ===================================================================
+    // Apache API
+    // ===================================================================
+
+    async getApacheStatus() {
+        return await this.request('GET', '/api/apache/status');
+    }
+
+    async getApacheConfig() {
+        return await this.request('GET', '/api/apache/config');
+    }
+
+    async getApacheVhosts() {
+        return await this.request('GET', '/api/apache/vhosts');
+    }
+
+    async getApacheLogs(logType = 'error', lines = 50) {
+        return await this.request('GET', `/api/apache/logs?log_type=${logType}&lines=${lines}`);
+    }
+
+    // ===================================================================
+    // Postfix API
+    // ===================================================================
+
+    async getPostfixStatus() {
+        return await this.request('GET', '/api/postfix/status');
+    }
+
+    async getPostfixQueue() {
+        return await this.request('GET', '/api/postfix/queue');
+    }
+
+    // ===================================================================
+    // ネットワーク追加 API
+    // ===================================================================
+
+    async getNetworkDns() {
+        return await this.request('GET', '/api/network/dns');
+    }
+
+    async getNetworkConnections() {
+        return await this.request('GET', '/api/network/connections');
+    }
+
+    async getNetworkRoutes() {
+        return await this.request('GET', '/api/network/routes');
+    }
+
+    // ===================================================================
+    // ファイアウォール API
+    // ===================================================================
+
+    async getFirewallStatus() {
+        return await this.request('GET', '/api/firewall/status');
+    }
+
+    async getFirewallRules() {
+        return await this.request('GET', '/api/firewall/rules');
+    }
+
+    // ===================================================================
+    // ブートアップ API
+    // ===================================================================
+
+    async getBootupStatus() {
+        return await this.request('GET', '/api/bootup/status');
+    }
+
+    // ===================================================================
+    // 承認フロー API
+    // ===================================================================
+
+    async getApprovalPending() {
+        return await this.request('GET', '/api/approval/pending');
+    }
+
+    async getMyApprovalRequests() {
+        return await this.request('GET', '/api/approval/my-requests');
     }
 }
 

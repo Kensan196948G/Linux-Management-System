@@ -329,7 +329,7 @@ class UserManager {
         this.showLoading('groupTableBody');
 
         try {
-            const response = await api.request('GET', '/api/groups');
+            const response = await api.request('GET', '/api/users/groups/list');
             console.log('UserManager: Groups loaded', response);
 
             this.groups = response.groups || [];
