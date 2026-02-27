@@ -159,28 +159,38 @@ def approval_db_path(tmp_path):
     return str(tmp_path / "test_approval.db")
 
 
+def _init_approval_db_sync(db_path: str) -> None:
+    """承認DBを同期的に初期化（asyncio競合回避）"""
+    import sqlite3
+    from pathlib import Path
+
+    schema_path = (
+        Path(__file__).parent.parent / "docs" / "database" / "approval-schema.sql"
+    )
+    schema_sql = schema_path.read_text(encoding="utf-8")
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(schema_sql)
+
+
 @pytest.fixture
 def approval_service(approval_db_path):
     """テスト用 ApprovalService（DB初期化済み）"""
-    import asyncio
     from backend.core.approval_service import ApprovalService
 
-    service = ApprovalService(db_path=approval_db_path)
-    asyncio.run(service.initialize_db())
-    return service
+    _init_approval_db_sync(approval_db_path)
+    return ApprovalService(db_path=approval_db_path)
 
 
 @pytest.fixture
 def approval_service_with_mock_audit(approval_db_path, audit_log):
     """テスト用 ApprovalService（監査ログモック付き）"""
-    import asyncio
     from backend.core.approval_service import ApprovalService
 
+    _init_approval_db_sync(approval_db_path)
     service = ApprovalService(db_path=approval_db_path)
     service.audit_log = audit_log
-    asyncio.run(service.initialize_db())
     return service
-
 
 
 @pytest.fixture(autouse=True)

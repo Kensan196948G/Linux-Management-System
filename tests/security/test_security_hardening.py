@@ -4,12 +4,20 @@ Security Hardening Tests
 Production環境のセキュリティ強化機能をテスト
 """
 
+import asyncio
+import concurrent.futures
 import json
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+def _run_async(coro):
+    """別スレッドでコルーチンを実行（running event loop競合を回避）"""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(asyncio.run, coro).result()
 
 from backend.core.audit_log import AuditLog
 from backend.core.config import Settings, load_config
@@ -59,13 +67,11 @@ class TestProductionCORS:
 class TestJWTSecretValidation:
     """JWT秘密鍵の起動時検証テスト"""
 
-    @pytest.mark.asyncio
     @patch("backend.api.main.settings")
-    async def test_production_startup_fails_with_default_jwt_secret(self, mock_settings):
+    def test_production_startup_fails_with_default_jwt_secret(self, mock_settings):
         """Production起動時にデフォルトのJWT秘密鍵で失敗すること"""
         from backend.api.main import validate_production_config
 
-        # Production環境のモック設定
         mock_settings.environment = "production"
         mock_settings.jwt_secret_key = "change-this-in-production"
         mock_settings.security.require_https = True
@@ -73,17 +79,14 @@ class TestJWTSecretValidation:
         mock_settings.features.api_docs_enabled = False
         mock_settings.cors_origins = ["https://example.com"]
 
-        # 起動時検証が失敗することを確認
         with pytest.raises(RuntimeError, match="JWT_SECRET not configured"):
-            await validate_production_config()
+            _run_async(validate_production_config())
 
-    @pytest.mark.asyncio
     @patch("backend.api.main.settings")
-    async def test_production_startup_fails_without_https(self, mock_settings):
+    def test_production_startup_fails_without_https(self, mock_settings):
         """Production起動時にHTTPS無効で失敗すること"""
         from backend.api.main import validate_production_config
 
-        # Production環境のモック設定
         mock_settings.environment = "production"
         mock_settings.jwt_secret_key = "secure-production-secret-key"
         mock_settings.security.require_https = False
@@ -91,17 +94,14 @@ class TestJWTSecretValidation:
         mock_settings.features.api_docs_enabled = False
         mock_settings.cors_origins = ["https://example.com"]
 
-        # 起動時検証が失敗することを確認
         with pytest.raises(RuntimeError, match="HTTPS must be required"):
-            await validate_production_config()
+            _run_async(validate_production_config())
 
-    @pytest.mark.asyncio
     @patch("backend.api.main.settings")
-    async def test_production_startup_fails_with_debug_mode(self, mock_settings):
+    def test_production_startup_fails_with_debug_mode(self, mock_settings):
         """Production起動時にデバッグモード有効で失敗すること"""
         from backend.api.main import validate_production_config
 
-        # Production環境のモック設定
         mock_settings.environment = "production"
         mock_settings.jwt_secret_key = "secure-production-secret-key"
         mock_settings.security.require_https = True
@@ -109,17 +109,14 @@ class TestJWTSecretValidation:
         mock_settings.features.api_docs_enabled = False
         mock_settings.cors_origins = ["https://example.com"]
 
-        # 起動時検証が失敗することを確認
         with pytest.raises(RuntimeError, match="Debug mode must be disabled"):
-            await validate_production_config()
+            _run_async(validate_production_config())
 
-    @pytest.mark.asyncio
     @patch("backend.api.main.settings")
-    async def test_production_startup_fails_with_wildcard_cors(self, mock_settings):
+    def test_production_startup_fails_with_wildcard_cors(self, mock_settings):
         """Production起動時にワイルドカードCORSで失敗すること"""
         from backend.api.main import validate_production_config
 
-        # Production環境のモック設定
         mock_settings.environment = "production"
         mock_settings.jwt_secret_key = "secure-production-secret-key"
         mock_settings.security.require_https = True
@@ -127,20 +124,17 @@ class TestJWTSecretValidation:
         mock_settings.features.api_docs_enabled = False
         mock_settings.cors_origins = ["https://example.com", "*"]
 
-        # 起動時検証が失敗することを確認
         with pytest.raises(RuntimeError, match="Wildcard CORS origin"):
-            await validate_production_config()
+            _run_async(validate_production_config())
 
-    @pytest.mark.asyncio
     @patch("backend.api.main.settings")
     @patch("backend.api.main.logger")
-    async def test_production_startup_warns_with_api_docs(
+    def test_production_startup_warns_with_api_docs(
         self, mock_logger, mock_settings
     ):
         """Production起動時にAPIドキュメント有効で警告すること"""
         from backend.api.main import validate_production_config
 
-        # Production環境のモック設定
         mock_settings.environment = "production"
         mock_settings.jwt_secret_key = "secure-production-secret-key"
         mock_settings.security.require_https = True
@@ -148,20 +142,16 @@ class TestJWTSecretValidation:
         mock_settings.features.api_docs_enabled = True
         mock_settings.cors_origins = ["https://example.com"]
 
-        # 警告は出るが起動は成功
-        await validate_production_config()
+        _run_async(validate_production_config())
 
-        # 警告ログが出力されていることを確認
         mock_logger.warning.assert_called_once()
         assert "API docs are enabled" in str(mock_logger.warning.call_args)
 
-    @pytest.mark.asyncio
     @patch("backend.api.main.settings")
-    async def test_production_startup_success_with_valid_config(self, mock_settings):
+    def test_production_startup_success_with_valid_config(self, mock_settings):
         """Production起動時に正しい設定で成功すること"""
         from backend.api.main import validate_production_config
 
-        # Production環境のモック設定
         mock_settings.environment = "production"
         mock_settings.jwt_secret_key = "secure-production-secret-key"
         mock_settings.security.require_https = True
@@ -169,8 +159,7 @@ class TestJWTSecretValidation:
         mock_settings.features.api_docs_enabled = False
         mock_settings.cors_origins = ["https://example.com"]
 
-        # 起動時検証が成功することを確認
-        await validate_production_config()  # 例外が発生しないことを確認
+        _run_async(validate_production_config())  # 例外が発生しないことを確認
 
 
 class TestAuditLogRBAC:

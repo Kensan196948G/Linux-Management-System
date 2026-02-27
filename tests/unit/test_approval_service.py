@@ -30,12 +30,17 @@ from backend.core.approval_service import (
 
 
 def run_async(coro):
-    """asyncio コルーチンを同期的に実行"""
-    loop = asyncio.new_event_loop()
+    """asyncio コルーチンを同期的に実行（running loop対応）"""
+    import asyncio
     try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+        loop = asyncio.get_running_loop()
+        # 既にrunning loopがある場合は新しいスレッドで実行
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+    except RuntimeError:
+        return asyncio.run(coro)
 
 
 # ============================================================================

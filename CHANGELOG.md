@@ -11,6 +11,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] - 2026-02-27
+
+**v0.8 リリース** - テスト安定化（110 ERROR → 0）・Disk Quotas モジュール
+
+### Added
+
+#### Disk Quotas 管理モジュール
+- **wrappers/adminui-quotas.sh**: ディスククォータ管理ラッパースクリプト
+  - status/user/group/users/set/report サブコマンド
+  - quota ツール未インストール時のフォールバック（`{"status":"unavailable"}`）
+  - allowlist 制御（user/group/filesystem パターン正規表現検証）
+  - setquota による user/group クォータ設定（soft/hard/inode）
+- **GET /api/quotas/status**: ファイルシステム別クォータ状態取得
+- **GET /api/quotas/users**: 全ユーザークォータ一覧
+- **GET /api/quotas/user/{username}**: 特定ユーザーのクォータ情報
+- **GET /api/quotas/group/{groupname}**: 特定グループのクォータ情報
+- **GET /api/quotas/report**: 詳細クォータレポート
+- **POST /api/quotas/set**: ユーザー/グループクォータ設定（Admin/Approver のみ）
+  - Pydantic バリデーション（名前・ファイルシステムパターン・値範囲）
+- **tests/integration/test_quotas_api.py**: 25件テスト（全 PASS）
+- **frontend/dev/quotas.html**: ディスククォータ管理 WebUI
+  - ユーザークォータ一覧（使用率バー・状態バッジ）
+  - クォータレポート表示
+  - クォータ設定フォーム（write:quotas 権限保持者のみ表示）
+- **backend/core/auth.py**: 全ロールに `read:quotas` 権限追加、Admin/Approver に `write:quotas` 追加
+- **frontend/dev/dashboard.html**: ダッシュボードメニューに「ディスククォータ」追加
+
+### Fixed
+
+#### テスト安定化（0 ERROR・0 FAIL 達成）
+- **110 ERROR → 0 ERROR**: `asyncio.new_event_loop().run_until_complete()` → `sqlite3` 同期 DB 初期化に変換
+  - `tests/conftest.py`: `_init_approval_db_sync()` 追加、asyncio 依存を完全排除
+  - `tests/integration/test_approval_api.py`: module-scope fixture + sqlite3 クリーンアップ
+  - `tests/integration/test_approval_extended.py`: 同上
+  - `tests/unit/test_approval_service.py`: `run_async()` を ThreadPoolExecutor 対応に変更
+- **6 FAIL → 0 FAIL** (`TestJWTSecretValidation`): `@pytest.mark.asyncio` + `@patch` の running loop 競合を解消
+  - `tests/security/test_security_hardening.py`: async テストを同期化、`_run_async()` (ThreadPoolExecutor) を使用
+- **pytest.ini**: `asyncio_mode = auto`・`asyncio_default_fixture_loop_scope = function` 追加
+
+### Statistics
+- テスト数: 764 → 902 PASS (+138件)
+- ERROR: 110 → 0
+- FAIL: 6 → 0
+
+---
+
 ## [0.7.0] - 2026-02-27
 
 **v0.7 リリース** - Bootup/Shutdown管理・System Time管理・GitHub Copilot統合設定

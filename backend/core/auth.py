@@ -78,6 +78,8 @@ ROLES = {
             "read:users",
             "read:bootup",
             "read:time",
+            # クォータ管理
+            "read:quotas",
         ],
     ),
     "Operator": UserRole(
@@ -105,6 +107,8 @@ ROLES = {
             "read:audit",
             "read:bootup",
             "read:time",
+            # クォータ管理
+            "read:quotas",
         ],
     ),
     "Approver": UserRole(
@@ -136,6 +140,9 @@ ROLES = {
             "read:audit",
             "read:bootup",
             "read:time",
+            # クォータ管理
+            "read:quotas",
+            "write:quotas",
         ],
     ),
     "Admin": UserRole(
@@ -179,6 +186,9 @@ ROLES = {
             # システム時刻管理
             "read:time",
             "write:time",
+            # クォータ管理
+            "read:quotas",
+            "write:quotas",
         ],
     ),
 }

@@ -22,16 +22,36 @@ import pytest
 # ============================================================================
 
 
+@pytest.fixture(scope="module", autouse=True)
+def init_approval_db(tmp_path_factory):
+    """APIルートの approval_service を一時DBで初期化する（モジュール単位）"""
+    import asyncio
+    import sqlite3
+    from backend.api.routes import approval as approval_module
+    from pathlib import Path
+
+    # テスト専用の一時DBを使用
+    tmp_db = str(tmp_path_factory.mktemp("approval_db") / "test_approval.db")
+    approval_module.approval_service.db_path = tmp_db
+
+    # スキーマファイルを同期的にSQLiteへ適用
+    schema_path = Path(__file__).parent.parent.parent / "docs" / "database" / "approval-schema.sql"
+    schema_sql = schema_path.read_text(encoding="utf-8")
+    with sqlite3.connect(tmp_db) as conn:
+        conn.executescript(schema_sql)
+    yield
+
+
 @pytest.fixture(autouse=True)
-def init_approval_db():
-    """APIルートの approval_service の DB を初期化する"""
+def cleanup_approval_db():
+    """各テスト前にDBデータをクリーンアップする（同期sqlite3使用）"""
+    import sqlite3
     from backend.api.routes.approval import approval_service
 
-    loop = asyncio.new_event_loop()
-    try:
-        loop.run_until_complete(approval_service.initialize_db())
-    finally:
-        loop.close()
+    with sqlite3.connect(approval_service.db_path) as conn:
+        conn.execute("DELETE FROM approval_history")
+        conn.execute("DELETE FROM approval_requests")
+        conn.commit()
     yield
 
 

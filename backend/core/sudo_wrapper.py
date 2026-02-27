@@ -1028,6 +1028,128 @@ class SudoWrapper:
         """
         return self._execute("adminui-time.sh", ["set-timezone", timezone])
 
+    # ===================================================================
+    # Disk Quota 管理
+    # ===================================================================
+
+    def get_quota_status(self, filesystem: str = "") -> Dict[str, Any]:
+        """ディスククォータの全体状態を取得
+
+        Args:
+            filesystem: 対象ファイルシステム（省略時は全体）
+
+        Returns:
+            実行結果の辞書
+        """
+        args = ["status"]
+        if filesystem:
+            args.append(filesystem)
+        return self._execute("adminui-quotas.sh", args)
+
+    def get_user_quota(self, username: str) -> Dict[str, Any]:
+        """特定ユーザーのクォータ情報を取得
+
+        Args:
+            username: ユーザー名（allowlist検証済み）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-quotas.sh", ["user", username])
+
+    def get_group_quota(self, groupname: str) -> Dict[str, Any]:
+        """特定グループのクォータ情報を取得
+
+        Args:
+            groupname: グループ名（allowlist検証済み）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-quotas.sh", ["group", groupname])
+
+    def get_all_user_quotas(self, filesystem: str = "") -> Dict[str, Any]:
+        """全ユーザーのクォータ一覧を取得
+
+        Args:
+            filesystem: 対象ファイルシステム（省略時は全体）
+
+        Returns:
+            実行結果の辞書
+        """
+        args = ["users"]
+        if filesystem:
+            args.append(filesystem)
+        return self._execute("adminui-quotas.sh", args)
+
+    def set_user_quota(
+        self,
+        username: str,
+        filesystem: str,
+        soft_kb: int,
+        hard_kb: int,
+        isoft: int = 0,
+        ihard: int = 0,
+    ) -> Dict[str, Any]:
+        """ユーザーのディスククォータを設定（承認フロー経由で呼び出すこと）
+
+        Args:
+            username: 対象ユーザー名
+            filesystem: 対象ファイルシステム
+            soft_kb: ソフトリミット（KB）
+            hard_kb: ハードリミット（KB）
+            isoft: inode ソフトリミット（省略時0=無制限）
+            ihard: inode ハードリミット（省略時0=無制限）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute(
+            "adminui-quotas.sh",
+            ["set", "user", username, filesystem, str(soft_kb), str(hard_kb), str(isoft), str(ihard)],
+        )
+
+    def set_group_quota(
+        self,
+        groupname: str,
+        filesystem: str,
+        soft_kb: int,
+        hard_kb: int,
+        isoft: int = 0,
+        ihard: int = 0,
+    ) -> Dict[str, Any]:
+        """グループのディスククォータを設定（承認フロー経由で呼び出すこと）
+
+        Args:
+            groupname: 対象グループ名
+            filesystem: 対象ファイルシステム
+            soft_kb: ソフトリミット（KB）
+            hard_kb: ハードリミット（KB）
+            isoft: inode ソフトリミット（省略時0=無制限）
+            ihard: inode ハードリミット（省略時0=無制限）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute(
+            "adminui-quotas.sh",
+            ["set", "group", groupname, filesystem, str(soft_kb), str(hard_kb), str(isoft), str(ihard)],
+        )
+
+    def get_quota_report(self, filesystem: str = "") -> Dict[str, Any]:
+        """クォータレポートを取得
+
+        Args:
+            filesystem: 対象ファイルシステム（省略時は全体）
+
+        Returns:
+            実行結果の辞書
+        """
+        args = ["report"]
+        if filesystem:
+            args.append(filesystem)
+        return self._execute("adminui-quotas.sh", args)
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()
