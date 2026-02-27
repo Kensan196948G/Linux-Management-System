@@ -11,6 +11,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.10.0] - 2026-02-27
+
+**v0.10.0 リリース** - 動的IP検出・URL設定・Systemd自動起動登録
+
+### Added
+
+#### 動的IP検出システム
+- **scripts/detect-ip.sh**: デフォルトルートNIC経由でIPを自動検出
+  - 3段階フォールバック: UDP trick → hostname -I → 127.0.0.1
+  - `.env.runtime` に DEV/PROD の URL・ポート情報を書き出す
+  - Systemd `ExecStartPre` とスタンドアロン両方で利用可能
+  - ShellCheck エラーゼロ確認済み
+- **backend/core/config.py**: `_detect_primary_ip()` / `_build_cors_origins()` 追加
+  - 起動時に実際のIPを取得しCORS・api_base_urlを動的設定
+  - `.env.runtime` → 環境変数 → UDP socket の優先順位でIP取得
+- **GET /api/info エンドポイント**: 環境/IP/ポート/URL情報をJSON返却
+  - `{"detected_ip":"192.168.0.185","urls":{"http":"...","api_http":"..."},...}`
+- **frontend/js/env-config.js**: `/api/info` から動的URLを取得してフロントエンドに設定
+  - DEV環境ではページ右上にDEVバッジ表示
+  - `window.API_BASE_URL` を自動設定
+
+#### Systemd サービス登録
+- **systemd/linux-management-dev.service**: 開発環境自動起動サービス
+  - `ExecStartPre=detect-ip.sh` でIP自動検出
+  - `After=network-online.target` でネットワーク待機
+  - `PATH=/home/kensan/.local/bin:...` でuvicorn/gunicornを認識
+  - `EnvironmentFile=-.env.runtime` で動的IP変数を読み込む
+- **systemd/linux-management-prod.service**: 本番環境サービス（同様の改善）
+- **scripts/install-service.sh**: 全面書き直し（自動化・6コマンド対応）
+  - `dev/prod/status/start/stop/restart/log/uninstall` コマンド
+  - detect-ip.sh を自動呼び出し
+
+### Changed
+- `config/dev.json`: 固定IP削除・CORS動的化（CORS自動生成）
+- `scripts/start-dev-server.sh`: `--systemd` オプション追加・動的URL表示
+- `backend/api/main.py`: 起動ログに Detected IP・URL 追加
+- `.gitignore`: `.env.runtime` を除外（動的生成ファイル）
+
+### Tests
+- 979 PASS / 0 FAIL / 41 SKIP（既存テスト全通過）
+- カバレッジ: 88.92%
+
+### Infrastructure
+- Systemd dev サービス: **active (running)** ✅
+- 検出IP: 192.168.0.185
+- Dev URL: http://192.168.0.185:5012
+- API Info: http://192.168.0.185:5012/api/info
+
+---
+
 ## [0.9.2] - 2026-03-01
 
 **v0.9.2 リリース** - Postfix メール管理モジュール・テスト安定化
