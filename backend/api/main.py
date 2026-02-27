@@ -271,21 +271,26 @@ async def api_info():
     ip = settings.detected_ip
     http_port = settings.server.http_port
     https_port = settings.server.https_port
+    is_prod = settings.environment == "production"
+    # 本番ではHTTP/HTTPS両方、開発はHTTPのみ
+    api_base = f"https://{ip}:{https_port}/api" if (is_prod and settings.server.ssl_enabled) else f"http://{ip}:{http_port}/api"
     return {
         "environment": settings.environment,
-        "version": "0.9.2",
+        "version": "0.10.0",
         "detected_ip": ip,
         "urls": {
             "http": f"http://{ip}:{http_port}",
             "https": f"https://{ip}:{https_port}",
             "api_http": f"http://{ip}:{http_port}/api",
             "api_https": f"https://{ip}:{https_port}/api",
+            "api_base": api_base,
             "docs": f"http://{ip}:{http_port}/api/docs" if settings.features.api_docs_enabled else None,
         },
         "ports": {
             "http": http_port,
             "https": https_port,
         },
+        "ssl_enabled": settings.server.ssl_enabled,
     }
 
 

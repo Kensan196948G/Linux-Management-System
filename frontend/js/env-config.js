@@ -46,6 +46,8 @@
      */
     window.getApiBaseUrl = async function () {
         const info = await fetchServerInfo();
+        // api_base があれば優先（本番/開発で最適なプロトコルを返す）
+        if (info.urls && info.urls.api_base) return info.urls.api_base;
         const isHttps = window.location.protocol === 'https:';
         return isHttps ? info.urls.api_https : info.urls.api_http;
     };
@@ -64,17 +66,21 @@
             }
             console.groupEnd();
 
-            // 環境バッジを表示（開発環境のみ）
-            if (info.environment === 'development') {
+            // 環境バッジを表示（開発環境: 黄、本番環境: 赤）
+            if (info.environment === 'development' || info.environment === 'production') {
+                const isProd = info.environment === 'production';
                 const badge = document.createElement('div');
                 badge.id = 'env-badge';
                 badge.style.cssText = [
                     'position:fixed', 'bottom:8px', 'right:8px', 'z-index:9999',
-                    'background:#f59e0b', 'color:#1c1917', 'font-size:10px',
+                    `background:${isProd ? '#dc2626' : '#f59e0b'}`,
+                    `color:${isProd ? '#fff' : '#1c1917'}`,
+                    'font-size:10px',
                     'font-weight:700', 'padding:3px 8px', 'border-radius:4px',
-                    'opacity:0.8', 'pointer-events:none', 'font-family:monospace'
+                    'opacity:0.85', 'pointer-events:none', 'font-family:monospace'
                 ].join(';');
-                badge.textContent = `DEV ${info.detected_ip}:${info.ports.http}`;
+                const label = isProd ? 'PROD' : 'DEV';
+                badge.textContent = `${label} ${info.detected_ip}:${info.ports.http}`;
                 document.body.appendChild(badge);
             }
         } catch (_) {

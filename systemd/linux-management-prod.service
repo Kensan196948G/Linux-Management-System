@@ -6,33 +6,29 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-
-# 本番環境用サービスユーザー（svc-adminui）
-# 注意: このユーザーを事前に作成する必要があります
-#   sudo useradd -r -s /bin/false -d /opt/linux-management svc-adminui
-User=svc-adminui
-Group=svc-adminui
-WorkingDirectory=/opt/linux-management
+User=kensan
+Group=kensan
+WorkingDirectory=/mnt/LinuxHDD/Linux-Management-Systm
 
 # 環境変数
 Environment="ENV=prod"
 Environment="PYTHONUNBUFFERED=1"
-Environment="PATH=/opt/linux-management/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PATH=/home/kensan/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # .env ファイルから静的環境変数を読み込む
-EnvironmentFile=/opt/linux-management/.env
+EnvironmentFile=/mnt/LinuxHDD/Linux-Management-Systm/.env
 
 # 起動前: IPアドレスを自動検出して .env.runtime に書き出す
-ExecStartPre=/opt/linux-management/scripts/detect-ip.sh
+ExecStartPre=/mnt/LinuxHDD/Linux-Management-Systm/scripts/detect-ip.sh
 
 # .env.runtime（detect-ip.sh が生成）を読み込む
-EnvironmentFile=-/opt/linux-management/.env.runtime
+EnvironmentFile=-/mnt/LinuxHDD/Linux-Management-Systm/.env.runtime
 
 # 実行コマンド（本番: gunicorn + uvicorn worker）
-ExecStart=/opt/linux-management/venv/bin/gunicorn \
+ExecStart=/home/kensan/.local/bin/gunicorn \
     backend.api.main:app \
-    --bind 0.0.0.0:${PROD_PORT} \
-    --workers 4 \
+    --bind 0.0.0.0:8000 \
+    --workers 2 \
     --worker-class uvicorn.workers.UvicornWorker \
     --timeout 120 \
     --keep-alive 5 \
@@ -40,7 +36,7 @@ ExecStart=/opt/linux-management/venv/bin/gunicorn \
     --max-requests-jitter 50 \
     --access-logfile - \
     --error-logfile - \
-    --log-level info
+    --log-level warning
 
 # 再起動ポリシー（本番環境）
 Restart=always
@@ -50,17 +46,11 @@ RestartSec=10s
 TimeoutStartSec=60
 TimeoutStopSec=30
 
-# プロセス制限
+# リソース制限
 LimitNOFILE=65536
-LimitNPROC=512
 
-# セキュリティ強化（本番環境）
+# セキュリティ強化
 PrivateTmp=yes
-ProtectSystem=full
-ProtectHome=yes
-ProtectKernelModules=yes
-ProtectKernelLogs=yes
-PrivateIPC=yes
 NoNewPrivileges=yes
 
 # ログ設定

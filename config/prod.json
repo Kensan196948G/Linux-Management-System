@@ -4,43 +4,49 @@
     "host": "0.0.0.0",
     "http_port": 8000,
     "https_port": 8443,
-    "ssl_enabled": true,
+    "ssl_enabled": false,
     "ssl_cert": "./certs/prod/cert.pem",
     "ssl_key": "./certs/prod/key.pem"
   },
   "database": {
-    "path": "/var/lib/linux-management/database.db",
-    "backup_enabled": true,
+    "path": "/mnt/LinuxHDD/Linux-Management-Systm/data/database.db",
+    "backup_enabled": false,
     "backup_interval": 86400
   },
   "logging": {
-    "level": "INFO",
-    "file": "/var/log/linux-management/app.log",
+    "level": "WARNING",
+    "file": "/mnt/LinuxHDD/Linux-Management-Systm/logs/prod.log",
     "max_size": "50MB",
     "backup_count": 10
   },
   "security": {
     "allowed_services": [
       "nginx",
-      "postgresql"
+      "apache2",
+      "postgresql",
+      "mysql",
+      "redis",
+      "postfix",
+      "ssh",
+      "cron"
     ],
     "session_timeout": 1800,
     "max_login_attempts": 3,
     "require_https": true
   },
   "cors_origins": [
-    "https://yourdomain.com",
-    "https://admin.yourdomain.com"
+    "https://localhost:8443",
+    "https://127.0.0.1:8443"
   ],
   "features": {
     "demo_data_enabled": false,
     "debug_mode": false,
     "hot_reload": false,
-    "api_docs_enabled": false
+    "api_docs_enabled": true
   },
   "frontend": {
     "title": "【本番】Linux Management System",
     "show_env_badge": true,
-    "api_base_url": "https://localhost:8443/api"
+    "api_base_url": ""
   }
 }
