@@ -453,6 +453,37 @@ async def get_memory(
         return HardwareMemoryResponse(**parsed)
 
     except SudoWrapperError as e:
+        # sudoが使えない環境（NoNewPrivileges等）は /proc/meminfo から直接読む
+        logger.warning(f"Sudo unavailable, falling back to /proc/meminfo: {e}")
+        try:
+            mem = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    key, _, val = line.partition(":")
+                    mem[key.strip()] = int(val.split()[0]) if val.split() else 0
+            parsed = {
+                "status": "success",
+                "memory": {
+                    "total_kb": mem.get("MemTotal", 0),
+                    "free_kb": mem.get("MemFree", 0),
+                    "available_kb": mem.get("MemAvailable", 0),
+                    "buffers_kb": mem.get("Buffers", 0),
+                    "cached_kb": mem.get("Cached", 0),
+                    "swap_total_kb": mem.get("SwapTotal", 0),
+                    "swap_free_kb": mem.get("SwapFree", 0),
+                },
+                "timestamp": __import__("datetime").datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+            audit_log.record(
+                operation="hardware_memory",
+                user_id=current_user.user_id,
+                target="hardware",
+                status="success",
+                details={"source": "proc_fallback"},
+            )
+            return HardwareMemoryResponse(**parsed)
+        except Exception as fe:
+            logger.error(f"Hardware memory fallback failed: {fe}")
         audit_log.record(
             operation="hardware_memory",
             user_id=current_user.user_id,

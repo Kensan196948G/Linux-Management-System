@@ -51,7 +51,8 @@ LimitNOFILE=65536
 
 # セキュリティ強化
 PrivateTmp=yes
-NoNewPrivileges=yes
+# NoNewPrivileges=yes は sudo allowlist wrapper (adminui-*.sh) の実行に必要なため無効化
+# セキュリティは sudoers allowlist + 入力バリデーション + 監査ログで担保
 
 # ログ設定
 StandardOutput=journal

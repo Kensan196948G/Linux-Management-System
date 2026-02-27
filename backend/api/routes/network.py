@@ -123,6 +123,34 @@ async def get_interfaces(
         return NetworkInterfacesResponse(**parsed)
 
     except SudoWrapperError as e:
+        # sudoが使えない環境: ip -j コマンドを直接実行（sudo不要）
+        logger.warning(f"Sudo unavailable, falling back to direct ip command: {e}")
+        try:
+            import json as _json
+            import subprocess as _sp
+            from datetime import datetime as _dt
+
+            proc = _sp.run(
+                ["ip", "-j", "addr", "show"],
+                capture_output=True, text=True, timeout=10
+            )
+            if proc.returncode == 0:
+                interfaces = _json.loads(proc.stdout)
+                parsed = {
+                    "status": "success",
+                    "interfaces": interfaces,
+                    "timestamp": _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }
+                audit_log.record(
+                    operation="network_interfaces",
+                    user_id=current_user.user_id,
+                    target="network",
+                    status="success",
+                    details={"source": "ip_fallback", "count": len(interfaces)},
+                )
+                return NetworkInterfacesResponse(**parsed)
+        except Exception as fe:
+            logger.error(f"Network interfaces fallback failed: {fe}")
         audit_log.record(
             operation="network_interfaces",
             user_id=current_user.user_id,

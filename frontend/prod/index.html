@@ -136,11 +136,16 @@
                 console.log('Token valid, redirecting to dashboard...', user);
                 window.location.href = window.location.pathname.replace('index.html','') + 'dashboard.html';
             }).catch((error) => {
-                // トークンが無効な場合はクリア
-                console.warn('Token invalid, clearing...', error);
-                api.clearToken();
-                // ページをリロードしてログインフォームを表示
-                window.location.reload();
+                // 401のみトークンクリア（ネットワークエラーはトークン保持）
+                if (error && error.status === 401) {
+                    console.warn('Token expired, clearing...', error);
+                    api.clearToken();
+                    window.location.reload();
+                } else {
+                    // ネットワークエラー等: ダッシュボードへ遷移（オフライン対応）
+                    console.warn('Network error on auth check, proceeding to dashboard:', error);
+                    window.location.href = window.location.pathname.replace('index.html','') + 'dashboard.html';
+                }
             });
         } else {
             console.log('Not authenticated, showing login form');
