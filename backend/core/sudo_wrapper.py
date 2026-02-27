@@ -6,6 +6,7 @@ CLAUDE.md のセキュリティ原則に従った安全な sudo 実行
 
 import json
 import logging
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Dict
@@ -795,7 +796,88 @@ class SudoWrapper:
         cmd = "variables" if db_type == "mysql" else "status"
         return self._execute("adminui-dbmonitor.sh", [db_type, cmd], timeout=15)
 
+    # ==================================================================
+    # 帯域幅監視（vnstat / ip）
+    # ==================================================================
 
+    _IFACE_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{1,32}$")
+
+    def _validate_iface(self, iface: str) -> None:
+        """インターフェース名をバリデーション"""
+        if not self._IFACE_PATTERN.match(iface):
+            raise ValueError(f"Invalid interface name: {iface}")
+
+    def get_bandwidth_interfaces(self) -> Dict[str, Any]:
+        """ネットワークインターフェース一覧を取得
+
+        Returns:
+            インターフェース一覧の辞書
+        """
+        return self._execute("adminui-bandwidth.sh", ["list"], timeout=10)
+
+    def get_bandwidth_summary(self, iface: str = "") -> Dict[str, Any]:
+        """帯域幅サマリ統計を取得（vnstat / ip -s link）
+
+        Args:
+            iface: インターフェース名（省略時: 全体）
+
+        Returns:
+            サマリ統計の辞書
+        """
+        if iface:
+            self._validate_iface(iface)
+        args = ["summary"] + ([iface] if iface else [])
+        return self._execute("adminui-bandwidth.sh", args, timeout=15)
+
+    def get_bandwidth_daily(self, iface: str = "") -> Dict[str, Any]:
+        """日別帯域幅統計を取得（vnstat -d）
+
+        Args:
+            iface: インターフェース名（省略時: 全体）
+
+        Returns:
+            日別統計の辞書
+        """
+        if iface:
+            self._validate_iface(iface)
+        args = ["daily"] + ([iface] if iface else [])
+        return self._execute("adminui-bandwidth.sh", args, timeout=15)
+
+    def get_bandwidth_hourly(self, iface: str = "") -> Dict[str, Any]:
+        """時間別帯域幅統計を取得（vnstat -h）
+
+        Args:
+            iface: インターフェース名（省略時: 全体）
+
+        Returns:
+            時間別統計の辞書
+        """
+        if iface:
+            self._validate_iface(iface)
+        args = ["hourly"] + ([iface] if iface else [])
+        return self._execute("adminui-bandwidth.sh", args, timeout=15)
+
+    def get_bandwidth_live(self, iface: str = "") -> Dict[str, Any]:
+        """リアルタイム帯域幅を取得（1秒サンプリング）
+
+        Args:
+            iface: インターフェース名（省略時: デフォルトルートのIF）
+
+        Returns:
+            リアルタイム帯域幅の辞書 (rx_bps/tx_bps)
+        """
+        if iface:
+            self._validate_iface(iface)
+        args = ["live"] + ([iface] if iface else [])
+        return self._execute("adminui-bandwidth.sh", args, timeout=10)
+
+    def get_bandwidth_top(self) -> Dict[str, Any]:
+        """全インターフェースの累積トラフィック統計を取得
+
+        Returns:
+            インターフェース別トラフィック統計の辞書
+        """
+        return self._execute("adminui-bandwidth.sh", ["top"], timeout=10)
 
     def get_hardware_disks(self) -> Dict[str, Any]:
         """

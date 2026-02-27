@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>帯域幅監視 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .metric-val { font-size: 24px; font-weight: bold; color: #1e293b; }
+        .metric-label { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+        .tbl th { font-size: 12px; color: #6b7280; font-weight: 600; }
+        .tbl td { font-size: 13px; vertical-align: middle; }
+        .unavail-notice { background:#fefce8; border:1px solid #fde047; border-radius:8px; padding:12px; color:#713f12; font-size:13px; }
+        .iface-tab.active { background: #2563eb; color: white; border-color: #2563eb; }
+        .live-meter { height: 20px; border-radius: 4px; background: #e5e7eb; overflow: hidden; }
+        .live-bar-rx { height: 100%; background: #10b981; transition: width 0.5s; }
+        .live-bar-tx { height: 100%; background: #3b82f6; transition: width 0.5s; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div id="sidebar-container"></div>
+
+    <div class="main-content">
+        <div class="container-fluid py-4">
+            <!-- ヘッダー -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h1 class="h4 mb-0">📊 帯域幅監視</h1>
+                    <p class="text-muted small mb-0">ネットワーク帯域幅のリアルタイム・履歴監視</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <select id="ifaceSelect" class="form-select form-select-sm" style="width:auto" onchange="onIfaceChange()">
+                        <option value="">全インターフェース</option>
+                    </select>
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadAll()">🔄 更新</button>
+                </div>
+            </div>
+
+            <!-- リアルタイム帯域幅 -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="status-title mb-0">⚡ リアルタイム帯域幅</div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="autoRefresh">
+                            <label class="form-check-label small" for="autoRefresh">自動更新 (3秒)</label>
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="loadLive()">🔄</button>
+                    </div>
+                </div>
+                <div id="liveBody">
+                    <div class="text-muted small">読み込み中...</div>
+                </div>
+            </div>
+
+            <!-- サマリ -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">📈 帯域幅サマリ</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadSummary()">🔄 更新</button>
+                </div>
+                <div id="summaryBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+
+            <!-- 全IFトラフィック -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">🌐 全IFトラフィック</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadTop()">🔄 更新</button>
+                </div>
+                <div id="topBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+
+            <!-- 日別統計 -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">📅 日別統計 (vnstat)</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadDaily()">🔄 更新</button>
+                </div>
+                <div id="dailyBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+
+            <!-- 時間別統計 -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">🕐 時間別統計 (vnstat)</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadHourly()">🔄 更新</button>
+                </div>
+                <div id="hourlyBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+let autoRefreshTimer = null;
+const token = () => localStorage.getItem('access_token');
+const iface = () => document.getElementById('ifaceSelect').value;
+
+async function apiFetch(path) {
+    const resp = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token() } });
+    if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+    return resp.json();
+}
+
+function fmtBytes(b) {
+    if (!b) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (b >= 1024 && i < units.length - 1) { b /= 1024; i++; }
+    return b.toFixed(1) + ' ' + units[i];
+}
+
+async function loadInterfaces() {
+    try {
+        const d = await apiFetch('/api/bandwidth/interfaces');
+        const sel = document.getElementById('ifaceSelect');
+        (d.interfaces || []).forEach(name => {
+            if (name === 'lo') return;
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.text = name;
+            sel.appendChild(opt);
+        });
+    } catch(e) { console.warn('iface list:', e); }
+}
+
+async function loadLive() {
+    const el = document.getElementById('liveBody');
+    const q = iface() ? `?iface=${iface()}` : '';
+    try {
+        const d = await apiFetch('/api/bandwidth/live' + q);
+        el.innerHTML = `
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="metric-label">インターフェース</div>
+                <div class="metric-val" style="font-size:18px">${d.interface || '-'}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="metric-label">受信 (RX)</div>
+                <div class="metric-val text-success">${d.rx_kbps} KB/s</div>
+                <div class="live-meter mt-1"><div class="live-bar-rx" style="width:${Math.min(100, d.rx_kbps/100)}%"></div></div>
+            </div>
+            <div class="col-md-4">
+                <div class="metric-label">送信 (TX)</div>
+                <div class="metric-val text-primary">${d.tx_kbps} KB/s</div>
+                <div class="live-meter mt-1"><div class="live-bar-tx" style="width:${Math.min(100, d.tx_kbps/100)}%"></div></div>
+            </div>
+        </div>
+        <div class="text-muted small mt-2">最終更新: ${d.timestamp}</div>`;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadSummary() {
+    const el = document.getElementById('summaryBody');
+    const q = iface() ? `?iface=${iface()}` : '';
+    try {
+        const d = await apiFetch('/api/bandwidth/summary' + q);
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${d.message || 'vnstat が未インストールです'}</div>`;
+            return;
+        }
+        if (d.rx_bytes !== null && d.rx_bytes !== undefined) {
+            el.innerHTML = `
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="metric-label">インターフェース</div>
+                    <div class="metric-val" style="font-size:16px">${d.interface || '-'}</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="metric-label">累積受信</div>
+                    <div class="metric-val text-success">${fmtBytes(d.rx_bytes)}</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="metric-label">累積送信</div>
+                    <div class="metric-val text-primary">${fmtBytes(d.tx_bytes)}</div>
+                </div>
+            </div>`;
+        } else {
+            el.innerHTML = `<pre class="small" style="max-height:200px;overflow:auto">${JSON.stringify(d.data || d, null, 2)}</pre>`;
+        }
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadTop() {
+    const el = document.getElementById('topBody');
+    try {
+        const d = await apiFetch('/api/bandwidth/top');
+        if (!d.interfaces || d.interfaces.length === 0) {
+            el.innerHTML = '<div class="text-muted small">データなし</div>';
+            return;
+        }
+        const rows = d.interfaces.map(i =>
+            `<tr><td><strong>${i.interface}</strong></td><td class="text-success">${fmtBytes(i.rx_bytes)}</td><td class="text-primary">${fmtBytes(i.tx_bytes)}</td></tr>`
+        ).join('');
+        el.innerHTML = `<div class="table-responsive"><table class="table table-sm tbl">
+            <thead><tr><th>インターフェース</th><th>累積受信</th><th>累積送信</th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table></div>`;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadDaily() {
+    const el = document.getElementById('dailyBody');
+    const q = iface() ? `?iface=${iface()}` : '';
+    try {
+        const d = await apiFetch('/api/bandwidth/daily' + q);
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${d.message || 'vnstat が未インストールです'}</div>`;
+            return;
+        }
+        el.innerHTML = `<pre class="small" style="max-height:200px;overflow:auto">${JSON.stringify(d.data || {}, null, 2)}</pre>`;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadHourly() {
+    const el = document.getElementById('hourlyBody');
+    const q = iface() ? `?iface=${iface()}` : '';
+    try {
+        const d = await apiFetch('/api/bandwidth/hourly' + q);
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${d.message || 'vnstat が未インストールです'}</div>`;
+            return;
+        }
+        el.innerHTML = `<pre class="small" style="max-height:200px;overflow:auto">${JSON.stringify(d.data || {}, null, 2)}</pre>`;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+    }
+}
+
+function loadAll() {
+    loadLive();
+    loadSummary();
+    loadTop();
+    loadDaily();
+    loadHourly();
+}
+
+function onIfaceChange() { loadAll(); }
+
+document.getElementById('autoRefresh').addEventListener('change', function() {
+    if (this.checked) {
+        autoRefreshTimer = setInterval(loadLive, 3000);
+    } else {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+    }
+});
+
+window.addEventListener('DOMContentLoaded', async () => {
+    if (typeof loadSidebar === 'function') loadSidebar('bandwidth');
+    await loadInterfaces();
+    loadAll();
+});
+</script>
+</body>
+</html>

@@ -11,6 +11,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.2] - 2026-03-01
+
+**v0.8.2 リリース** - Bandwidth Monitoring モジュール
+
+### Added
+
+#### Bandwidth Monitoring 帯域幅監視モジュール
+- **wrappers/adminui-bandwidth.sh**: 帯域幅監視ラッパースクリプト
+  - list/summary/daily/hourly/live/top サブコマンド
+  - vnstat 使用（未インストール時は ip -s link でフォールバック）
+  - インターフェース名 allowlist 検証（正規表現 `^[a-zA-Z0-9._-]{1,32}$`）
+  - /sys/class/net/ 経由の 1秒サンプリングリアルタイム計測
+- **GET /api/bandwidth/interfaces**: ネットワークインターフェース一覧
+- **GET /api/bandwidth/summary**: 帯域幅サマリ（vnstat/ip）
+- **GET /api/bandwidth/daily**: 日別トラフィック統計（vnstat）
+- **GET /api/bandwidth/hourly**: 時間別トラフィック統計（vnstat）
+- **GET /api/bandwidth/live**: 1秒サンプリングリアルタイム帯域幅
+- **GET /api/bandwidth/top**: 全インターフェース累積トラフィック
+- **frontend/dev/bandwidth.html**: 帯域幅監視 WebUI（自動更新 3秒・インターフェース切替）
+- **tests/integration/test_bandwidth_api.py**: 20件テスト (TC_BW_001〜020)
+
+### Changed
+- `backend/core/sudo_wrapper.py`: Bandwidth 監視メソッド 6件追加 + `re` モジュールインポート
+- `backend/api/main.py`: bandwidth router 登録
+- `frontend/js/sidebar.js`: bandwidth ページルート追加
+
+### Tests
+- 907 PASS / 0 FAIL / 0 ERROR
+- カバレッジ: 86.40%
+
+---
+
+## [0.8.1] - 2026-03-01
+
+**v0.8.1 リリース** - DB監視モジュール（MySQL/PostgreSQL）
+
+### Added
+
+#### DB Monitor データベース監視モジュール
+- **wrappers/adminui-dbmonitor.sh**: MySQL/PostgreSQL 監視ラッパースクリプト
+  - mysql status/processlist/variables/databases サブコマンド
+  - postgresql status/connections/databases/activity サブコマンド
+  - DBクライアント未インストール時 `{"status":"unavailable"}` フォールバック
+- **GET /api/dbmonitor/{db_type}/status**: DBサービス状態・バージョン
+- **GET /api/dbmonitor/{db_type}/processes**: プロセス/アクティビティ一覧
+- **GET /api/dbmonitor/{db_type}/databases**: データベース一覧
+- **GET /api/dbmonitor/{db_type}/connections**: 接続一覧
+- **GET /api/dbmonitor/{db_type}/variables**: 変数・設定情報
+- **frontend/dev/dbmonitor.html**: DB監視 WebUI（MySQL/PostgreSQL タブ切替）
+- **tests/integration/test_dbmonitor_api.py**: 20件テスト (TC_DBM_001〜020)
+
+### Changed
+- `backend/core/sudo_wrapper.py`: DBモニターメソッド 5件追加
+- `backend/api/main.py`: dbmonitor router 登録
+- `frontend/js/sidebar.js`: dbmonitor ページルート追加
+
+---
+
 ## [0.8.0] - 2026-02-27
 
 **v0.8 リリース** - テスト安定化（110 ERROR → 0）・Disk Quotas モジュール

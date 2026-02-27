@@ -70,6 +70,7 @@ function showPage(pageName) {
         'system-time': 'System Time - システム時刻',
         'quotas': 'Disk Quotas - ディスククォータ管理',
         'dbmonitor': 'Database Monitor - DB監視',
+        'bandwidth-monitoring': 'Bandwidth Monitoring - 帯域幅監視',
         'smart-status': 'SMART Drive Status - ドライブ健全性',
         'sensors': 'Sensors - ハードウェアセンサー',
     };
@@ -138,6 +139,10 @@ function showPage(pageName) {
             return;
         case 'dbmonitor':
             location.href = 'dbmonitor.html';
+            return;
+        case 'bandwidth-monitoring':
+        case 'bandwidth':
+            location.href = 'bandwidth.html';
             return;
         case 'smart-status':
             showSmartStatusPage(mainBody);
