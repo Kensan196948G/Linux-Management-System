@@ -138,3 +138,4 @@ audit_logs/*.log
 *.backup
 backup/
 worktrees/
+.env.runtime

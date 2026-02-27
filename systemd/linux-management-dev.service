@@ -1,7 +1,8 @@
 [Unit]
 Description=Linux Management System - Development Environment
-Documentation=https://github.com/Kensan196948G/Linux-Management-Systm
-After=network.target
+Documentation=https://github.com/Kensan196948G/Linux-Management-System
+After=network.target network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -11,16 +12,23 @@ WorkingDirectory=/mnt/LinuxHDD/Linux-Management-Systm
 
 # 環境変数
 Environment="ENV=dev"
-Environment="PATH=/mnt/LinuxHDD/Linux-Management-Systm/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PATH=/home/kensan/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# .env ファイルから環境変数を読み込む
+# .env ファイルから静的環境変数を読み込む
 EnvironmentFile=/mnt/LinuxHDD/Linux-Management-Systm/.env
 
-# 実行コマンド
-ExecStart=/mnt/LinuxHDD/Linux-Management-Systm/venv/bin/uvicorn \
+# 起動前: IPアドレスを自動検出して .env.runtime に書き出す
+ExecStartPre=/mnt/LinuxHDD/Linux-Management-Systm/scripts/detect-ip.sh
+
+# .env.runtime（detect-ip.sh が生成）を読み込む
+EnvironmentFile=-/mnt/LinuxHDD/Linux-Management-Systm/.env.runtime
+
+# 実行コマンド（開発: uvicorn）
+ExecStart=/home/kensan/.local/bin/uvicorn \
     backend.api.main:app \
-    --host ${DEV_IP} \
-    --port ${DEV_PORT} \
+    --host 0.0.0.0 \
+    --port 5012 \
     --log-level info
 
 # 再起動ポリシー

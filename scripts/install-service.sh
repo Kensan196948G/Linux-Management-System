@@ -1,118 +1,178 @@
 #!/bin/bash
-# systemd サービスインストールスクリプト
-
+# install-service.sh - Systemdサービス インストール・管理スクリプト
+# 使用法:
+#   ./install-service.sh dev    -- 開発環境サービスをインストール・有効化
+#   ./install-service.sh prod   -- 本番環境サービスをインストール・有効化
+#   ./install-service.sh status -- 両サービスの状態表示
+#   ./install-service.sh start dev|prod  -- サービス起動
+#   ./install-service.sh stop  dev|prod  -- サービス停止
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# 使用方法
+SYSTEMD_DIR="/etc/systemd/system"
+
+# ─────────────────────────────────────────
+# ヘルパー関数
+# ─────────────────────────────────────────
+banner() { echo ""; echo "========== $* =========="; echo ""; }
+ok()  { echo "  ✅ $*"; }
+err() { echo "  ❌ $*" >&2; }
+warn(){ echo "  ⚠️  $*"; }
+info(){ echo "  ℹ️  $*"; }
+
 usage() {
-    echo "Usage: $0 <dev|prod>"
+    echo "使用法: $0 <コマンド> [オプション]"
     echo ""
-    echo "Arguments:"
-    echo "  dev   - Install development service"
-    echo "  prod  - Install production service"
+    echo "コマンド:"
+    echo "  dev        開発環境サービスをインストール・有効化"
+    echo "  prod       本番環境サービスをインストール"
+    echo "  status     両サービスの状態を表示"
+    echo "  start ENV  サービスを起動 (ENV: dev|prod)"
+    echo "  stop  ENV  サービスを停止 (ENV: dev|prod)"
+    echo "  restart ENV サービスを再起動"
+    echo "  log   ENV  リアルタイムログ表示"
+    echo "  uninstall ENV サービスをアンインストール"
     exit 1
 }
 
-if [ $# -ne 1 ]; then
-    usage
-fi
+install_dev() {
+    banner "開発環境サービス インストール"
 
-ENV="$1"
+    # IP検出
+    info "IPアドレスを検出中..."
+    bash "${SCRIPT_DIR}/detect-ip.sh"
 
-if [[ "$ENV" != "dev" && "$ENV" != "prod" ]]; then
-    usage
-fi
-
-echo "========================================="
-echo "systemd サービスインストール: $ENV 環境"
-echo "========================================="
-echo ""
-
-SERVICE_NAME="linux-management-$ENV"
-SERVICE_FILE="$PROJECT_ROOT/systemd/$SERVICE_NAME.service"
-
-# サービスファイルの存在確認
-if [ ! -f "$SERVICE_FILE" ]; then
-    echo "❌ エラー: サービスファイルが見つかりません: $SERVICE_FILE"
-    exit 1
-fi
-
-echo "サービスファイル: $SERVICE_FILE"
-echo ""
-
-# 本番環境の場合は追加確認
-if [ "$ENV" = "prod" ]; then
-    echo "⚠️ 本番環境サービスをインストールします"
-    echo ""
-    echo "事前チェックリスト:"
-    echo "  [ ] svc-adminui ユーザーが作成されている"
-    echo "  [ ] プロジェクトが /opt/linux-management に配置されている"
-    echo "  [ ] venv-prod が作成されている"
-    echo "  [ ] .env ファイルが配置されている"
-    echo "  [ ] sudo ラッパーが /usr/local/sbin/ に配置されている"
-    echo "  [ ] sudoers が設定されている"
-    echo ""
-    read -p "全て完了していますか？ (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "キャンセルしました"
-        exit 0
+    # .env.runtime から IP取得
+    DETECTED_IP="127.0.0.1"
+    if [[ -f "${PROJECT_ROOT}/.env.runtime" ]]; then
+        _ip=$(grep "^DETECTED_IP=" "${PROJECT_ROOT}/.env.runtime" | cut -d'=' -f2 || echo "")
+        [[ -n "${_ip}" ]] && DETECTED_IP="${_ip}"
     fi
-fi
+    DEV_PORT=$(grep "^DEV_PORT=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d'=' -f2 || echo "5012")
 
-# サービスファイルをコピー
-echo "📋 サービスファイルをコピー中..."
-sudo cp "$SERVICE_FILE" "/etc/systemd/system/$SERVICE_NAME.service"
-echo "✅ サービスファイルをコピーしました"
+    # サービスファイルをシステムにコピー
+    local svc_src="${PROJECT_ROOT}/systemd/linux-management-dev.service"
+    local svc_dst="${SYSTEMD_DIR}/linux-management-dev.service"
 
-# systemd リロード
-echo ""
-echo "🔄 systemd をリロード中..."
-sudo systemctl daemon-reload
-echo "✅ systemd をリロードしました"
+    info "サービスファイルをコピー: ${svc_dst}"
+    sudo cp "${svc_src}" "${svc_dst}"
+    sudo chmod 644 "${svc_dst}"
+    ok "サービスファイルをコピーしました"
 
-# サービスの有効化
-echo ""
-echo "✅ サービスを有効化中..."
-sudo systemctl enable "$SERVICE_NAME.service"
-echo "✅ サービスを有効化しました（機器再起動後に自動起動）"
+    # systemd リロード・有効化
+    sudo systemctl daemon-reload
+    ok "systemd をリロードしました"
 
-# サービスの状態確認
-echo ""
-echo "📊 サービス状態:"
-sudo systemctl status "$SERVICE_NAME.service" --no-pager || true
+    sudo systemctl enable linux-management-dev.service
+    ok "自動起動を有効化しました"
 
-echo ""
-echo "========================================="
-echo "✅ インストール完了"
-echo "========================================="
-echo ""
-echo "サービス管理コマンド:"
-echo "  起動:   sudo systemctl start $SERVICE_NAME"
-echo "  停止:   sudo systemctl stop $SERVICE_NAME"
-echo "  再起動: sudo systemctl restart $SERVICE_NAME"
-echo "  状態:   sudo systemctl status $SERVICE_NAME"
-echo "  ログ:   sudo journalctl -u $SERVICE_NAME -f"
-echo ""
-echo "自動起動設定:"
-echo "  有効化: sudo systemctl enable $SERVICE_NAME"
-echo "  無効化: sudo systemctl disable $SERVICE_NAME"
-echo ""
+    echo ""
+    ok "インストール完了"
+    echo ""
+    echo "  📌 アクセス URL:"
+    echo "     http://localhost:${DEV_PORT}"
+    echo "     http://${DETECTED_IP}:${DEV_PORT}"
+    echo "     http://${DETECTED_IP}:${DEV_PORT}/api/info  ← URL情報"
+    echo ""
+    echo "  サービス起動:  sudo systemctl start linux-management-dev"
+    echo "  ログ確認:      sudo journalctl -u linux-management-dev -f"
+}
 
-if [ "$ENV" = "dev" ]; then
-    echo "開発サーバーを起動しますか？ (y/N)"
-    read -p "> " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        sudo systemctl start "$SERVICE_NAME"
-        echo ""
-        echo "✅ 開発サーバーを起動しました"
-        echo "   アクセス: http://localhost:5012/dev/"
-        echo ""
-        echo "ログを確認:"
-        echo "   sudo journalctl -u $SERVICE_NAME -f"
+install_prod() {
+    banner "本番環境サービス インストール"
+
+    # svc-adminui ユーザー確認
+    if ! id svc-adminui >/dev/null 2>&1; then
+        warn "svc-adminui ユーザーが存在しません"
+        info "サービスファイルはインストールしますが、起動前にユーザーを作成してください:"
+        echo "    sudo useradd -r -s /bin/false -d /opt/linux-management svc-adminui"
+    else
+        ok "svc-adminui ユーザー確認済み"
     fi
-fi
+
+    # /opt/linux-management 存在確認
+    if [[ ! -d "/opt/linux-management" ]]; then
+        warn "/opt/linux-management ディレクトリが存在しません"
+        info "本番デプロイ時に以下で作成してください:"
+        echo "    sudo mkdir -p /opt/linux-management"
+        echo "    sudo cp -r ${PROJECT_ROOT}/* /opt/linux-management/"
+    fi
+
+    local svc_src="${PROJECT_ROOT}/systemd/linux-management-prod.service"
+    local svc_dst="${SYSTEMD_DIR}/linux-management-prod.service"
+
+    info "サービスファイルをコピー: ${svc_dst}"
+    sudo cp "${svc_src}" "${svc_dst}"
+    sudo chmod 644 "${svc_dst}"
+    ok "サービスファイルをコピーしました"
+
+    sudo systemctl daemon-reload
+    ok "systemd をリロードしました（本番サービスはenableしていません）"
+
+    echo ""
+    warn "本番サービスは手動で enable/start してください:"
+    echo "    sudo systemctl enable linux-management-prod"
+    echo "    sudo systemctl start linux-management-prod"
+}
+
+show_status() {
+    banner "サービス状態"
+    for env in dev prod; do
+        local svc="linux-management-${env}"
+        echo "--- ${svc} ---"
+        if systemctl list-unit-files "${svc}.service" --no-pager 2>/dev/null | grep -q "${svc}"; then
+            sudo systemctl status "${svc}.service" --no-pager 2>&1 || true
+        else
+            echo "  (未インストール)"
+        fi
+        echo ""
+    done
+}
+
+service_action() {
+    local action="$1"
+    local env="${2:-}"
+    [[ -z "${env}" ]] && { err "ENV (dev|prod) を指定してください"; usage; }
+    local svc="linux-management-${env}"
+    sudo systemctl "${action}" "${svc}.service"
+    echo ""
+    sudo systemctl status "${svc}.service" --no-pager || true
+}
+
+show_log() {
+    local env="${1:-dev}"
+    local svc="linux-management-${env}"
+    info "ログを表示中（Ctrl+C で終了）..."
+    sudo journalctl -u "${svc}" -f
+}
+
+uninstall_service() {
+    local env="${1:-}"
+    [[ -z "${env}" ]] && { err "ENV (dev|prod) を指定してください"; usage; }
+    local svc="linux-management-${env}"
+    sudo systemctl stop "${svc}.service" 2>/dev/null || true
+    sudo systemctl disable "${svc}.service" 2>/dev/null || true
+    sudo rm -f "${SYSTEMD_DIR}/${svc}.service"
+    sudo systemctl daemon-reload
+    ok "${svc} をアンインストールしました"
+}
+
+# ─────────────────────────────────────────
+# メイン処理
+# ─────────────────────────────────────────
+CMD="${1:-}"
+[[ -z "${CMD}" ]] && usage
+
+case "${CMD}" in
+    dev)        install_dev ;;
+    prod)       install_prod ;;
+    status)     show_status ;;
+    start)      service_action start "${2:-}" ;;
+    stop)       service_action stop "${2:-}" ;;
+    restart)    service_action restart "${2:-}" ;;
+    log|logs)   show_log "${2:-dev}" ;;
+    uninstall)  uninstall_service "${2:-}" ;;
+    *)          err "不明なコマンド: ${CMD}"; usage ;;
+esac

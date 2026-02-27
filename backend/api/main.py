@@ -261,6 +261,34 @@ async def health_check():
     }
 
 
+@app.get("/api/info")
+async def api_info():
+    """
+    サーバー情報・アクセスURLを返すエンドポイント
+
+    フロントエンドが動的にAPIのベースURLを取得するために使用
+    """
+    ip = settings.detected_ip
+    http_port = settings.server.http_port
+    https_port = settings.server.https_port
+    return {
+        "environment": settings.environment,
+        "version": "0.9.2",
+        "detected_ip": ip,
+        "urls": {
+            "http": f"http://{ip}:{http_port}",
+            "https": f"https://{ip}:{https_port}",
+            "api_http": f"http://{ip}:{http_port}/api",
+            "api_https": f"https://{ip}:{https_port}/api",
+            "docs": f"http://{ip}:{http_port}/api/docs" if settings.features.api_docs_enabled else None,
+        },
+        "ports": {
+            "http": http_port,
+            "https": https_port,
+        },
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     """
@@ -304,8 +332,12 @@ async def startup_event():
     logger.info("=" * 60)
     logger.info("Linux Management System Backend Starting...")
     logger.info(f"Environment: {settings.environment}")
+    logger.info(f"Detected IP: {settings.detected_ip}")
     logger.info(f"HTTP Port: {settings.server.http_port}")
     logger.info(f"HTTPS Port: {settings.server.https_port}")
+    logger.info(f"Access URL (HTTP):  http://{settings.detected_ip}:{settings.server.http_port}")
+    logger.info(f"Access URL (HTTPS): https://{settings.detected_ip}:{settings.server.https_port}")
+    logger.info(f"API Base URL: {settings.frontend.api_base_url}")
     logger.info(f"SSL Enabled: {settings.server.ssl_enabled}")
     logger.info(f"Debug Mode: {settings.features.debug_mode}")
     logger.info(f"API Docs: {settings.features.api_docs_enabled}")

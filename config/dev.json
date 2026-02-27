@@ -38,12 +38,12 @@
   "frontend": {
     "title": "【開発】Linux Management System",
     "show_env_badge": true,
-    "api_base_url": "http://192.168.0.185:5012/api"
+    "api_base_url": "http://${DETECTED_IP}:5012/api"
   },
   "cors_origins": [
     "http://localhost:5012",
+    "https://localhost:5443",
     "http://127.0.0.1:5012",
-    "http://192.168.0.185:5012",
     "*"
   ]
 }
