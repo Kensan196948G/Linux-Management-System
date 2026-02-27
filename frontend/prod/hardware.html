@@ -143,9 +143,24 @@ async function loadMemory() {
         const m = data.memory || data;
         const html = [];
 
+        // API返却フォーマット正規化: {total_kb, free_kb, ...} → ram/swap オブジェクト
+        const ram = m.ram || (() => {
+            const totalB = (m.total_kb || 0) * 1024;
+            const freeB = (m.free_kb || 0) * 1024;
+            const availB = (m.available_kb || 0) * 1024;
+            const bufB = (m.buffers_kb || 0) * 1024;
+            const cachedB = (m.cached_kb || 0) * 1024;
+            const usedB = totalB - freeB - bufB - cachedB;
+            return totalB > 0 ? { total: totalB, free: freeB, available: availB, buffers: bufB, cached: cachedB, used: usedB } : null;
+        })();
+        const swap = m.swap || (() => {
+            const swapTotal = (m.swap_total_kb || 0) * 1024;
+            const swapFree = (m.swap_free_kb || 0) * 1024;
+            return swapTotal > 0 ? { total: swapTotal, free: swapFree, used: swapTotal - swapFree } : null;
+        })();
+
         // RAM
-        if (m.ram) {
-            const ram = m.ram;
+        if (ram) {
             const usedPct = ram.total > 0 ? Math.round(ram.used / ram.total * 100) : 0;
             html.push(`<div class="hw-card">
                 <div class="hw-title">🖥️ RAM（物理メモリ）</div>
@@ -170,8 +185,7 @@ async function loadMemory() {
         }
 
         // Swap
-        if (m.swap) {
-            const swap = m.swap;
+        if (swap) {
             const swapPct = swap.total > 0 ? Math.round(swap.used / swap.total * 100) : 0;
             html.push(`<div class="hw-card">
                 <div class="hw-title">📀 スワップ</div>

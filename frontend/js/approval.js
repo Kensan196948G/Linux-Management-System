@@ -90,8 +90,10 @@ class ApprovalManager {
             }
         } catch (error) {
             console.error('Failed to load current user:', error);
-            alert('ユーザー情報の取得に失敗しました。再度ログインしてください。');
-            window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+            // ネットワークエラーはトークン保持（401のみリダイレクト）
+            if (error.status === 401) {
+                window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+            }
         }
     }
 
