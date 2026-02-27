@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>システム時刻管理 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .time-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .time-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+        }
+        .metric-item {
+            background: #f9fafb;
+            border-radius: 6px;
+            padding: 12px 16px;
+        }
+        .metric-label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+        .metric-value { font-size: 15px; font-weight: bold; color: #111827; word-break: break-all; }
+        .ntp-synced { color: #059669; }
+        .ntp-unsynced { color: #dc2626; }
+        .tz-search { max-width: 300px; }
+        .tz-list { max-height: 260px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
+        .tz-item {
+            padding: 7px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .tz-item:hover { background: #eff6ff; }
+        .tz-item.selected { background: #dbeafe; font-weight: bold; }
+        .tz-item:last-child { border-bottom: none; }
+        .admin-only-badge {
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .clock-display {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1d4ed8;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">🕐 システム時刻管理</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-3" id="time-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('status')" id="tab-status">🕐 現在時刻</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('timezone')" id="tab-timezone">
+                        🌍 タイムゾーン変更
+                        <span class="admin-only-badge ms-1">Admin</span>
+                    </a>
+                </li>
+            </ul>
+
+            <!-- ── TAB: 現在時刻・状態 ─────────────────────── -->
+            <div id="pane-status">
+                <!-- ライブクロック -->
+                <div class="time-card text-center mb-3">
+                    <div class="metric-label mb-2">システム現在時刻（リアルタイム表示）</div>
+                    <div class="clock-display" id="live-clock">--:--:--</div>
+                    <div class="text-muted small mt-1" id="live-date">----/--/--</div>
+                    <div class="text-muted small" id="live-tz">Timezone: ...</div>
+                </div>
+
+                <!-- システム時刻詳細 -->
+                <div class="time-card" id="time-status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="time-title">📊 時刻・NTP 状態詳細</div>
+                        <span id="status-loading" class="text-muted small">読み込み中...</span>
+                    </div>
+                    <div class="metric-grid" id="time-status-grid">
+                        <!-- JS で動的生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── TAB: タイムゾーン変更（Admin のみ） ──────── -->
+            <div id="pane-timezone" style="display:none">
+                <div class="alert alert-warning d-flex align-items-center mb-3">
+                    <span class="me-2" style="font-size:20px">⚠️</span>
+                    <div>
+                        タイムゾーン変更は <strong>Admin 権限</strong> が必要です。
+                        変更するとシステム全体の時刻表示に影響します。
+                    </div>
+                </div>
+
+                <div class="time-card">
+                    <div class="time-title">🌍 タイムゾーン選択</div>
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold small">タイムゾーン検索</label>
+                            <input
+                                type="text"
+                                class="form-control form-control-sm tz-search mb-2"
+                                id="tz-search"
+                                placeholder="例: Asia, Tokyo, UTC..."
+                                oninput="filterTimezones()"
+                            >
+                            <div class="tz-list" id="tz-list">
+                                <div class="text-muted small p-3">読み込み中...</div>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label fw-semibold small">選択中のタイムゾーン</label>
+                            <div class="metric-item mb-3">
+                                <div class="metric-value" id="selected-tz-display">選択してください</div>
+                            </div>
+
+                            <label class="form-label fw-semibold small">変更理由（必須）</label>
+                            <input
+                                type="text"
+                                class="form-control form-control-sm mb-3"
+                                id="tz-reason"
+                                placeholder="例: サーバー移転に伴い JST に変更"
+                                maxlength="500"
+                            >
+
+                            <button
+                                class="btn btn-primary btn-sm"
+                                onclick="applyTimezone()"
+                                id="tz-apply-btn"
+                                disabled
+                            >
+                                🌍 タイムゾーンを変更する
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.main-body -->
+    </main>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/env-config.js"></script>
+    <script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('time')):renderSidebar('time');</script>
+<script src="../js/components.js"></script>
+<script>
+// ===================================================================
+// System Time 管理ページ
+// ===================================================================
+
+const API_BASE = '/api';
+let allTimezones = [];
+let selectedTimezone = '';
+let clockInterval = null;
+let currentTzOffset = 0;
+
+// ── 初期化 ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof initSidebar === 'function') initSidebar();
+    loadTimeStatus();
+    startLiveClock();
+});
+
+// ── タブ切り替え ────────────────────────────────────────────────
+function showTab(tab) {
+    ['status', 'timezone'].forEach(t => {
+        document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+    });
+    if (tab === 'timezone' && allTimezones.length === 0) loadTimezones();
+}
+
+// ── リアルタイムクロック ─────────────────────────────────────────
+function startLiveClock() {
+    function tick() {
+        const now = new Date();
+        const hms = now.toLocaleTimeString('ja-JP', { hour12: false });
+        const ymd = now.toLocaleDateString('ja-JP', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+        });
+        document.getElementById('live-clock').textContent = hms;
+        document.getElementById('live-date').textContent = ymd;
+    }
+    tick();
+    clockInterval = setInterval(tick, 1000);
+}
+
+// ── 時刻状態取得 ────────────────────────────────────────────────
+async function loadTimeStatus() {
+    const loading = document.getElementById('status-loading');
+    loading.textContent = '読み込み中...';
+
+    try {
+        const data = await apiGet(`${API_BASE}/time/status`);
+        renderTimeStatus(data.data || data);
+        loading.textContent = '';
+    } catch (err) {
+        loading.textContent = '';
+        showAlert('danger', `時刻状態の取得に失敗しました: ${err.message}`);
+    }
+}
+
+function renderTimeStatus(d) {
+    const grid = document.getElementById('time-status-grid');
+    const tzEl = document.getElementById('live-tz');
+    if (d.timezone) tzEl.textContent = `Timezone: ${d.timezone}`;
+
+    const ntpStatus = d.ntp_synchronized === 'yes'
+        ? '<span class="ntp-synced">✅ 同期済み</span>'
+        : '<span class="ntp-unsynced">⚠️ 未同期</span>';
+
+    const metrics = [
+        { label: '🕐 システム時刻', value: escapeHtml(d.system_time || 'N/A') },
+        { label: '🌐 UTC 時刻', value: escapeHtml(d.utc_time || 'N/A') },
+        { label: '🌍 タイムゾーン', value: escapeHtml(d.timezone || 'N/A') },
+        { label: '🔄 NTP 同期', value: ntpStatus },
+        { label: '⚙️ NTP サービス', value: escapeHtml(d.ntp_service || 'N/A') },
+        { label: '🖥️ RTC 時刻', value: escapeHtml(d.rtc_time || 'N/A') },
+    ];
+
+    grid.innerHTML = metrics.map(m => `
+        <div class="metric-item">
+            <div class="metric-label">${m.label}</div>
+            <div class="metric-value">${m.value}</div>
+        </div>
+    `).join('');
+}
+
+// ── タイムゾーン一覧取得 ─────────────────────────────────────────
+async function loadTimezones() {
+    const list = document.getElementById('tz-list');
+    list.innerHTML = '<div class="text-muted small p-3">読み込み中...</div>';
+
+    try {
+        const data = await apiGet(`${API_BASE}/time/timezones`);
+        allTimezones = (data.data && data.data.timezones) ? data.data.timezones : [];
+        renderTimezoneList(allTimezones);
+    } catch (err) {
+        list.innerHTML = `<div class="text-danger small p-3">取得失敗: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function renderTimezoneList(timezones) {
+    const list = document.getElementById('tz-list');
+    list.innerHTML = timezones.map(tz => `
+        <div class="tz-item ${tz === selectedTimezone ? 'selected' : ''}"
+             onclick="selectTimezone('${escapeHtml(tz)}')">${escapeHtml(tz)}</div>
+    `).join('') || '<div class="text-muted small p-3">データなし</div>';
+}
+
+function filterTimezones() {
+    const q = document.getElementById('tz-search').value.toLowerCase();
+    const filtered = allTimezones.filter(tz => tz.toLowerCase().includes(q));
+    renderTimezoneList(filtered);
+}
+
+function selectTimezone(tz) {
+    selectedTimezone = tz;
+    document.getElementById('selected-tz-display').textContent = tz;
+    document.getElementById('tz-apply-btn').disabled = false;
+    // リスト内選択状態を更新
+    document.querySelectorAll('.tz-item').forEach(el => {
+        el.classList.toggle('selected', el.textContent === tz);
+    });
+}
+
+// ── タイムゾーン変更実行 ─────────────────────────────────────────
+async function applyTimezone() {
+    const reason = document.getElementById('tz-reason').value.trim();
+
+    if (!selectedTimezone) {
+        showAlert('warning', 'タイムゾーンを選択してください');
+        return;
+    }
+    if (!reason) {
+        showAlert('warning', '変更理由を入力してください');
+        return;
+    }
+
+    const btn = document.getElementById('tz-apply-btn');
+    btn.disabled = true;
+    btn.textContent = '変更中...';
+
+    try {
+        const result = await apiPost(`${API_BASE}/time/timezone`, {
+            timezone: selectedTimezone,
+            reason,
+        });
+
+        showAlert('success', `✅ タイムゾーンを <strong>${escapeHtml(selectedTimezone)}</strong> に変更しました`);
+        // 時刻状態を再読み込み
+        await loadTimeStatus();
+    } catch (err) {
+        showAlert('danger', `❌ タイムゾーン変更に失敗しました: ${err.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🌍 タイムゾーンを変更する';
+    }
+}
+
+// ── 全更新 ─────────────────────────────────────────────────────
+function refreshAll() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.textContent = '更新中...';
+
+    loadTimeStatus().finally(() => {
+        btn.disabled = false;
+        btn.textContent = '🔄 更新';
+    });
+}
+
+// ── ユーティリティ ──────────────────────────────────────────────
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function showAlert(type, msg) {
+    const area = document.getElementById('alert-area');
+    area.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${msg}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+async function apiGet(url) {
+    const token = localStorage.getItem('access_token');
+    const resp = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+}
+
+async function apiPost(url, body) {
+    const token = localStorage.getItem('access_token');
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+}
+</script>
+</body>
+</html>

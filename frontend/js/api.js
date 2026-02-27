@@ -3,6 +3,11 @@
  * バックエンド API との連携を担当
  */
 
+/** dev/prod 両対応: ログインページURLを動的に取得 */
+function getLoginUrl() {
+    return window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+}
+
 class APIClient {
     constructor(baseURL) {
         // 現在のオリジンを使用（同一オリジンで動作）
@@ -46,7 +51,9 @@ class APIClient {
                 // ログイン画面にいない場合のみリダイレクト（無限ループ防止）
                 if (!window.location.pathname.includes('index.html')) {
                     alert('セッションが期限切れです。再度ログインしてください。');
-                    window.location.href = '/dev/index.html';
+                    // dev/prod 両対応: 現在のパスから index.html を構築
+                    const basePath = window.location.pathname.replace(/[^/]*$/, '');
+                    window.location.href = basePath + 'index.html';
                 }
                 throw new Error('Token expired or invalid');
             }
@@ -90,6 +97,26 @@ class APIClient {
     clearToken() {
         this.token = null;
         localStorage.removeItem('access_token');
+    }
+
+    // ===================================================================
+    // HTTP ショートハンド（GET / POST / PUT / DELETE）
+    // ===================================================================
+
+    async get(endpoint) {
+        return this.request('GET', endpoint);
+    }
+
+    async post(endpoint, data) {
+        return this.request('POST', endpoint, data);
+    }
+
+    async put(endpoint, data) {
+        return this.request('PUT', endpoint, data);
+    }
+
+    async delete(endpoint) {
+        return this.request('DELETE', endpoint);
     }
 
     /**

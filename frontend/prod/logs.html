@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>システムログ - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        /* ログテーブル */
+        .log-table th { background: #2c3e50; color: #fff; padding: 8px 10px; font-size: 13px; position: sticky; top: 0; z-index: 10; }
+        .log-table td { padding: 5px 10px; font-size: 12px; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+        .log-table tr:hover { background: #f8fafc; }
+        .log-table .col-ts   { width: 160px; font-family: monospace; color: #64748b; white-space: nowrap; }
+        .log-table .col-lvl  { width: 80px; text-align: center; }
+        .log-table .col-svc  { width: 110px; font-family: monospace; font-size: 11px; color: #4b5563; }
+        .log-table .col-msg  { font-family: monospace; word-break: break-all; }
+
+        /* レベルバッジ */
+        .lvl-error   { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; }
+        .lvl-warning { background:#fef3c7; color:#92400e; border:1px solid #fcd34d; }
+        .lvl-info    { background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; }
+        .lvl-debug   { background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; }
+        .lvl-badge {
+            display: inline-block; padding: 1px 7px; border-radius: 10px;
+            font-size: 11px; font-weight: 700;
+        }
+        /* フィルターボタン */
+        .filter-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+        .filter-btn {
+            padding: 4px 14px; border-radius: 16px; border: 1.5px solid #d1d5db;
+            background: #fff; color: #374151; font-size: 13px; cursor: pointer;
+            transition: all 0.15s;
+        }
+        .filter-btn:hover { border-color: #6b7280; background: #f9fafb; }
+        .filter-btn.active-all     { border-color:#6b7280; background:#374151; color:#fff; }
+        .filter-btn.active-ERROR   { border-color:#ef4444; background:#fee2e2; color:#991b1b; }
+        .filter-btn.active-WARNING { border-color:#f59e0b; background:#fef3c7; color:#92400e; }
+        .filter-btn.active-INFO    { border-color:#3b82f6; background:#dbeafe; color:#1e40af; }
+        /* フィルターバー */
+        .filter-bar { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:14px 16px; margin-bottom:14px; }
+        /* 自動更新ボタン */
+        .auto-refresh-on { background:#d1fae5 !important; border-color:#10b981 !important; color:#065f46 !important; }
+        /* エラーボックス */
+        .error-box { background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; padding:14px 16px; color:#991b1b; margin-bottom:12px; }
+        /* ローディング */
+        #loading-indicator { color:#6b7280; font-size:14px; }
+        /* ロードモアボタン */
+        #load-more-btn { margin-top: 10px; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <!-- 左側サイドバー -->
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="main-header">
+            <h2>📜 システムログ</h2>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button class="btn btn-sm btn-outline-success" id="auto-refresh-btn" onclick="toggleAutoRefresh()">
+                    ⏱ 自動更新: OFF
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="fetchLogs(true)">
+                    🔄 更新
+                </button>
+                <a href="dashboard.html" class="btn btn-sm btn-outline-primary">← ダッシュボード</a>
+            </div>
+        </div>
+
+        <div class="main-body">
+
+            <!-- フィルターバー -->
+            <div class="filter-bar">
+                <div class="row g-2 align-items-end">
+                    <!-- サービス選択 -->
+                    <div class="col-sm-3">
+                        <label class="form-label form-label-sm mb-1">サービス名</label>
+                        <select class="form-select form-select-sm" id="service-select">
+                            <option value="nginx">nginx</option>
+                            <option value="sshd">sshd</option>
+                            <option value="systemd">systemd</option>
+                            <option value="apache2">apache2</option>
+                            <option value="mysql">mysql</option>
+                            <option value="postgresql">postgresql</option>
+                            <option value="cron">cron</option>
+                            <option value="kernel">kernel</option>
+                            <option value="auth">auth</option>
+                        </select>
+                    </div>
+                    <!-- 取得行数 -->
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">取得行数</label>
+                        <select class="form-select form-select-sm" id="lines-select">
+                            <option value="50">50行</option>
+                            <option value="100" selected>100行</option>
+                            <option value="200">200行</option>
+                            <option value="500">500行</option>
+                        </select>
+                    </div>
+                    <!-- 開始日時 -->
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">開始日時</label>
+                        <input type="datetime-local" class="form-control form-control-sm" id="filter-start">
+                    </div>
+                    <!-- 終了日時 -->
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">終了日時</label>
+                        <input type="datetime-local" class="form-control form-control-sm" id="filter-end">
+                    </div>
+                    <!-- 検索ボタン -->
+                    <div class="col-sm-3">
+                        <button class="btn btn-sm btn-primary w-100" onclick="fetchLogs(true)">🔍 ログ取得</button>
+                    </div>
+                </div>
+
+                <!-- レベルフィルター -->
+                <div class="mt-3 d-flex align-items-center gap-3 flex-wrap">
+                    <span class="text-muted small fw-semibold">レベル絞り込み:</span>
+                    <div class="filter-btns">
+                        <button class="filter-btn active-all" id="btn-ALL"     onclick="setLevelFilter('ALL')">ALL</button>
+                        <button class="filter-btn"            id="btn-ERROR"   onclick="setLevelFilter('ERROR')">❌ ERROR</button>
+                        <button class="filter-btn"            id="btn-WARNING" onclick="setLevelFilter('WARNING')">⚠️ WARNING</button>
+                        <button class="filter-btn"            id="btn-INFO"    onclick="setLevelFilter('INFO')">ℹ️ INFO</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- エラー表示 -->
+            <div id="error-container"></div>
+
+            <!-- ローディング -->
+            <div id="loading-indicator" class="text-center py-3" style="display:none;">
+                <span class="spinner-border spinner-border-sm me-2" role="status"></span>読み込み中...
+            </div>
+
+            <!-- 統計行 -->
+            <div id="stats-row" class="d-flex gap-3 mb-2 small text-muted" style="display:none!important;"></div>
+
+            <!-- ログテーブル -->
+            <div id="log-container" style="display:none;">
+                <div class="table-responsive" style="max-height:560px; overflow-y:auto;">
+                    <table class="table table-sm log-table">
+                        <thead>
+                            <tr>
+                                <th class="col-ts">タイムスタンプ</th>
+                                <th class="col-lvl">レベル</th>
+                                <th class="col-svc">サービス</th>
+                                <th class="col-msg">メッセージ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="text-center" id="load-more-area" style="display:none;">
+                    <button class="btn btn-sm btn-outline-secondary" id="load-more-btn" onclick="loadMore()">
+                        ➕ もっと読み込む
+                    </button>
+                </div>
+                <div class="text-muted small mt-1" id="log-count-label"></div>
+            </div>
+
+            <!-- 空状態 -->
+            <div id="empty-state" class="text-center py-5 text-muted" style="display:none;">
+                <p>📜 表示するログがありません</p>
+                <p class="small">サービスを選択して「ログ取得」を押してください</p>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/env-config.js"></script>
+    <script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('logs')):renderSidebar('logs');</script>
+<script>
+'use strict';
+
+// ===== 認証チェック =====
+const token = localStorage.getItem('access_token');
+if (!token) { window.location.href = 'dashboard.html'; }
+
+// ===== 状態管理 =====
+let allParsedLogs  = [];   // 全パース済みログ
+let filteredLogs   = [];   // フィルタ後ログ
+let displayedCount = 0;
+const PAGE_SIZE    = 100;
+let levelFilter    = 'ALL';
+let autoRefreshTimer = null;
+let currentService = '';
+
+// ===== HTML エスケープ =====
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// ===== ログ行のパース =====
+// syslog: "Mar 10 12:34:56 host svc[pid]: msg"
+// journald: "2024-03-10T12:34:56+09:00 host svc[pid]: msg"
+// systemd: "Mar 10 12:34:56 svc[pid]: msg"
+function parseLogLine(line, serviceName) {
+    let timestamp = '';
+    let level     = 'INFO';
+    let service   = serviceName || '';
+    let message   = line;
+
+    // ISO timestamp
+    const isoMatch = line.match(/^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[^\s]*)/);
+    if (isoMatch) {
+        timestamp = isoMatch[1];
+        message   = line.slice(isoMatch[0].length).trim();
+    }
+    // Syslog timestamp: "Jan  1 12:34:56" or "Mar 10 12:34:56"
+    else {
+        const syslogMatch = line.match(/^([A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})/);
+        if (syslogMatch) {
+            timestamp = syslogMatch[1];
+            message   = line.slice(syslogMatch[0].length).trim();
+        }
+    }
+
+    // Extract service from "hostname svc[pid]:" or "svc[pid]:"
+    const svcMatch = message.match(/^[\w.-]+\s+([\w./@-]+)(?:\[\d+\])?:\s*/);
+    if (svcMatch) {
+        service = svcMatch[1];
+        message = message.slice(svcMatch[0].length);
+    } else {
+        const svcMatch2 = message.match(/^([\w./@-]+)(?:\[\d+\])?:\s*/);
+        if (svcMatch2) {
+            service = svcMatch2[1];
+            message = message.slice(svcMatch2[0].length);
+        }
+    }
+
+    // Detect log level
+    if (/\b(error|err|critical|crit|fatal|emerg|alert)\b/i.test(message) ||
+        /\b(ERROR|CRITICAL|FATAL|EMERG)\b/.test(message)) {
+        level = 'ERROR';
+    } else if (/\b(warn(?:ing)?)\b/i.test(message) || /\bWARN(?:ING)?\b/.test(message)) {
+        level = 'WARNING';
+    } else if (/\b(debug)\b/i.test(message) || /\bDEBUG\b/.test(message)) {
+        level = 'DEBUG';
+    } else {
+        level = 'INFO';
+    }
+
+    return { timestamp, level, service: service || serviceName, message, raw: line };
+}
+
+// ===== レベルバッジ HTML =====
+function levelBadge(level) {
+    const cls = {
+        ERROR:   'lvl-error',
+        WARNING: 'lvl-warning',
+        INFO:    'lvl-info',
+        DEBUG:   'lvl-debug',
+    }[level] || 'lvl-debug';
+    return `<span class="lvl-badge ${cls}">${escapeHtml(level)}</span>`;
+}
+
+// ===== 時間範囲フィルタ =====
+function matchesTimeRange(log) {
+    const startStr = document.getElementById('filter-start').value;
+    const endStr   = document.getElementById('filter-end').value;
+    if (!startStr && !endStr) return true;
+    if (!log.timestamp) return true;
+    try {
+        const ts = new Date(log.timestamp);
+        if (startStr && ts < new Date(startStr)) return false;
+        if (endStr   && ts > new Date(endStr))   return false;
+    } catch(e) { return true; }
+    return true;
+}
+
+// ===== フィルタ適用 =====
+function applyFilters() {
+    filteredLogs = allParsedLogs.filter(log => {
+        if (levelFilter !== 'ALL' && log.level !== levelFilter) return false;
+        if (!matchesTimeRange(log)) return false;
+        return true;
+    });
+    displayedCount = 0;
+    renderLogs();
+}
+
+// ===== ログ行描画 =====
+function renderLogs() {
+    const tbody    = document.getElementById('log-tbody');
+    const logCont  = document.getElementById('log-container');
+    const empty    = document.getElementById('empty-state');
+    const countLbl = document.getElementById('log-count-label');
+    const moreArea = document.getElementById('load-more-area');
+
+    if (filteredLogs.length === 0) {
+        logCont.style.display = 'none';
+        empty.style.display   = 'block';
+        return;
+    }
+
+    logCont.style.display = 'block';
+    empty.style.display   = 'none';
+
+    const slice   = filteredLogs.slice(displayedCount, displayedCount + PAGE_SIZE);
+    const isReset = displayedCount === 0;
+    if (isReset) tbody.innerHTML = '';
+
+    const frag = document.createDocumentFragment();
+    slice.forEach(log => {
+        const tr = document.createElement('tr');
+
+        const tdTs = document.createElement('td');
+        tdTs.className = 'col-ts';
+        tdTs.textContent = log.timestamp || '—';
+        tr.appendChild(tdTs);
+
+        const tdLvl = document.createElement('td');
+        tdLvl.className = 'col-lvl';
+        tdLvl.innerHTML = levelBadge(log.level);
+        tr.appendChild(tdLvl);
+
+        const tdSvc = document.createElement('td');
+        tdSvc.className = 'col-svc';
+        tdSvc.textContent = log.service || '—';
+        tr.appendChild(tdSvc);
+
+        const tdMsg = document.createElement('td');
+        tdMsg.className = 'col-msg';
+        tdMsg.textContent = log.message;
+        tr.appendChild(tdMsg);
+
+        frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+
+    displayedCount += slice.length;
+    const total = filteredLogs.length;
+    countLbl.textContent = `表示: ${displayedCount} / ${total} 件`;
+    moreArea.style.display = displayedCount < total ? 'block' : 'none';
+}
+
+// ===== もっと読み込む =====
+function loadMore() { renderLogs(); }
+
+// ===== ログ取得 =====
+async function fetchLogs(resetDisplay) {
+    const serviceName = document.getElementById('service-select').value;
+    const lines       = parseInt(document.getElementById('lines-select').value, 10);
+    if (!serviceName) { showError('サービス名を選択してください'); return; }
+
+    currentService = serviceName;
+    clearError();
+    document.getElementById('loading-indicator').style.display = 'block';
+    document.getElementById('log-container').style.display     = 'none';
+    document.getElementById('empty-state').style.display       = 'none';
+
+    try {
+        const response = await fetch(
+            `${window.location.origin}/api/logs/${encodeURIComponent(serviceName)}?lines=${lines}`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }
+        );
+
+        if (response.status === 401) {
+            localStorage.removeItem('access_token');
+            window.location.href = 'dashboard.html';
+            return;
+        }
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTPエラー ${response.status}`);
+        }
+
+        const data = await response.json();
+        const rawLines = data.logs || [];
+
+        allParsedLogs = rawLines.map(line => parseLogLine(line, serviceName));
+
+        if (resetDisplay) {
+            displayedCount = 0;
+        }
+        applyFilters();
+
+    } catch (err) {
+        showError(`ログの取得に失敗しました: ${escapeHtml(err.message)}`);
+    } finally {
+        document.getElementById('loading-indicator').style.display = 'none';
+    }
+}
+
+// ===== レベルフィルター切り替え =====
+function setLevelFilter(level) {
+    levelFilter = level;
+    ['ALL','ERROR','WARNING','INFO'].forEach(l => {
+        const btn = document.getElementById('btn-' + l);
+        if (!btn) return;
+        btn.className = 'filter-btn' + (l === level ? ` active-${l}` : '');
+    });
+    applyFilters();
+}
+
+// ===== 自動更新 =====
+function toggleAutoRefresh() {
+    const btn = document.getElementById('auto-refresh-btn');
+    if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+        btn.textContent = '⏱ 自動更新: OFF';
+        btn.classList.remove('auto-refresh-on');
+    } else {
+        autoRefreshTimer = setInterval(() => fetchLogs(true), 10000);
+        btn.textContent = '⏱ 自動更新: ON (10秒)';
+        btn.classList.add('auto-refresh-on');
+        fetchLogs(true);
+    }
+}
+
+// ===== エラー表示 =====
+function showError(msg) {
+    const c = document.getElementById('error-container');
+    c.innerHTML = `<div class="error-box">⚠️ ${escapeHtml(msg)}</div>`;
+}
+function clearError() {
+    document.getElementById('error-container').innerHTML = '';
+}
+
+// ===== ログアウト =====
+function logout() {
+    localStorage.removeItem('access_token');
+    window.location.href = 'dashboard.html';
+}
+
+// ===== 初期化 =====
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof restoreAccordionState === 'function') {
+        restoreAccordionState();
+    }
+    // ユーザー情報取得
+    if (typeof api !== 'undefined') {
+        api.request('GET', '/api/auth/me').then(data => {
+            const u = data.user || data;
+            const nameEl  = document.getElementById('user-menu-username');
+            const roleEl  = document.getElementById('user-menu-role');
+            const emailEl = document.getElementById('user-menu-email');
+            if (nameEl)  nameEl.textContent  = u.username || '-';
+            if (roleEl)  roleEl.textContent  = u.role     || '-';
+            if (emailEl) emailEl.textContent = u.email    || '-';
+        }).catch(() => {});
+    }
+});
+</script>
+</body>
+</html>

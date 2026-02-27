@@ -116,7 +116,7 @@
                 setTimeout(() => {
                     console.log('Redirecting to dashboard...');
                     // Edge対策: 強制的にページを完全リロード
-                    window.location.replace('/dev/dashboard.html');
+                    window.location.replace(window.location.pathname.replace('index.html','') + 'dashboard.html');
                 }, 1500);
 
             } catch (error) {
@@ -134,7 +134,7 @@
             console.log('Already authenticated, checking token validity...');
             api.getCurrentUser().then((user) => {
                 console.log('Token valid, redirecting to dashboard...', user);
-                window.location.href = '/dev/dashboard.html';
+                window.location.href = window.location.pathname.replace('index.html','') + 'dashboard.html';
             }).catch((error) => {
                 // トークンが無効な場合はクリア
                 console.warn('Token invalid, clearing...', error);

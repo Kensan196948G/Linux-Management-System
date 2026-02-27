@@ -238,7 +238,7 @@ class UserManager {
 
             // Email
             const emailCell = document.createElement('td');
-            emailCell.textContent = user.email || '不明';
+            emailCell.textContent = user.email || '-';
             emailCell.style.fontSize = '13px';
             if (!user.email) emailCell.style.color = '#9ca3af';
             row.appendChild(emailCell);
@@ -253,7 +253,7 @@ class UserManager {
             } else {
                 const badge = document.createElement('span');
                 badge.className = 'role-badge role-unknown';
-                badge.textContent = '不明';
+                badge.textContent = '-';
                 roleCell.appendChild(badge);
             }
             row.appendChild(roleCell);
@@ -273,7 +273,7 @@ class UserManager {
 
             // Last Login
             const loginCell = document.createElement('td');
-            loginCell.textContent = user.last_login ? this.formatDateTime(user.last_login) : '不明';
+            loginCell.textContent = user.last_login ? this.formatDateTime(user.last_login) : '-';
             loginCell.style.fontSize = '11px';
             if (!user.last_login) loginCell.style.color = '#9ca3af';
             row.appendChild(loginCell);
@@ -675,7 +675,7 @@ class UserManager {
         const roleBadgeClass = this.getRoleBadgeClass(user.role);
         const roleDisplay = user.role
             ? `<span class="role-badge ${roleBadgeClass}">${this.escapeHtml(user.role)}</span>`
-            : '<span class="role-badge role-unknown">不明</span>';
+            : '<span class="role-badge role-unknown">-</span>';
         const roleNote = this.isAdmin() && user.role
             ? `<div class="role-note">⚠️ (変更不可: 承認フロー必要)</div>` : '';
 
@@ -683,19 +683,19 @@ class UserManager {
             <div class="row">
                 <div class="col-md-6">
                     <p><strong>ユーザー名:</strong> ${this.escapeHtml(user.username)}</p>
-                    <p><strong>メールアドレス:</strong> ${this.escapeHtml(user.email || '不明')}</p>
+                    <p><strong>メールアドレス:</strong> ${this.escapeHtml(user.email || '-')}</p>
                     <p><strong>ロール:</strong> ${roleDisplay}${roleNote}</p>
                     <p><strong>状態:</strong> ${user.locked
                         ? '<span class="status-badge status-locked">ロック</span>'
                         : '<span class="status-badge status-active">アクティブ</span>'}</p>
-                    <p><strong>最終ログイン:</strong> ${this.escapeHtml(user.last_login ? this.formatDateTime(user.last_login) : '不明')}</p>
+                    <p><strong>最終ログイン:</strong> ${this.escapeHtml(user.last_login ? this.formatDateTime(user.last_login) : '-')}</p>
                 </div>
                 <div class="col-md-6">
-                    <p><strong>UID:</strong> ${this.escapeHtml(user.uid != null ? String(user.uid) : '不明')}</p>
-                    <p><strong>GID:</strong> ${this.escapeHtml(user.gid != null ? String(user.gid) : '不明')}</p>
+                    <p><strong>UID:</strong> ${this.escapeHtml(user.uid != null ? String(user.uid) : '-')}</p>
+                    <p><strong>GID:</strong> ${this.escapeHtml(user.gid != null ? String(user.gid) : '-')}</p>
                     <p><strong>説明:</strong> ${this.escapeHtml(user.gecos || '-')}</p>
-                    <p><strong>ホーム:</strong> <code>${this.escapeHtml(user.home || '不明')}</code></p>
-                    <p><strong>シェル:</strong> <code>${this.escapeHtml(user.shell || '不明')}</code></p>
+                    <p><strong>ホーム:</strong> <code>${this.escapeHtml(user.home || '-')}</code></p>
+                    <p><strong>シェル:</strong> <code>${this.escapeHtml(user.shell || '-')}</code></p>
                 </div>
             </div>
             ${user.groups && user.groups.length > 0 ? `

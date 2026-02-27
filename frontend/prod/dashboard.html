@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【開発】Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- 左側サイドバー -->
+        <aside class="sidebar" id="sidebar-container"></aside>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <div class="main-header">
+                <h2 id="page-title">ダッシュボード</h2>
+            </div>
+
+            <div class="main-body" id="main-body">
+                <!-- ページコンテンツがここに表示される -->
+            </div>
+        </main>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="../js/env-config.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/components.js"></script>
+    <script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('dashboard')):renderSidebar('dashboard');</script>
+    <script src="../js/pages.js"></script>
+    <script src="../js/app-dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>監査ログ - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .filter-bar { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 16px; margin-bottom: 16px; }
+        .log-table td, .log-table th { padding: 8px 10px; font-size: 13px; vertical-align: middle; }
+        .log-table th { background: #f9fafb; font-weight: 600; color: #374151; }
+        .badge-success { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-failure { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-denied { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-default { background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+        .op-badge { background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .pagination-bar { display: flex; align-items: center; gap: 12px; justify-content: flex-end; padding: 12px 0; }
+        .details-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: #6b7280; font-family: monospace; }
+        .export-btns { display: flex; gap: 8px; }
+        .admin-only-notice { display: none; }
+        #loading-indicator { color: #6b7280; font-size: 14px; }
+        .error-box { background: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; padding: 16px; margin: 16px 0; color: #991b1b; }
+        .stat-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 14px 20px; text-align: center; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #1f2937; }
+        .stat-label { font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <!-- サイドバー -->
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">📋 監査ログ</h2>
+            <div class="export-btns">
+                <button class="btn btn-sm btn-outline-success" id="export-csv-btn" onclick="exportLogs('csv')" style="display:none">
+                    ⬇ CSV エクスポート
+                </button>
+                <button class="btn btn-sm btn-outline-primary" id="export-json-btn" onclick="exportLogs('json')" style="display:none">
+                    ⬇ JSON エクスポート
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadLogs()" id="refresh-btn">
+                    🔄 更新
+                </button>
+            </div>
+        </div>
+
+        <div class="main-body">
+            <!-- サマリーカード -->
+            <div class="row g-3 mb-3" id="summary-row">
+                <div class="col-sm-3">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total">-</div>
+                        <div class="stat-label">総ログ件数</div>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="stat-card">
+                        <div class="stat-value text-success" id="stat-success">-</div>
+                        <div class="stat-label">成功</div>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="stat-card">
+                        <div class="stat-value text-danger" id="stat-failure">-</div>
+                        <div class="stat-label">失敗</div>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="stat-card">
+                        <div class="stat-value text-warning" id="stat-denied">-</div>
+                        <div class="stat-label">拒否</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- フィルターバー -->
+            <div class="filter-bar">
+                <div class="row g-2 align-items-end">
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">ユーザーID</label>
+                        <input type="text" class="form-control form-control-sm" id="filter-user" placeholder="例: admin">
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">操作種別</label>
+                        <select class="form-select form-select-sm" id="filter-operation">
+                            <option value="">すべて</option>
+                            <option value="service_restart">service_restart</option>
+                            <option value="service_stop">service_stop</option>
+                            <option value="firewall_rules_read">firewall_rules_read</option>
+                            <option value="ssh_config_read">ssh_config_read</option>
+                            <option value="packages_installed_read">packages_installed_read</option>
+                            <option value="log_view">log_view</option>
+                            <option value="process_list">process_list</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">ステータス</label>
+                        <select class="form-select form-select-sm" id="filter-status">
+                            <option value="">すべて</option>
+                            <option value="success">success</option>
+                            <option value="failure">failure</option>
+                            <option value="denied">denied</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">開始日時</label>
+                        <input type="datetime-local" class="form-control form-control-sm" id="filter-start">
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">終了日時</label>
+                        <input type="datetime-local" class="form-control form-control-sm" id="filter-end">
+                    </div>
+                    <div class="col-sm-2">
+                        <button class="btn btn-sm btn-primary w-100" onclick="applyFilter()">🔍 検索</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- エラー表示 -->
+            <div id="error-container"></div>
+
+            <!-- ローディング -->
+            <div id="loading-indicator" class="text-center py-3">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                読み込み中...
+            </div>
+
+            <!-- ログテーブル -->
+            <div id="log-container" style="display:none">
+                <div class="table-responsive">
+                    <table class="table table-hover log-table">
+                        <thead>
+                            <tr>
+                                <th>日時</th>
+                                <th>操作種別</th>
+                                <th>ユーザー</th>
+                                <th>対象</th>
+                                <th>ステータス</th>
+                                <th>詳細</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-tbody"></tbody>
+                    </table>
+                </div>
+
+                <!-- ページネーション -->
+                <div class="pagination-bar">
+                    <span id="page-info" class="text-muted small"></span>
+                    <button class="btn btn-sm btn-outline-secondary" id="prev-btn" onclick="changePage(-1)" disabled>← 前へ</button>
+                    <button class="btn btn-sm btn-outline-secondary" id="next-btn" onclick="changePage(1)" disabled>次へ →</button>
+                </div>
+            </div>
+
+            <!-- 空状態 -->
+            <div id="empty-state" class="text-center py-5 text-muted" style="display:none">
+                <p>📋 表示するログがありません</p>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/env-config.js"></script>
+    <script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('audit')):renderSidebar('audit');</script>
+<script>
+    let currentPage = 1;
+    const PER_PAGE = 50;
+    let currentData = null;
+    let isAdmin = false;
+
+    // 認証チェック
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = '/login.html';
+    }
+
+    // ロール確認
+    async function checkRole() {
+        try {
+            const resp = await api.getCurrentUser();
+            if (resp && resp.role === 'Admin') {
+                isAdmin = true;
+                document.getElementById('export-csv-btn').style.display = 'inline-block';
+                document.getElementById('export-json-btn').style.display = 'inline-block';
+            }
+            // ViewerはAPIが403を返すため、ロードで確認
+        } catch(e) {
+            console.warn('Role check failed:', e);
+        }
+    }
+
+    async function loadLogs() {
+        currentPage = 1;
+        await fetchLogs();
+    }
+
+    async function applyFilter() {
+        currentPage = 1;
+        await fetchLogs();
+    }
+
+    function buildParams() {
+        const params = new URLSearchParams();
+        params.set('page', currentPage);
+        params.set('per_page', PER_PAGE);
+        const user = document.getElementById('filter-user').value.trim();
+        const op = document.getElementById('filter-operation').value;
+        const st = document.getElementById('filter-status').value;
+        const start = document.getElementById('filter-start').value;
+        const end = document.getElementById('filter-end').value;
+        if (user) params.set('user_id', user);
+        if (op) params.set('operation', op);
+        if (st) params.set('status', st);
+        if (start) params.set('start_date', new Date(start).toISOString());
+        if (end) params.set('end_date', new Date(end).toISOString());
+        return params;
+    }
+
+    async function fetchLogs() {
+        document.getElementById('loading-indicator').style.display = 'block';
+        document.getElementById('log-container').style.display = 'none';
+        document.getElementById('empty-state').style.display = 'none';
+        document.getElementById('error-container').innerHTML = '';
+
+        try {
+            const params = buildParams();
+            const resp = await fetch(`/api/audit/logs?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (resp.status === 403) {
+                showError('監査ログへのアクセス権限がありません（Viewerロールはアクセス不可）');
+                return;
+            }
+            if (!resp.ok) {
+                const err = await resp.json();
+                showError(err.detail || 'ログ取得エラー');
+                return;
+            }
+
+            currentData = await resp.json();
+            renderLogs(currentData);
+        } catch(e) {
+            showError('APIエラー: ' + e.message);
+        } finally {
+            document.getElementById('loading-indicator').style.display = 'none';
+        }
+    }
+
+    function renderLogs(data) {
+        const entries = data.entries || [];
+        if (entries.length === 0) {
+            document.getElementById('empty-state').style.display = 'block';
+            updateStats([]);
+            return;
+        }
+
+        document.getElementById('log-container').style.display = 'block';
+
+        const tbody = document.getElementById('log-tbody');
+        tbody.innerHTML = '';
+        entries.forEach(entry => {
+            const tr = document.createElement('tr');
+            const ts = new Date(entry.timestamp).toLocaleString('ja-JP');
+            const statusBadge = renderStatusBadge(entry.status);
+            const detailsStr = entry.details && Object.keys(entry.details).length > 0
+                ? JSON.stringify(entry.details) : '-';
+
+            tr.innerHTML = `
+                <td><span style="font-size:12px;font-family:monospace">${ts}</span></td>
+                <td><span class="op-badge">${escHtml(entry.operation)}</span></td>
+                <td>${escHtml(entry.user_id)}</td>
+                <td>${escHtml(entry.target)}</td>
+                <td>${statusBadge}</td>
+                <td class="details-cell" title="${escHtml(detailsStr)}">${escHtml(detailsStr)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // ページネーション
+        const pageInfo = document.getElementById('page-info');
+        pageInfo.textContent = `ページ ${data.page} / ${Math.max(1, Math.ceil(data.total / PER_PAGE))} (${data.total}件)`;
+        document.getElementById('prev-btn').disabled = data.page <= 1;
+        document.getElementById('next-btn').disabled = !data.has_next;
+
+        // 統計更新
+        updateStats(entries);
+        document.getElementById('stat-total').textContent = data.total;
+    }
+
+    function updateStats(entries) {
+        const success = entries.filter(e => e.status === 'success').length;
+        const failure = entries.filter(e => e.status === 'failure').length;
+        const denied = entries.filter(e => e.status === 'denied').length;
+        document.getElementById('stat-success').textContent = success;
+        document.getElementById('stat-failure').textContent = failure;
+        document.getElementById('stat-denied').textContent = denied;
+    }
+
+    function renderStatusBadge(st) {
+        const map = { success: 'badge-success', failure: 'badge-failure', denied: 'badge-denied' };
+        const cls = map[st] || 'badge-default';
+        return `<span class="${cls}">${st}</span>`;
+    }
+
+    async function changePage(delta) {
+        currentPage += delta;
+        await fetchLogs();
+    }
+
+    async function exportLogs(format) {
+        const params = buildParams();
+        params.delete('page');
+        params.delete('per_page');
+        params.set('format', format);
+        const url = `/api/audit/logs/export?${params.toString()}`;
+        const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!resp.ok) {
+            showError('エクスポートに失敗しました');
+            return;
+        }
+        const blob = await resp.blob();
+        const a = document.createElement('a');
+        const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        a.href = URL.createObjectURL(blob);
+        a.download = `audit_export_${ts}.${format}`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    function showError(msg) {
+        document.getElementById('error-container').innerHTML =
+            `<div class="error-box">⚠ ${escHtml(msg)}</div>`;
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // 初期化
+    (async () => {
+        await checkRole();
+        await fetchLogs();
+    })();
+</script>
+</body>
+</html>

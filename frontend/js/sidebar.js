@@ -443,9 +443,6 @@ function renderSidebar(activePage) {
         </div>
     `;
 
-    // アコーディオン状態を復元（ページに合わせた展開後に追加状態を適用）
-    restoreAccordionState();
-
     // 保存済みのユーザー情報を復元
     try {
         const email = localStorage.getItem('user_email') || localStorage.getItem('userEmail') || '';

@@ -38,7 +38,7 @@ class ApprovalManager {
         // 認証チェック
         if (!api.isAuthenticated()) {
             console.error('Not authenticated, redirecting to login');
-            window.location.href = '/dev/index.html';
+            window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
             return;
         }
 
@@ -91,7 +91,7 @@ class ApprovalManager {
         } catch (error) {
             console.error('Failed to load current user:', error);
             alert('ユーザー情報の取得に失敗しました。再度ログインしてください。');
-            window.location.href = '/dev/index.html';
+            window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
         }
     }
 

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ディスククォータ管理 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .quota-table th { font-size: 12px; color: #6b7280; font-weight: 600; }
+        .quota-table td { font-size: 13px; vertical-align: middle; }
+        .usage-bar { width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; }
+        .usage-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .usage-ok { background: #10b981; }
+        .usage-warn { background: #f59e0b; }
+        .usage-over { background: #ef4444; }
+        .badge-ok { background-color: #d1fae5; color: #065f46; }
+        .badge-warn { background-color: #fef3c7; color: #92400e; }
+        .badge-over { background-color: #fee2e2; color: #991b1b; }
+        .badge-unavail { background-color: #f3f4f6; color: #6b7280; }
+        .form-label-sm { font-size: 13px; color: #374151; }
+        .quota-set-card {
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .unavailable-notice {
+            background: #fefce8;
+            border: 1px solid #fde047;
+            border-radius: 8px;
+            padding: 16px;
+            color: #713f12;
+        }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <!-- サイドバー -->
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+        <div class="container-fluid py-3">
+            <!-- ヘッダー -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h4 class="mb-0">ディスククォータ管理</h4>
+                    <p class="text-muted small mb-0">ユーザー・グループのディスク使用量制限を管理します</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <select id="fsFilter" class="form-select form-select-sm" style="width:160px;">
+                        <option value="">全ファイルシステム</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">
+                        <i class="bi bi-arrow-clockwise"></i> 更新
+                    </button>
+                </div>
+            </div>
+
+            <!-- アラート表示エリア -->
+            <div id="alertArea"></div>
+
+            <!-- クォータ未インストール通知 -->
+            <div id="unavailableNotice" class="unavailable-notice d-none">
+                <strong>⚠️ quota ツール未インストール</strong>
+                <p class="mb-0 mt-1 small">ディスククォータ機能を使用するには <code>quota</code> パッケージのインストールが必要です。<br>
+                <code>sudo apt-get install quota</code> を実行してください。</p>
+            </div>
+
+            <!-- タブ -->
+            <ul class="nav nav-tabs mb-3" id="quotaTabs">
+                <li class="nav-item">
+                    <button class="nav-link active" data-tab="users" onclick="switchTab('users')">ユーザークォータ</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-tab="report" onclick="switchTab('report')">レポート</button>
+                </li>
+                <li class="nav-item" id="setTabItem">
+                    <button class="nav-link" data-tab="set" onclick="switchTab('set')">クォータ設定</button>
+                </li>
+            </ul>
+
+            <!-- ユーザークォータタブ -->
+            <div id="tab-users">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="status-title">ユーザークォータ一覧</span>
+                        <span id="quotaStatusBadge" class="badge badge-unavail px-2 py-1">読み込み中...</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm quota-table">
+                            <thead>
+                                <tr>
+                                    <th>ユーザー</th>
+                                    <th>ファイルシステム</th>
+                                    <th>使用量</th>
+                                    <th>ソフトリミット</th>
+                                    <th>ハードリミット</th>
+                                    <th>使用率</th>
+                                    <th>状態</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userQuotaTable">
+                                <tr><td colspan="7" class="text-center text-muted py-3">読み込み中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- レポートタブ -->
+            <div id="tab-report" class="d-none">
+                <div class="status-card">
+                    <span class="status-title">クォータレポート</span>
+                    <pre id="reportContent" class="bg-dark text-light p-3 rounded" style="font-size:12px; max-height:500px; overflow-y:auto;">読み込み中...</pre>
+                </div>
+            </div>
+
+            <!-- クォータ設定タブ -->
+            <div id="tab-set" class="d-none">
+                <div class="quota-set-card">
+                    <span class="status-title">🔒 クォータ設定</span>
+                    <p class="text-muted small">ユーザーまたはグループにディスク使用量制限を設定します。Admin/Approver 権限が必要です。</p>
+                    <form id="quotaSetForm" onsubmit="submitQuotaSet(event)">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label form-label-sm">種別</label>
+                                <select class="form-select form-select-sm" id="setType">
+                                    <option value="user">ユーザー</option>
+                                    <option value="group">グループ</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label form-label-sm" id="setNameLabel">ユーザー名</label>
+                                <input type="text" class="form-control form-control-sm" id="setName" pattern="[a-zA-Z0-9._-]+" maxlength="64" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label form-label-sm">ファイルシステム</label>
+                                <input type="text" class="form-control form-control-sm" id="setFilesystem" value="/" pattern="[/a-zA-Z0-9_.-]+" required>
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-3">
+                                <label class="form-label form-label-sm">ソフトリミット (KB)</label>
+                                <input type="number" class="form-control form-control-sm" id="setSoftKb" min="0" value="524288" required>
+                                <div class="form-text">512MB = 524288KB</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label form-label-sm">ハードリミット (KB)</label>
+                                <input type="number" class="form-control form-control-sm" id="setHardKb" min="0" value="1048576" required>
+                                <div class="form-text">1GB = 1048576KB</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label form-label-sm">inode ソフトリミット</label>
+                                <input type="number" class="form-control form-control-sm" id="setIsoft" min="0" value="0">
+                                <div class="form-text">0 = 無制限</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label form-label-sm">inode ハードリミット</label>
+                                <input type="number" class="form-control form-control-sm" id="setIhard" min="0" value="0">
+                                <div class="form-text">0 = 無制限</div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-sm btn-success" id="setSubmitBtn">クォータを設定する</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="resetForm()">リセット</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('quotas')):renderSidebar('quotas');</script>
+<script>
+let currentTab = 'users';
+const API_BASE = '/api';
+
+async function getToken() {
+    return localStorage.getItem('access_token') || '';
+}
+
+function showAlert(message, type = 'danger') {
+    const area = document.getElementById('alertArea');
+    area.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('[data-tab]').forEach(el => el.classList.remove('active'));
+    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    ['users', 'report', 'set'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('d-none', t !== tab);
+    });
+    if (tab === 'users') loadUserQuotas();
+    else if (tab === 'report') loadReport();
+}
+
+function formatBytes(kb) {
+    if (kb === 0) return '無制限';
+    if (kb < 1024) return `${kb} KB`;
+    if (kb < 1024 * 1024) return `${(kb / 1024).toFixed(1)} MB`;
+    return `${(kb / 1024 / 1024).toFixed(1)} GB`;
+}
+
+async function loadUserQuotas() {
+    const token = await getToken();
+    const fs = document.getElementById('fsFilter').value;
+    const url = fs ? `${API_BASE}/quotas/users?filesystem=${encodeURIComponent(fs)}` : `${API_BASE}/quotas/users`;
+    try {
+        const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await resp.json();
+        const tbody = document.getElementById('userQuotaTable');
+        const badge = document.getElementById('quotaStatusBadge');
+
+        if (data.status === 'unavailable') {
+            document.getElementById('unavailableNotice').classList.remove('d-none');
+            badge.textContent = '未インストール';
+            badge.className = 'badge badge-unavail px-2 py-1';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">quota ツールが未インストールです</td></tr>';
+            return;
+        }
+
+        document.getElementById('unavailableNotice').classList.add('d-none');
+        badge.textContent = '有効';
+        badge.className = 'badge badge-ok px-2 py-1';
+
+        const users = data.data?.users || [];
+        if (users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">クォータデータがありません</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = users.map(u => {
+            const usagePercent = u.soft_limit_kb > 0 ? Math.min(100, Math.round(u.used_kb / u.soft_limit_kb * 100)) : 0;
+            const barClass = usagePercent >= 100 ? 'usage-over' : usagePercent >= 80 ? 'usage-warn' : 'usage-ok';
+            const statusClass = usagePercent >= 100 ? 'badge-over' : usagePercent >= 80 ? 'badge-warn' : 'badge-ok';
+            const statusText = usagePercent >= 100 ? '超過' : usagePercent >= 80 ? '警告' : '正常';
+            return `<tr>
+                <td><strong>${u.username || '-'}</strong></td>
+                <td><code>${u.filesystem || '-'}</code></td>
+                <td>${formatBytes(u.used_kb || 0)}</td>
+                <td>${formatBytes(u.soft_limit_kb || 0)}</td>
+                <td>${formatBytes(u.hard_limit_kb || 0)}</td>
+                <td>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="usage-bar flex-grow-1"><div class="usage-bar-fill ${barClass}" style="width:${usagePercent}%"></div></div>
+                        <span class="small">${usagePercent}%</span>
+                    </div>
+                </td>
+                <td><span class="badge ${statusClass} px-2 py-1">${statusText}</span></td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        document.getElementById('userQuotaTable').innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">エラー: ${e.message}</td></tr>`;
+    }
+}
+
+async function loadReport() {
+    const token = await getToken();
+    const fs = document.getElementById('fsFilter').value;
+    const url = fs ? `${API_BASE}/quotas/report?filesystem=${encodeURIComponent(fs)}` : `${API_BASE}/quotas/report`;
+    try {
+        const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await resp.json();
+        const el = document.getElementById('reportContent');
+        if (data.status === 'unavailable') {
+            el.textContent = '⚠️ quota ツールが未インストールです';
+        } else {
+            el.textContent = data.data?.report || JSON.stringify(data, null, 2);
+        }
+    } catch (e) {
+        document.getElementById('reportContent').textContent = `エラー: ${e.message}`;
+    }
+}
+
+async function submitQuotaSet(e) {
+    e.preventDefault();
+    const token = await getToken();
+    const btn = document.getElementById('setSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = '設定中...';
+
+    const payload = {
+        type: document.getElementById('setType').value,
+        name: document.getElementById('setName').value.trim(),
+        filesystem: document.getElementById('setFilesystem').value.trim(),
+        soft_kb: parseInt(document.getElementById('setSoftKb').value),
+        hard_kb: parseInt(document.getElementById('setHardKb').value),
+        isoft: parseInt(document.getElementById('setIsoft').value) || 0,
+        ihard: parseInt(document.getElementById('setIhard').value) || 0,
+    };
+
+    try {
+        const resp = await fetch(`${API_BASE}/quotas/set`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            showAlert(`✅ クォータを設定しました: ${payload.type} ${payload.name} (${formatBytes(payload.soft_kb)} / ${formatBytes(payload.hard_kb)})`, 'success');
+        } else {
+            showAlert(`❌ エラー: ${data.detail || JSON.stringify(data)}`);
+        }
+    } catch (e) {
+        showAlert(`❌ 通信エラー: ${e.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'クォータを設定する';
+    }
+}
+
+function resetForm() {
+    document.getElementById('quotaSetForm').reset();
+}
+
+document.getElementById('setType').addEventListener('change', function() {
+    document.getElementById('setNameLabel').textContent = this.value === 'user' ? 'ユーザー名' : 'グループ名';
+});
+
+document.getElementById('fsFilter').addEventListener('change', refreshAll);
+
+async function refreshAll() {
+    if (currentTab === 'users') await loadUserQuotas();
+    else if (currentTab === 'report') await loadReport();
+}
+
+// 権限チェック: write:quotas がなければ設定タブを非表示
+async function checkPermissions() {
+    const token = await getToken();
+    if (!token) return;
+    try {
+        const resp = await fetch(`${API_BASE}/auth/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (resp.ok) {
+            const user = await resp.json();
+            const perms = user.permissions || [];
+            if (!perms.includes('write:quotas')) {
+                document.getElementById('setTabItem').classList.add('d-none');
+            }
+        }
+    } catch {}
+}
+
+// 初期化
+(async () => {
+    await checkPermissions();
+    await loadUserQuotas();
+})();
+</script>
+</body>
+</html>

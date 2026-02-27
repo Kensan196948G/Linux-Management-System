@@ -437,7 +437,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 認証チェック
     if (!api.isAuthenticated()) {
         console.warn('Not authenticated, redirecting to login');
-        window.location.href = '/dev/index.html';
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
         return;
     }
 
