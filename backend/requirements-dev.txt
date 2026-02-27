@@ -26,5 +26,9 @@ types-python-dateutil==2.9.0.20241206
 # API テスト
 httpx==0.28.1
 
+# E2E テスト (Playwright)
+playwright>=1.40.0
+pytest-playwright>=0.4.4
+
 # デバッグ
 ipython==8.31.0

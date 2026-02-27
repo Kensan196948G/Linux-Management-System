@@ -160,7 +160,6 @@ if [[ "$DB_TYPE" == "postgresql" ]]; then
     fi
 
     # psql を postgres ユーザーとして実行
-    PSQL_CMD="sudo -u postgres psql"
     PSQL_AVAILABLE=false
     if sudo -u postgres psql -c '\q' >/dev/null 2>&1; then
         PSQL_AVAILABLE=true

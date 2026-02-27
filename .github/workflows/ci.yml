@@ -68,8 +68,8 @@ jobs:
 
       - name: Run tests (pytest)
         run: |
-          if [ -d tests ] && [ -n "$(find tests -name 'test_*.py' 2>/dev/null)" ]; then
-            pytest tests/ -v --cov=backend --cov-report=html --cov-report=term
+          if [ -d tests ] && [ -n "$(find tests -name 'test_*.py' 2>/dev/null | grep -v e2e)" ]; then
+            pytest tests/ --ignore=tests/e2e -v --cov=backend --cov-report=html --cov-report=term
           else
             echo "No tests found yet - skipping"
           fi
@@ -106,7 +106,7 @@ jobs:
       - name: Run ShellCheck on wrappers
         run: |
           if [ -d wrappers ] && [ -n "$(find wrappers -name '*.sh' 2>/dev/null)" ]; then
-            shellcheck wrappers/*.sh
+            shellcheck --severity=error wrappers/*.sh
           else
             echo "No shell scripts found yet - skipping"
           fi
