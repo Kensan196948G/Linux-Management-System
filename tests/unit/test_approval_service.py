@@ -9,8 +9,9 @@ import asyncio
 import json
 import uuid
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiosqlite
 import pytest
 
 from backend.core.approval_service import (
@@ -731,3 +732,1010 @@ class TestOtherOperations:
         tampered_record = record.copy()
         tampered_record["action"] = "rejected"
         assert verify_history_signature(tampered_record) is False
+
+
+# =====================================================================
+# TC031: initialize_db() エラーケース
+# =====================================================================
+
+
+class TestInitializeDb:
+    """initialize_db() のエラーパス"""
+
+    def test_schema_file_not_found(self, approval_db_path):
+        """TC031: スキーマファイルが存在しない場合 FileNotFoundError を送出"""
+        service = ApprovalService(db_path=approval_db_path)
+        with patch("pathlib.Path.exists", return_value=False):
+            with pytest.raises(FileNotFoundError, match="Schema file not found"):
+                run_async(service.initialize_db())
+
+
+# =====================================================================
+# TC032-034: approve_request() auto_execute パス
+# =====================================================================
+
+
+class TestApproveRequestAutoExecute:
+    """auto_execute フラグ有効時の approve_request() 分岐"""
+
+    def _create_test_request(self, service):
+        """user_add リクエストを作成して返す"""
+        return run_async(
+            service.create_request(
+                request_type="user_add",
+                payload={"username": "autoexec_usr", "group": "dev"},
+                reason="auto_execute テスト",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+
+    def _set_auto_execute(self, service, operation_type, value=1):
+        """approval_policies の auto_execute フラグを更新"""
+
+        async def _update():
+            async with aiosqlite.connect(service.db_path) as db:
+                await db.execute(
+                    "UPDATE approval_policies SET auto_execute = ? WHERE operation_type = ?",
+                    (value, operation_type),
+                )
+                await db.commit()
+
+        run_async(_update())
+
+    def test_auto_execute_success(self, approval_service_with_mock_audit):
+        """TC032: auto_execute=1 で execute_request 成功 → auto_executed=True"""
+        service = approval_service_with_mock_audit
+        req = self._create_test_request(service)
+        self._set_auto_execute(service, "user_add", 1)
+
+        mock_exec_result = {
+            "request_id": req["request_id"],
+            "request_type": "user_add",
+            "executed_by": "user_003",
+            "executed_by_name": "admin",
+            "executed_at": "2026-01-01T00:00:00",
+            "execution_result": {"status": "success"},
+        }
+        with patch.object(
+            service,
+            "execute_request",
+            new_callable=AsyncMock,
+            return_value=mock_exec_result,
+        ):
+            result = run_async(
+                service.approve_request(
+                    request_id=req["request_id"],
+                    approver_id="user_003",
+                    approver_name="admin",
+                    approver_role="Admin",
+                )
+            )
+
+        assert result["auto_executed"] is True
+        assert "execution_result" in result
+
+    def test_auto_execute_not_implemented(self, approval_service_with_mock_audit):
+        """TC033: auto_execute=1 で execute_request が NotImplementedError → skipped_reason"""
+        service = approval_service_with_mock_audit
+        req = self._create_test_request(service)
+        self._set_auto_execute(service, "user_add", 1)
+
+        with patch.object(
+            service,
+            "execute_request",
+            new_callable=AsyncMock,
+            side_effect=NotImplementedError("未対応操作のため自動実行スキップ"),
+        ):
+            result = run_async(
+                service.approve_request(
+                    request_id=req["request_id"],
+                    approver_id="user_003",
+                    approver_name="admin",
+                    approver_role="Admin",
+                )
+            )
+
+        assert result["auto_executed"] is False
+        assert "auto_execute_skipped_reason" in result
+
+    def test_auto_execute_exception(self, approval_service_with_mock_audit):
+        """TC034: auto_execute=1 で execute_request が Exception → auto_execute_error"""
+        service = approval_service_with_mock_audit
+        req = self._create_test_request(service)
+        self._set_auto_execute(service, "user_add", 1)
+
+        with patch.object(
+            service,
+            "execute_request",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("予期しない実行エラー"),
+        ):
+            result = run_async(
+                service.approve_request(
+                    request_id=req["request_id"],
+                    approver_id="user_003",
+                    approver_name="admin",
+                    approver_role="Admin",
+                )
+            )
+
+        assert result["auto_executed"] is False
+        assert "auto_execute_error" in result
+
+
+# =====================================================================
+# TC035-037: reject_request() エラーケース
+# =====================================================================
+
+
+class TestRejectRequestEdgeCases:
+    """reject_request() の未カバーパス"""
+
+    def test_lookup_error(self, approval_service_with_mock_audit):
+        """TC035: 存在しない request_id → LookupError"""
+        service = approval_service_with_mock_audit
+        with pytest.raises(LookupError):
+            run_async(
+                service.reject_request(
+                    request_id=str(uuid.uuid4()),
+                    approver_id="user_003",
+                    approver_name="admin",
+                    approver_role="Admin",
+                    rejection_reason="テスト拒否",
+                )
+            )
+
+    def test_non_pending_request(self, approval_service_with_mock_audit):
+        """TC036: pending 以外のリクエスト（approved）→ ValueError"""
+        service = approval_service_with_mock_audit
+        req = run_async(
+            service.create_request(
+                request_type="user_add",
+                payload={"username": "reject_npend", "group": "dev"},
+                reason="拒否テスト",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+        # まず承認してステータスを approved に変更
+        run_async(
+            service.approve_request(
+                request_id=req["request_id"],
+                approver_id="user_003",
+                approver_name="admin",
+                approver_role="Admin",
+            )
+        )
+        with pytest.raises(ValueError, match="Only 'pending' requests can be rejected"):
+            run_async(
+                service.reject_request(
+                    request_id=req["request_id"],
+                    approver_id="user_003",
+                    approver_name="admin",
+                    approver_role="Admin",
+                    rejection_reason="テスト拒否",
+                )
+            )
+
+    def test_forbidden_char_in_rejection_reason(self, approval_service_with_mock_audit):
+        """TC037: rejection_reason に FORBIDDEN_CHARS → ValueError（DB参照前に弾く）"""
+        service = approval_service_with_mock_audit
+        with pytest.raises(ValueError, match="Forbidden character"):
+            run_async(
+                service.reject_request(
+                    request_id=str(uuid.uuid4()),
+                    approver_id="user_003",
+                    approver_name="admin",
+                    approver_role="Admin",
+                    rejection_reason="却下 | malicious",
+                )
+            )
+
+
+# =====================================================================
+# TC038-060: execute_request() ディスパッチ分岐
+# =====================================================================
+
+
+class TestExecuteRequestDispatch:
+    """execute_request() の全ディスパッチ分岐テスト"""
+
+    def _create_and_approve(self, service, request_type, payload):
+        """リクエスト作成 → 承認 → (request_id, request_type) を返す"""
+        req = run_async(
+            service.create_request(
+                request_type=request_type,
+                payload=payload,
+                reason="ディスパッチテスト",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+        run_async(
+            service.approve_request(
+                request_id=req["request_id"],
+                approver_id="user_003",
+                approver_name="admin",
+                approver_role="Admin",
+            )
+        )
+        return req["request_id"]
+
+    def _mock_wrapper_success(self):
+        """sudo_wrapper をモック（成功レスポンス）"""
+        mock = MagicMock()
+        mock.add_user.return_value = {"status": "success"}
+        mock.delete_user.return_value = {"status": "success"}
+        mock.change_user_password.return_value = {"status": "success"}
+        mock.modify_user_shell.return_value = {"status": "success"}
+        mock.modify_user_gecos.return_value = {"status": "success"}
+        mock.modify_user_add_group.return_value = {"status": "success"}
+        mock.modify_user_remove_group.return_value = {"status": "success"}
+        mock.add_group.return_value = {"status": "success"}
+        mock.delete_group.return_value = {"status": "success"}
+        mock.modify_group_membership.return_value = {"status": "success"}
+        mock.add_cron_job.return_value = {"status": "success"}
+        mock.remove_cron_job.return_value = {"status": "success"}
+        mock.toggle_cron_job.return_value = {"status": "success"}
+        mock.stop_service.return_value = {"status": "success"}
+        mock.allow_firewall_port.return_value = {"status": "success"}
+        mock.deny_firewall_port.return_value = {"status": "success"}
+        mock.delete_firewall_rule.return_value = {"status": "success"}
+        return mock
+
+    def test_execute_request_not_found(self, approval_service_with_mock_audit):
+        """TC038: 存在しない request_id → LookupError"""
+        service = approval_service_with_mock_audit
+        with pytest.raises(LookupError):
+            run_async(
+                service.execute_request(
+                    request_id=str(uuid.uuid4()),
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+
+    def test_execute_request_not_approved(self, approval_service_with_mock_audit):
+        """TC039: pending ステータスのリクエスト → ValueError"""
+        service = approval_service_with_mock_audit
+        req = run_async(
+            service.create_request(
+                request_type="user_add",
+                payload={"username": "exec_notappr", "group": "dev"},
+                reason="実行テスト",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+        with pytest.raises(ValueError, match="cannot be executed"):
+            run_async(
+                service.execute_request(
+                    request_id=req["request_id"],
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+
+    def test_dispatch_user_add(self, approval_service_with_mock_audit):
+        """TC040: user_add ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "user_add",
+            {"username": "new_user1", "group": "dev"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "user_add"
+        mock_sw.add_user.assert_called_once()
+
+    def test_dispatch_user_delete(self, approval_service_with_mock_audit):
+        """TC041: user_delete ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "user_delete",
+            {"username": "old_user1"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "user_delete"
+        mock_sw.delete_user.assert_called_once()
+
+    def test_dispatch_user_passwd_with_hash(self, approval_service_with_mock_audit):
+        """TC042: user_passwd で password_hash あり → 成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "user_passwd",
+            {"username": "passwd_user1", "password_hash": "sha512crypt_fakehash_nochars"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "user_passwd"
+        mock_sw.change_user_password.assert_called_once()
+
+    def test_dispatch_user_passwd_without_hash_raises_value_error(
+        self, approval_service_with_mock_audit
+    ):
+        """TC043: user_passwd で password_hash なし → ValueError（except ブロック外に伝播）"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "user_passwd",
+            {"username": "passwd_user2"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            with pytest.raises(ValueError, match="password_hash が必要"):
+                run_async(
+                    service.execute_request(
+                        request_id=rid,
+                        executor_id="user_003",
+                        executor_name="admin",
+                        executor_role="Admin",
+                    )
+                )
+
+    def test_dispatch_user_modify_set_shell(self, approval_service_with_mock_audit):
+        """TC044: user_modify action=set-shell → 成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "user_modify",
+            {"username": "mod_user1", "action": "set-shell", "shell": "/bin/sh"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "user_modify"
+        mock_sw.modify_user_shell.assert_called_once()
+
+    def test_dispatch_user_modify_set_gecos(self, approval_service_with_mock_audit):
+        """TC045: user_modify action=set-gecos → 成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "user_modify",
+            {"username": "mod_user2", "action": "set-gecos", "gecos": "Test User"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        mock_sw.modify_user_gecos.assert_called_once()
+
+    def test_dispatch_user_modify_add_group(self, approval_service_with_mock_audit):
+        """TC046: user_modify action=add-group → 成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "user_modify",
+            {"username": "mod_user3", "action": "add-group", "group": "devops"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        mock_sw.modify_user_add_group.assert_called_once()
+
+    def test_dispatch_user_modify_remove_group(self, approval_service_with_mock_audit):
+        """TC047: user_modify action=remove-group → 成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "user_modify",
+            {"username": "mod_user4", "action": "remove-group", "group": "devops"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        mock_sw.modify_user_remove_group.assert_called_once()
+
+    def test_dispatch_user_modify_unknown_action(self, approval_service_with_mock_audit):
+        """TC048: user_modify 未知 action → NotImplementedError が捕捉され SudoWrapperError"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "user_modify",
+            {"username": "mod_user5", "action": "invalid-action"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            with pytest.raises(SudoWrapperError):
+                run_async(
+                    service.execute_request(
+                        request_id=rid,
+                        executor_id="user_003",
+                        executor_name="admin",
+                        executor_role="Admin",
+                    )
+                )
+
+    def test_dispatch_group_add(self, approval_service_with_mock_audit):
+        """TC049: group_add ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "group_add",
+            {"name": "newgroup1"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "group_add"
+        mock_sw.add_group.assert_called_once()
+
+    def test_dispatch_group_delete(self, approval_service_with_mock_audit):
+        """TC050: group_delete ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "group_delete",
+            {"name": "oldgroup1"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "group_delete"
+        mock_sw.delete_group.assert_called_once()
+
+    def test_dispatch_group_modify(self, approval_service_with_mock_audit):
+        """TC051: group_modify ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "group_modify",
+            {"group": "devops", "action": "add", "user": "testuser"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "group_modify"
+        mock_sw.modify_group_membership.assert_called_once()
+
+    def test_dispatch_cron_add(self, approval_service_with_mock_audit):
+        """TC052: cron_add ディスパッチ成功（schedule に * を含めない）"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "cron_add",
+            {
+                "username": "cronuser1",
+                "schedule": "0 5 1 1 0",
+                "command": "/usr/bin/backup",
+            },
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "cron_add"
+        mock_sw.add_cron_job.assert_called_once()
+
+    def test_dispatch_cron_delete(self, approval_service_with_mock_audit):
+        """TC053: cron_delete ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "cron_delete",
+            {"username": "cronuser2", "line_number": "3"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "cron_delete"
+        mock_sw.remove_cron_job.assert_called_once_with(
+            username="cronuser2", line_number=3
+        )
+
+    def test_dispatch_cron_modify(self, approval_service_with_mock_audit):
+        """TC054: cron_modify ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "cron_modify",
+            {"username": "cronuser3", "line_number": "2", "action": "disable"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "cron_modify"
+        mock_sw.toggle_cron_job.assert_called_once()
+
+    def test_dispatch_service_stop(self, approval_service_with_mock_audit):
+        """TC055: service_stop ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "service_stop",
+            {"service_name": "nginx"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "service_stop"
+        mock_sw.stop_service.assert_called_once_with(service_name="nginx")
+
+    def test_dispatch_firewall_allow(self, approval_service_with_mock_audit):
+        """TC056: firewall_modify action=allow ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "firewall_modify",
+            {"action": "allow", "port": "443", "protocol": "tcp"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            result = run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        assert result["request_type"] == "firewall_modify"
+        mock_sw.allow_firewall_port.assert_called_once()
+
+    def test_dispatch_firewall_deny(self, approval_service_with_mock_audit):
+        """TC057: firewall_modify action=deny ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "firewall_modify",
+            {"action": "deny", "port": "8080", "protocol": "tcp"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        mock_sw.deny_firewall_port.assert_called_once()
+
+    def test_dispatch_firewall_delete(self, approval_service_with_mock_audit):
+        """TC058: firewall_modify action=delete ディスパッチ成功"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "firewall_modify",
+            {"action": "delete", "rule_num": "5"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            run_async(
+                service.execute_request(
+                    request_id=rid,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+        mock_sw.delete_firewall_rule.assert_called_once_with(rule_num="5")
+
+    def test_dispatch_firewall_unknown_action_raises_value_error(
+        self, approval_service_with_mock_audit
+    ):
+        """TC059: firewall_modify 未知 action → ValueError（except ブロック外に伝播）"""
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "firewall_modify",
+            {"action": "unknown-action", "port": "80"},
+        )
+        mock_sw = self._mock_wrapper_success()
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            with pytest.raises(ValueError, match="Unknown firewall action"):
+                run_async(
+                    service.execute_request(
+                        request_id=rid,
+                        executor_id="user_003",
+                        executor_name="admin",
+                        executor_role="Admin",
+                    )
+                )
+
+    def test_wrapper_returns_error_status(self, approval_service_with_mock_audit):
+        """TC060: wrapper が status=error を返す → SudoWrapperError（execution_failed）"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+
+        service = approval_service_with_mock_audit
+        rid = self._create_and_approve(
+            service,
+            "service_stop",
+            {"service_name": "nginx"},
+        )
+        mock_sw = MagicMock()
+        mock_sw.stop_service.return_value = {
+            "status": "error",
+            "message": "Service not found",
+        }
+        with patch("backend.core.sudo_wrapper.sudo_wrapper", mock_sw):
+            with pytest.raises(SudoWrapperError):
+                run_async(
+                    service.execute_request(
+                        request_id=rid,
+                        executor_id="user_003",
+                        executor_name="admin",
+                        executor_role="Admin",
+                    )
+                )
+
+
+# =====================================================================
+# TC061-062: list_pending_requests() ソートフォールバック
+# =====================================================================
+
+
+class TestListPendingRequestsSortFallback:
+    """list_pending_requests() の無効ソートパラメーター処理"""
+
+    def _create_pending(self, service):
+        """pending リクエストを1件作成"""
+        return run_async(
+            service.create_request(
+                request_type="user_add",
+                payload={"username": "sort_test_usr", "group": "dev"},
+                reason="ソートテスト",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+
+    def test_invalid_sort_by_falls_back(self, approval_service_with_mock_audit):
+        """TC061: 無効な sort_by → created_at フォールバック（エラーなし）"""
+        service = approval_service_with_mock_audit
+        self._create_pending(service)
+        result = run_async(
+            service.list_pending_requests(sort_by="invalid_col")
+        )
+        assert isinstance(result["requests"], list)
+
+    def test_invalid_sort_order_falls_back(self, approval_service_with_mock_audit):
+        """TC062: 無効な sort_order → asc フォールバック（エラーなし）"""
+        service = approval_service_with_mock_audit
+        self._create_pending(service)
+        result = run_async(
+            service.list_pending_requests(sort_order="invalid_order")
+        )
+        assert isinstance(result["requests"], list)
+
+
+# =====================================================================
+# TC063: list_my_requests() request_type フィルター
+# =====================================================================
+
+
+class TestListMyRequestsFilter:
+    """list_my_requests() の request_type フィルタリング"""
+
+    def test_request_type_filter(self, approval_service_with_mock_audit):
+        """TC063: request_type フィルターで対象種別のみ返る"""
+        service = approval_service_with_mock_audit
+        requester_id = "filter_user_001"
+
+        # user_add と group_add の2件を作成
+        for i in range(2):
+            run_async(
+                service.create_request(
+                    request_type="user_add",
+                    payload={"username": f"filter_usr{i}", "group": "dev"},
+                    reason="フィルターテスト",
+                    requester_id=requester_id,
+                    requester_name="operator",
+                    requester_role="Operator",
+                )
+            )
+        run_async(
+            service.create_request(
+                request_type="group_add",
+                payload={"name": "filter_grp"},
+                reason="フィルターテスト",
+                requester_id=requester_id,
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+
+        result = run_async(
+            service.list_my_requests(
+                requester_id=requester_id,
+                request_type="user_add",
+            )
+        )
+
+        assert result["total"] == 2
+        for req in result["requests"]:
+            assert req["request_type"] == "user_add"
+
+
+# =====================================================================
+# TC064-067: cancel_request() エラーケース
+# =====================================================================
+
+
+class TestCancelRequestEdgeCases:
+    """cancel_request() の未カバーパス"""
+
+    def test_lookup_error(self, approval_service_with_mock_audit):
+        """TC064: 存在しない request_id → LookupError"""
+        service = approval_service_with_mock_audit
+        with pytest.raises(LookupError):
+            run_async(
+                service.cancel_request(
+                    request_id=str(uuid.uuid4()),
+                    requester_id="user_002",
+                    requester_name="operator",
+                    requester_role="Operator",
+                )
+            )
+
+    def test_other_user_cannot_cancel(self, approval_service_with_mock_audit):
+        """TC065: 申請者以外がキャンセル → ValueError"""
+        service = approval_service_with_mock_audit
+        req = run_async(
+            service.create_request(
+                request_type="user_add",
+                payload={"username": "cancel_usr1", "group": "dev"},
+                reason="キャンセルテスト",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+        with pytest.raises(ValueError, match="Only the requester"):
+            run_async(
+                service.cancel_request(
+                    request_id=req["request_id"],
+                    requester_id="user_999",
+                    requester_name="intruder",
+                    requester_role="Operator",
+                )
+            )
+
+    def test_non_pending_request(self, approval_service_with_mock_audit):
+        """TC066: pending 以外のリクエスト → ValueError"""
+        service = approval_service_with_mock_audit
+        req = run_async(
+            service.create_request(
+                request_type="user_add",
+                payload={"username": "cancel_usr2", "group": "dev"},
+                reason="キャンセルテスト",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+        # 承認してステータスを approved に変更
+        run_async(
+            service.approve_request(
+                request_id=req["request_id"],
+                approver_id="user_003",
+                approver_name="admin",
+                approver_role="Admin",
+            )
+        )
+        with pytest.raises(ValueError, match="Only 'pending' requests can be cancelled"):
+            run_async(
+                service.cancel_request(
+                    request_id=req["request_id"],
+                    requester_id="user_002",
+                    requester_name="operator",
+                    requester_role="Operator",
+                )
+            )
+
+    def test_cancel_success(self, approval_service_with_mock_audit):
+        """TC067: pending リクエストのキャンセル成功"""
+        service = approval_service_with_mock_audit
+        req = run_async(
+            service.create_request(
+                request_type="user_add",
+                payload={"username": "cancel_usr3", "group": "dev"},
+                reason="キャンセルテスト",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+        result = run_async(
+            service.cancel_request(
+                request_id=req["request_id"],
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+                reason="テストのためキャンセル",
+            )
+        )
+        assert result["request_id"] == req["request_id"]
+        assert "cancelled_at" in result
+
+
+# =====================================================================
+# TC068-071: list_requests() 汎用一覧取得
+# =====================================================================
+
+
+class TestListRequests:
+    """list_requests() の全パス"""
+
+    def _create_req(self, service, requester_id, request_type="user_add", username="lr_usr"):
+        return run_async(
+            service.create_request(
+                request_type=request_type,
+                payload={"username": username, "group": "dev"},
+                reason="list_requests テスト",
+                requester_id=requester_id,
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+
+    def test_basic_list(self, approval_service_with_mock_audit):
+        """TC068: フィルターなし一覧取得"""
+        service = approval_service_with_mock_audit
+        self._create_req(service, "user_001", username="lr_usr1")
+        result = run_async(service.list_requests())
+        assert "total" in result
+        assert "requests" in result
+        assert result["total"] >= 1
+
+    def test_status_filter(self, approval_service_with_mock_audit):
+        """TC069: status フィルターで pending のみ返る"""
+        service = approval_service_with_mock_audit
+        self._create_req(service, "user_001", username="lr_usr2")
+        result = run_async(service.list_requests(status="pending"))
+        assert result["total"] >= 1
+        for req in result["requests"]:
+            assert req["status"] == "pending"
+
+    def test_invalid_status_raises_value_error(self, approval_service_with_mock_audit):
+        """TC070: 無効な status フィルター → ValueError"""
+        service = approval_service_with_mock_audit
+        with pytest.raises(ValueError, match="Invalid status filter"):
+            run_async(service.list_requests(status="invalid_status"))
+
+    def test_sort_fallback(self, approval_service_with_mock_audit):
+        """TC071: 無効な sort_by/sort_order → フォールバック（エラーなし）"""
+        service = approval_service_with_mock_audit
+        self._create_req(service, "user_001", username="lr_usr3")
+        result = run_async(
+            service.list_requests(sort_by="bad_col", sort_order="bad_order")
+        )
+        assert isinstance(result["requests"], list)
+
+
+# =====================================================================
+# TC072-073: get_policy() エラーケース
+# =====================================================================
+
+
+class TestGetPolicyEdgeCases:
+    """get_policy() の未カバーパス"""
+
+    def test_lookup_error(self, approval_service_with_mock_audit):
+        """TC072: 存在しない operation_type → LookupError"""
+        service = approval_service_with_mock_audit
+        with pytest.raises(LookupError):
+            run_async(service.get_policy("nonexistent_operation"))
+
+    def test_get_policy_success(self, approval_service_with_mock_audit):
+        """TC073: 既存の operation_type → ポリシー情報返却"""
+        service = approval_service_with_mock_audit
+        result = run_async(service.get_policy("user_add"))
+        assert result["operation_type"] == "user_add"
+        assert "description" in result
+        assert "risk_level" in result

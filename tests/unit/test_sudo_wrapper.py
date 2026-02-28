@@ -943,3 +943,1129 @@ class TestHighLevelMethods:
         assert "--group=sudo" in args_called
         assert "--action=add" in args_called
         assert "--user=alice" in args_called
+
+
+class TestStopService:
+    """stop_service メソッドのテスト"""
+
+    def test_stop_service(self, tmp_path):
+        """stop_service が adminui-service-stop.sh を呼び出す"""
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-service-stop.sh").touch()
+        wrapper = SudoWrapper(wrapper_dir=str(tmp_path))
+
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps({"status": "stopped"})
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            wrapper.stop_service("nginx")
+
+        args_called = mock_run.call_args[0][0]
+        assert "nginx" in args_called
+        assert any("adminui-service-stop.sh" in str(a) for a in args_called)
+
+
+class TestGetLogs:
+    """get_logs メソッドのテスト"""
+
+    def test_get_logs_default_lines(self, tmp_path):
+        """get_logs がデフォルト100行でadminui-logs.shを呼び出す"""
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-logs.sh").touch()
+        wrapper = SudoWrapper(wrapper_dir=str(tmp_path))
+
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps({"lines": []})
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            wrapper.get_logs("nginx")
+
+        args_called = mock_run.call_args[0][0]
+        assert "nginx" in args_called
+        assert "100" in args_called
+
+    def test_get_logs_custom_lines(self, tmp_path):
+        """get_logs がカスタム行数でadminui-logs.shを呼び出す"""
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-logs.sh").touch()
+        wrapper = SudoWrapper(wrapper_dir=str(tmp_path))
+
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps({"lines": []})
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            wrapper.get_logs("sshd", lines=50)
+
+        args_called = mock_run.call_args[0][0]
+        assert "sshd" in args_called
+        assert "50" in args_called
+
+
+class TestNetworkMethods:
+    """ネットワーク情報取得メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-network.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"data": []})
+        return m
+
+    def test_get_network_interfaces(self, tmp_path):
+        """get_network_interfaces が interfaces コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_network_interfaces()
+        args_called = mock_run.call_args[0][0]
+        assert "interfaces" in args_called
+
+    def test_get_network_stats(self, tmp_path):
+        """get_network_stats が stats コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_network_stats()
+        args_called = mock_run.call_args[0][0]
+        assert "stats" in args_called
+
+    def test_get_network_connections(self, tmp_path):
+        """get_network_connections が connections コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_network_connections()
+        args_called = mock_run.call_args[0][0]
+        assert "connections" in args_called
+
+    def test_get_network_routes(self, tmp_path):
+        """get_network_routes が routes コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_network_routes()
+        args_called = mock_run.call_args[0][0]
+        assert "routes" in args_called
+
+
+class TestServerMethods:
+    """サーバー管理メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-servers.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "active"})
+        return m
+
+    def test_get_all_server_status(self, tmp_path):
+        """get_all_server_status が status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_all_server_status()
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+
+    def test_get_server_status_allowed(self, tmp_path):
+        """get_server_status が許可済みサーバーに対して正常動作する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_server_status("nginx")
+        args_called = mock_run.call_args[0][0]
+        assert "nginx" in args_called
+        assert "status" in args_called
+
+    def test_get_server_status_not_allowed(self, tmp_path):
+        """get_server_status が許可リスト外のサーバーでValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Server not allowed"):
+            wrapper.get_server_status("unknown-server")
+
+    def test_get_server_version_allowed(self, tmp_path):
+        """get_server_version が許可済みサーバーで version コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_server_version("postgresql")
+        args_called = mock_run.call_args[0][0]
+        assert "version" in args_called
+        assert "postgresql" in args_called
+
+    def test_get_server_version_not_allowed(self, tmp_path):
+        """get_server_version が許可リスト外のサーバーでValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Server not allowed"):
+            wrapper.get_server_version("malicious-db")
+
+    def test_get_server_config_info_allowed(self, tmp_path):
+        """get_server_config_info が許可済みサーバーで config コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_server_config_info("mysql")
+        args_called = mock_run.call_args[0][0]
+        assert "config" in args_called
+        assert "mysql" in args_called
+
+    def test_get_server_config_info_not_allowed(self, tmp_path):
+        """get_server_config_info が許可リスト外のサーバーでValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Server not allowed"):
+            wrapper.get_server_config_info("hacked")
+
+    def test_allowed_servers_list(self, tmp_path):
+        """全ての許可済みサーバーが正常に動作する"""
+        wrapper = self._make_wrapper(tmp_path)
+        m = self._mock_result()
+        for server in ("nginx", "apache2", "mysql", "postgresql", "redis"):
+            with patch("subprocess.run", return_value=m):
+                # ValueError が発生しなければ OK
+                wrapper.get_server_status(server)
+
+
+class TestBandwidthMethods:
+    """帯域幅モニタリングメソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-bandwidth.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"data": {}})
+        return m
+
+    def test_get_bandwidth_interfaces(self, tmp_path):
+        """get_bandwidth_interfaces が list コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_interfaces()
+        args_called = mock_run.call_args[0][0]
+        assert "list" in args_called
+
+    def test_get_bandwidth_summary_no_iface(self, tmp_path):
+        """get_bandwidth_summary がインターフェース指定なしで summary コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_summary()
+        args_called = mock_run.call_args[0][0]
+        assert "summary" in args_called
+
+    def test_get_bandwidth_summary_with_iface(self, tmp_path):
+        """get_bandwidth_summary がインターフェース指定ありで正常動作する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_summary("eth0")
+        args_called = mock_run.call_args[0][0]
+        assert "summary" in args_called
+        assert "eth0" in args_called
+
+    def test_get_bandwidth_summary_invalid_iface(self, tmp_path):
+        """get_bandwidth_summary が不正なインターフェース名でValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Invalid interface name"):
+            wrapper.get_bandwidth_summary("eth0; rm -rf /")
+
+    def test_validate_iface_valid_patterns(self, tmp_path):
+        """_validate_iface が有効なインターフェース名パターンを通過させる"""
+        wrapper = self._make_wrapper(tmp_path)
+        # These should not raise
+        wrapper._validate_iface("eth0")
+        wrapper._validate_iface("wlan0")
+        wrapper._validate_iface("lo")
+        wrapper._validate_iface("ens3")
+        wrapper._validate_iface("enp0s3")
+        wrapper._validate_iface("bond0.100")
+
+    def test_validate_iface_invalid_patterns(self, tmp_path):
+        """_validate_iface が不正なインターフェース名を拒否する"""
+        wrapper = self._make_wrapper(tmp_path)
+        for bad in ["eth0; rm -rf /", "eth$(whoami)", "", "a" * 33]:
+            with pytest.raises(ValueError, match="Invalid interface name"):
+                wrapper._validate_iface(bad)
+
+    def test_get_bandwidth_daily_no_iface(self, tmp_path):
+        """get_bandwidth_daily がインターフェース指定なしで daily コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_daily()
+        args_called = mock_run.call_args[0][0]
+        assert "daily" in args_called
+
+    def test_get_bandwidth_daily_with_iface(self, tmp_path):
+        """get_bandwidth_daily がインターフェース指定ありで正常動作する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_daily("ens3")
+        args_called = mock_run.call_args[0][0]
+        assert "daily" in args_called
+        assert "ens3" in args_called
+
+    def test_get_bandwidth_hourly(self, tmp_path):
+        """get_bandwidth_hourly が hourly コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_hourly()
+        args_called = mock_run.call_args[0][0]
+        assert "hourly" in args_called
+
+    def test_get_bandwidth_live(self, tmp_path):
+        """get_bandwidth_live が live コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_live()
+        args_called = mock_run.call_args[0][0]
+        assert "live" in args_called
+
+    def test_get_bandwidth_top(self, tmp_path):
+        """get_bandwidth_top が top コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_top()
+        args_called = mock_run.call_args[0][0]
+        assert "top" in args_called
+
+    def test_get_bandwidth_hourly_with_iface(self, tmp_path):
+        """get_bandwidth_hourly が iface 引数ありで _validate_iface を呼ぶ"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_hourly(iface="eth0")
+        args_called = mock_run.call_args[0][0]
+        assert "hourly" in args_called
+        assert "eth0" in args_called
+
+    def test_get_bandwidth_live_with_iface(self, tmp_path):
+        """get_bandwidth_live が iface 引数ありで _validate_iface を呼ぶ"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bandwidth_live(iface="eth0")
+        args_called = mock_run.call_args[0][0]
+        assert "live" in args_called
+        assert "eth0" in args_called
+
+
+class TestApacheMethods:
+    """Apache モニタリングメソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-apache.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "active"})
+        return m
+
+    def test_get_apache_status(self, tmp_path):
+        """get_apache_status が status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_apache_status()
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+
+    def test_get_apache_vhosts(self, tmp_path):
+        """get_apache_vhosts が vhosts コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_apache_vhosts()
+        args_called = mock_run.call_args[0][0]
+        assert "vhosts" in args_called
+
+    def test_get_apache_modules(self, tmp_path):
+        """get_apache_modules が modules コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_apache_modules()
+        args_called = mock_run.call_args[0][0]
+        assert "modules" in args_called
+
+    def test_get_apache_config_check(self, tmp_path):
+        """get_apache_config_check が config-check コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_apache_config_check()
+        args_called = mock_run.call_args[0][0]
+        assert "config-check" in args_called
+
+
+class TestHardwareMethods:
+    """ハードウェア情報取得メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-hardware.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"data": {}})
+        return m
+
+    def test_get_hardware_disks(self, tmp_path):
+        """get_hardware_disks が disks コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_hardware_disks()
+        args_called = mock_run.call_args[0][0]
+        assert "disks" in args_called
+
+    def test_get_hardware_disk_usage(self, tmp_path):
+        """get_hardware_disk_usage が disk_usage コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_hardware_disk_usage()
+        args_called = mock_run.call_args[0][0]
+        assert "disk_usage" in args_called
+
+    def test_get_hardware_smart_valid_sda(self, tmp_path):
+        """/dev/sda のような有効なデバイスパスを受け入れる"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_hardware_smart("/dev/sda")
+        args_called = mock_run.call_args[0][0]
+        assert "/dev/sda" in args_called
+        assert "smart" in args_called
+
+    def test_get_hardware_smart_valid_nvme(self, tmp_path):
+        """/dev/nvme0n1 のような有効なNVMeデバイスパスを受け入れる"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_hardware_smart("/dev/nvme0n1")
+        args_called = mock_run.call_args[0][0]
+        assert "/dev/nvme0n1" in args_called
+
+    def test_get_hardware_smart_invalid_path(self, tmp_path):
+        """不正なデバイスパスでValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Invalid device path"):
+            wrapper.get_hardware_smart("/dev/random")
+
+    def test_get_hardware_smart_injection_attempt(self, tmp_path):
+        """インジェクション試行のデバイスパスでValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Invalid device path"):
+            wrapper.get_hardware_smart("/dev/sda; rm -rf /")
+
+    def test_get_hardware_sensors(self, tmp_path):
+        """get_hardware_sensors が sensors コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_hardware_sensors()
+        args_called = mock_run.call_args[0][0]
+        assert "sensors" in args_called
+
+    def test_get_hardware_memory(self, tmp_path):
+        """get_hardware_memory が memory コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_hardware_memory()
+        args_called = mock_run.call_args[0][0]
+        assert "memory" in args_called
+
+
+class TestFirewallMethods:
+    """ファイアウォール情報取得メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-firewall.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"rules": []})
+        return m
+
+    def test_get_firewall_rules(self, tmp_path):
+        """get_firewall_rules が rules コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_firewall_rules()
+        args_called = mock_run.call_args[0][0]
+        assert "rules" in args_called
+
+    def test_get_firewall_policy(self, tmp_path):
+        """get_firewall_policy が policy コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_firewall_policy()
+        args_called = mock_run.call_args[0][0]
+        assert "policy" in args_called
+
+    def test_get_firewall_status(self, tmp_path):
+        """get_firewall_status が status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_firewall_status()
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+
+
+class TestPackageMethods:
+    """パッケージ管理メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-packages.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"packages": []})
+        return m
+
+    def test_get_packages_list(self, tmp_path):
+        """get_packages_list が list コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_packages_list()
+        args_called = mock_run.call_args[0][0]
+        assert "list" in args_called
+
+    def test_get_packages_updates(self, tmp_path):
+        """get_packages_updates が updates コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_packages_updates()
+        args_called = mock_run.call_args[0][0]
+        assert "updates" in args_called
+
+    def test_get_packages_security(self, tmp_path):
+        """get_packages_security が security コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_packages_security()
+        args_called = mock_run.call_args[0][0]
+        assert "security" in args_called
+
+    def test_get_packages_upgrade_dryrun(self, tmp_path):
+        """get_packages_upgrade_dryrun が upgrade-dryrun コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_packages_upgrade_dryrun()
+        args_called = mock_run.call_args[0][0]
+        assert "upgrade-dryrun" in args_called
+
+    def test_upgrade_package(self, tmp_path):
+        """upgrade_package が upgrade コマンドとパッケージ名を渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.upgrade_package("vim")
+        args_called = mock_run.call_args[0][0]
+        assert "upgrade" in args_called
+        assert "vim" in args_called
+
+    def test_upgrade_all_packages(self, tmp_path):
+        """upgrade_all_packages が upgrade-all コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.upgrade_all_packages()
+        args_called = mock_run.call_args[0][0]
+        assert "upgrade-all" in args_called
+
+
+class TestSSHMethods:
+    """SSH 設定取得メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-ssh.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "active"})
+        return m
+
+    def test_get_ssh_status(self, tmp_path):
+        """get_ssh_status が status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_ssh_status()
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+
+    def test_get_ssh_config(self, tmp_path):
+        """get_ssh_config が config コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_ssh_config()
+        args_called = mock_run.call_args[0][0]
+        assert "config" in args_called
+
+
+class TestUserModifyMethods:
+    """ユーザー属性変更メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-user-modify.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "ok"})
+        return m
+
+    def test_modify_user_shell(self, tmp_path):
+        """modify_user_shell が set-shell コマンドとユーザー名・シェルを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.modify_user_shell("alice", "/bin/zsh")
+        args_called = mock_run.call_args[0][0]
+        assert "set-shell" in args_called
+        assert "alice" in args_called
+        assert "/bin/zsh" in args_called
+
+    def test_modify_user_gecos(self, tmp_path):
+        """modify_user_gecos が set-gecos コマンドとユーザー名・GECOSを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.modify_user_gecos("bob", "Bob Smith")
+        args_called = mock_run.call_args[0][0]
+        assert "set-gecos" in args_called
+        assert "bob" in args_called
+        assert "Bob Smith" in args_called
+
+    def test_modify_user_add_group(self, tmp_path):
+        """modify_user_add_group が add-group コマンドとユーザー名・グループ名を渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.modify_user_add_group("alice", "docker")
+        args_called = mock_run.call_args[0][0]
+        assert "add-group" in args_called
+        assert "alice" in args_called
+        assert "docker" in args_called
+
+    def test_modify_user_remove_group(self, tmp_path):
+        """modify_user_remove_group が remove-group コマンドとユーザー名・グループ名を渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.modify_user_remove_group("alice", "sudo")
+        args_called = mock_run.call_args[0][0]
+        assert "remove-group" in args_called
+        assert "alice" in args_called
+        assert "sudo" in args_called
+
+
+class TestFirewallWriteMethods:
+    """ファイアウォール書き込みメソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-firewall-write.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "ok"})
+        return m
+
+    def test_allow_firewall_port_default_tcp(self, tmp_path):
+        """allow_firewall_port がデフォルトtcpで allow-port コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.allow_firewall_port(8080)
+        args_called = mock_run.call_args[0][0]
+        assert "allow-port" in args_called
+        assert "8080" in args_called
+        assert "tcp" in args_called
+
+    def test_allow_firewall_port_udp(self, tmp_path):
+        """allow_firewall_port が udp プロトコルで allow-port コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.allow_firewall_port(53, "udp")
+        args_called = mock_run.call_args[0][0]
+        assert "allow-port" in args_called
+        assert "53" in args_called
+        assert "udp" in args_called
+
+    def test_deny_firewall_port(self, tmp_path):
+        """deny_firewall_port が deny-port コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.deny_firewall_port(23)
+        args_called = mock_run.call_args[0][0]
+        assert "deny-port" in args_called
+        assert "23" in args_called
+
+    def test_delete_firewall_rule(self, tmp_path):
+        """delete_firewall_rule が delete-rule コマンドとルール番号を渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.delete_firewall_rule(5)
+        args_called = mock_run.call_args[0][0]
+        assert "delete-rule" in args_called
+        assert "5" in args_called
+
+
+class TestFilesystemMethods:
+    """ファイルシステム情報取得メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-filesystem.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"data": []})
+        return m
+
+    def test_get_filesystem_usage(self, tmp_path):
+        """get_filesystem_usage が df コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_filesystem_usage()
+        args_called = mock_run.call_args[0][0]
+        assert "df" in args_called
+
+    def test_get_filesystem_du_default_path(self, tmp_path):
+        """get_filesystem_du がデフォルト / パスで du コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_filesystem_du()
+        args_called = mock_run.call_args[0][0]
+        assert "du" in args_called
+        assert "/" in args_called
+
+    def test_get_filesystem_du_custom_path(self, tmp_path):
+        """get_filesystem_du がカスタムパスで du コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_filesystem_du("/var/log")
+        args_called = mock_run.call_args[0][0]
+        assert "du" in args_called
+        assert "/var/log" in args_called
+
+    def test_get_filesystem_mounts(self, tmp_path):
+        """get_filesystem_mounts が mounts コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_filesystem_mounts()
+        args_called = mock_run.call_args[0][0]
+        assert "mounts" in args_called
+
+
+class TestBootupMethods:
+    """起動・シャットダウン管理メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-bootup.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "ok"})
+        return m
+
+    def test_get_bootup_status(self, tmp_path):
+        """get_bootup_status が status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bootup_status()
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+
+    def test_get_bootup_services(self, tmp_path):
+        """get_bootup_services が services コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_bootup_services()
+        args_called = mock_run.call_args[0][0]
+        assert "services" in args_called
+
+    def test_enable_service_at_boot(self, tmp_path):
+        """enable_service_at_boot が enable コマンドとサービス名を渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.enable_service_at_boot("nginx")
+        args_called = mock_run.call_args[0][0]
+        assert "enable" in args_called
+        assert "nginx" in args_called
+
+    def test_disable_service_at_boot(self, tmp_path):
+        """disable_service_at_boot が disable コマンドとサービス名を渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.disable_service_at_boot("bluetooth")
+        args_called = mock_run.call_args[0][0]
+        assert "disable" in args_called
+        assert "bluetooth" in args_called
+
+    def test_schedule_shutdown_default_delay(self, tmp_path):
+        """schedule_shutdown がデフォルト遅延で shutdown コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.schedule_shutdown()
+        args_called = mock_run.call_args[0][0]
+        assert "shutdown" in args_called
+        assert "+1" in args_called
+
+    def test_schedule_shutdown_custom_delay(self, tmp_path):
+        """schedule_shutdown がカスタム遅延で shutdown コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.schedule_shutdown("+10")
+        args_called = mock_run.call_args[0][0]
+        assert "shutdown" in args_called
+        assert "+10" in args_called
+
+    def test_schedule_reboot_default_delay(self, tmp_path):
+        """schedule_reboot がデフォルト遅延で reboot コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.schedule_reboot()
+        args_called = mock_run.call_args[0][0]
+        assert "reboot" in args_called
+        assert "+1" in args_called
+
+    def test_schedule_reboot_custom_delay(self, tmp_path):
+        """schedule_reboot がカスタム遅延で reboot コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.schedule_reboot("now")
+        args_called = mock_run.call_args[0][0]
+        assert "reboot" in args_called
+        assert "now" in args_called
+
+
+class TestTimeMethods:
+    """システム時刻管理メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-time.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"timezone": "Asia/Tokyo"})
+        return m
+
+    def test_get_time_status(self, tmp_path):
+        """get_time_status が status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_time_status()
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+
+    def test_get_timezones(self, tmp_path):
+        """get_timezones が list-timezones コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_timezones()
+        args_called = mock_run.call_args[0][0]
+        assert "list-timezones" in args_called
+
+    def test_set_timezone(self, tmp_path):
+        """set_timezone が set-timezone コマンドとタイムゾーンを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.set_timezone("Asia/Tokyo")
+        args_called = mock_run.call_args[0][0]
+        assert "set-timezone" in args_called
+        assert "Asia/Tokyo" in args_called
+
+
+class TestQuotaMethods:
+    """ディスククォータ管理メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-quotas.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"quotas": []})
+        return m
+
+    def test_get_quota_status_no_filesystem(self, tmp_path):
+        """get_quota_status がファイルシステム指定なしで status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_quota_status()
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+
+    def test_get_quota_status_with_filesystem(self, tmp_path):
+        """get_quota_status がファイルシステム指定ありで正常動作する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_quota_status("/dev/sda1")
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+        assert "/dev/sda1" in args_called
+
+    def test_get_user_quota(self, tmp_path):
+        """get_user_quota が user コマンドとユーザー名を渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_user_quota("alice")
+        args_called = mock_run.call_args[0][0]
+        assert "user" in args_called
+        assert "alice" in args_called
+
+    def test_get_group_quota(self, tmp_path):
+        """get_group_quota が group コマンドとグループ名を渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_group_quota("developers")
+        args_called = mock_run.call_args[0][0]
+        assert "group" in args_called
+        assert "developers" in args_called
+
+    def test_get_all_user_quotas_no_filesystem(self, tmp_path):
+        """get_all_user_quotas がファイルシステム指定なしで users コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_all_user_quotas()
+        args_called = mock_run.call_args[0][0]
+        assert "users" in args_called
+
+    def test_get_all_user_quotas_with_filesystem(self, tmp_path):
+        """get_all_user_quotas がファイルシステム指定ありで正常動作する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_all_user_quotas("/dev/sda1")
+        args_called = mock_run.call_args[0][0]
+        assert "users" in args_called
+        assert "/dev/sda1" in args_called
+
+    def test_set_user_quota(self, tmp_path):
+        """set_user_quota が set user コマンドと全パラメータを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.set_user_quota("alice", "/dev/sda1", 1024, 2048)
+        args_called = mock_run.call_args[0][0]
+        assert "set" in args_called
+        assert "user" in args_called
+        assert "alice" in args_called
+        assert "/dev/sda1" in args_called
+        assert "1024" in args_called
+        assert "2048" in args_called
+
+    def test_set_user_quota_with_inodes(self, tmp_path):
+        """set_user_quota が inode 制限付きで全パラメータを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.set_user_quota("bob", "/dev/sda1", 512, 1024, isoft=100, ihard=200)
+        args_called = mock_run.call_args[0][0]
+        assert "100" in args_called
+        assert "200" in args_called
+
+    def test_set_group_quota(self, tmp_path):
+        """set_group_quota が set group コマンドと全パラメータを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.set_group_quota("devops", "/dev/sda1", 4096, 8192)
+        args_called = mock_run.call_args[0][0]
+        assert "set" in args_called
+        assert "group" in args_called
+        assert "devops" in args_called
+        assert "4096" in args_called
+        assert "8192" in args_called
+
+    def test_get_quota_report_no_filesystem(self, tmp_path):
+        """get_quota_report がファイルシステム指定なしで report コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_quota_report()
+        args_called = mock_run.call_args[0][0]
+        assert "report" in args_called
+
+    def test_get_quota_report_with_filesystem(self, tmp_path):
+        """get_quota_report がファイルシステム指定ありで正常動作する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_quota_report("/dev/sda1")
+        args_called = mock_run.call_args[0][0]
+        assert "report" in args_called
+        assert "/dev/sda1" in args_called
+
+
+class TestDBMonitorMethods:
+    """DBモニタリングメソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-dbmonitor.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "ok"})
+        return m
+
+    def test_get_db_status_mysql(self, tmp_path):
+        """get_db_status が mysql で status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_db_status("mysql")
+        args_called = mock_run.call_args[0][0]
+        assert "mysql" in args_called
+        assert "status" in args_called
+
+    def test_get_db_status_postgresql(self, tmp_path):
+        """get_db_status が postgresql で status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_db_status("postgresql")
+        args_called = mock_run.call_args[0][0]
+        assert "postgresql" in args_called
+
+    def test_get_db_status_invalid(self, tmp_path):
+        """get_db_status が許可リスト外のDB種別でValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="DB type not allowed"):
+            wrapper.get_db_status("mongodb")
+
+    def test_get_db_processlist_mysql(self, tmp_path):
+        """get_db_processlist が mysql で processlist コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_db_processlist("mysql")
+        args_called = mock_run.call_args[0][0]
+        assert "processlist" in args_called
+
+    def test_get_db_processlist_postgresql(self, tmp_path):
+        """get_db_processlist が postgresql で activity コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_db_processlist("postgresql")
+        args_called = mock_run.call_args[0][0]
+        assert "activity" in args_called
+
+    def test_get_db_processlist_invalid(self, tmp_path):
+        """get_db_processlist が許可リスト外のDB種別でValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="DB type not allowed"):
+            wrapper.get_db_processlist("redis")
+
+    def test_get_db_databases_mysql(self, tmp_path):
+        """get_db_databases が mysql で databases コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_db_databases("mysql")
+        args_called = mock_run.call_args[0][0]
+        assert "databases" in args_called
+
+    def test_get_db_databases_invalid(self, tmp_path):
+        """get_db_databases が許可リスト外のDB種別でValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="DB type not allowed"):
+            wrapper.get_db_databases("oracle")
+
+    def test_get_db_connections_postgresql(self, tmp_path):
+        """get_db_connections が postgresql で connections コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_db_connections("postgresql")
+        args_called = mock_run.call_args[0][0]
+        assert "connections" in args_called
+
+    def test_get_db_connections_mysql_fallback(self, tmp_path):
+        """get_db_connections が mysql で processlist コマンドにフォールバックする"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_db_connections("mysql")
+        args_called = mock_run.call_args[0][0]
+        assert "processlist" in args_called
+
+    def test_get_db_connections_invalid(self, tmp_path):
+        """get_db_connections が許可リスト外のDB種別でValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="DB type not allowed"):
+            wrapper.get_db_connections("sqlite")
+
+    def test_get_db_variables_mysql(self, tmp_path):
+        """get_db_variables が mysql で variables コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_db_variables("mysql")
+        args_called = mock_run.call_args[0][0]
+        assert "variables" in args_called
+
+    def test_get_db_variables_postgresql(self, tmp_path):
+        """get_db_variables が postgresql で status コマンドにフォールバックする"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_db_variables("postgresql")
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+
+    def test_get_db_variables_invalid(self, tmp_path):
+        """get_db_variables が許可リスト外のDB種別でValueErrorを送出する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="DB type not allowed"):
+            wrapper.get_db_variables("mssql")
+
+
+class TestPostfixMethods:
+    """Postfix / SMTP メソッドのテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-postfix.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "active"})
+        return m
+
+    def test_get_postfix_status(self, tmp_path):
+        """get_postfix_status が status コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_postfix_status()
+        args_called = mock_run.call_args[0][0]
+        assert "status" in args_called
+
+    def test_get_postfix_queue(self, tmp_path):
+        """get_postfix_queue が queue コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_postfix_queue()
+        args_called = mock_run.call_args[0][0]
+        assert "queue" in args_called
+
+    def test_get_postfix_logs_default(self, tmp_path):
+        """get_postfix_logs がデフォルト50行で logs コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_postfix_logs()
+        args_called = mock_run.call_args[0][0]
+        assert "logs" in args_called
+        assert "50" in args_called
+
+    def test_get_postfix_logs_custom_lines(self, tmp_path):
+        """get_postfix_logs がカスタム行数で logs コマンドを渡す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_postfix_logs(lines=100)
+        args_called = mock_run.call_args[0][0]
+        assert "100" in args_called
+
+    def test_get_postfix_logs_clamp_max(self, tmp_path):
+        """get_postfix_logs が最大値200でクランプする"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_postfix_logs(lines=9999)
+        args_called = mock_run.call_args[0][0]
+        assert "200" in args_called
+
+    def test_get_postfix_logs_clamp_min(self, tmp_path):
+        """get_postfix_logs が最小値1でクランプする"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_postfix_logs(lines=0)
+        args_called = mock_run.call_args[0][0]
+        assert "1" in args_called
