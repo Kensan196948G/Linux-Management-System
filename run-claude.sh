@@ -1,10 +1,46 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# ============================================================
+# run-claude.sh - Claude Code 起動スクリプト
+# 生成元: Claude-EdgeChromeDevTools v1.3.0
+# プロジェクト: Linux-Management-Systm
+# DevToolsポート: 9222
+# ============================================================
 set -euo pipefail
 
-PORT=9223
-RESTART_DELAY=3
+PROJECT_ROOT="/mnt/LinuxHDD/Linux-Management-Systm"
+DEVTOOLS_PORT=9222
+SESSION_NAME="claude-Linux-Management-Systm-9222"
 
-# 初期プロンプト（ヒアドキュメントで定義：バッククォートや二重引用符を安全に含む）
+# --- 環境変数設定 ---
+export CLAUDE_CHROME_DEBUG_PORT="$DEVTOOLS_PORT"
+export MCP_CHROME_DEBUG_PORT="$DEVTOOLS_PORT"
+
+cd "$PROJECT_ROOT" || { echo "❌ プロジェクトディレクトリに移動できません: $PROJECT_ROOT"; exit 1; }
+
+echo "📁 プロジェクト: $PROJECT_ROOT"
+echo "🔌 DevToolsポート: $DEVTOOLS_PORT"
+
+# --- DevTools接続確認 ---
+echo "🌐 DevTools接続確認中..."
+DEVTOOLS_READY=false
+for i in $(seq 1 10); do
+    if curl -sf "http://127.0.0.1:$DEVTOOLS_PORT/json/version" > /dev/null 2>&1; then
+        DEVTOOLS_READY=true
+        echo "✅ DevTools接続OK (試行: $i)"
+        # バージョン情報表示
+        curl -s "http://127.0.0.1:$DEVTOOLS_PORT/json/version" | grep -o '"Browser":"[^"]*"' || true
+        break
+    fi
+    echo "  ... DevTools待機中 ($i/10)"
+    sleep 2
+done
+
+if [ "$DEVTOOLS_READY" = "false" ]; then
+    echo "⚠️  DevToolsへの接続を確認できませんでした (ポート: $DEVTOOLS_PORT)"
+    echo "   ブラウザが起動しているか確認してください"
+fi
+
+# --- 初期プロンプト設定 ---
 INIT_PROMPT=$(cat << 'INITPROMPTEOF'
 以降、日本語で対応してください。
 
@@ -140,26 +176,26 @@ export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 - 手動操作とスクリプト操作を交互に実行する検証作業
 
 **接続確認方法**：
-\`\`\`bash
+```bash
 # 環境変数 MCP_CHROME_DEBUG_PORT（または CLAUDE_CHROME_DEBUG_PORT）が設定されていることを確認
-echo \$MCP_CHROME_DEBUG_PORT
+echo $MCP_CHROME_DEBUG_PORT
 
 # DevTools接続テスト
-curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/version | jq '.'
+curl -s http://127.0.0.1:${MCP_CHROME_DEBUG_PORT}/json/version | jq '.'
 
 # 利用可能なタブ一覧
-curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
-\`\`\`
+curl -s http://127.0.0.1:${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
+```
 
 **利用可能なMCPツール**：
-- \`mcp__chrome-devtools__navigate_page\`: ページ遷移
-- \`mcp__chrome-devtools__click\`: 要素クリック
-- \`mcp__chrome-devtools__fill\`: フォーム入力
-- \`mcp__chrome-devtools__evaluate_script\`: JavaScriptコード実行
-- \`mcp__chrome-devtools__take_screenshot\`: スクリーンショット取得
-- \`mcp__chrome-devtools__get_console_message\`: コンソールログ取得
-- \`mcp__chrome-devtools__list_network_requests\`: ネットワークリクエスト一覧
-- （その他、\`mcp__chrome-devtools__*\` で利用可能なツールを検索）
+- `mcp__chrome-devtools__navigate_page`: ページ遷移
+- `mcp__chrome-devtools__click`: 要素クリック
+- `mcp__chrome-devtools__fill`: フォーム入力
+- `mcp__chrome-devtools__evaluate_script`: JavaScriptコード実行
+- `mcp__chrome-devtools__take_screenshot`: スクリーンショット取得
+- `mcp__chrome-devtools__get_console_message`: コンソールログ取得
+- `mcp__chrome-devtools__list_network_requests`: ネットワークリクエスト一覧
+- （その他、`mcp__chrome-devtools__*` で利用可能なツールを検索）
 
 ### Playwright MCP を使用すべき場合
 
@@ -180,24 +216,24 @@ curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
 - ログイン認証を含む自動テストフロー（認証情報をコードで管理）
 
 **接続確認方法**：
-\`\`\`bash
+```bash
 # Playwrightインストール確認（通常はMCPサーバーが自動管理）
 # 特別な環境変数設定は不要（MCPサーバーが自動起動）
-\`\`\`
+```
 
 **利用可能なMCPツール**：
-- \`mcp__plugin_playwright_playwright__browser_navigate\`: ページ遷移
-- \`mcp__plugin_playwright_playwright__browser_click\`: 要素クリック
-- \`mcp__plugin_playwright_playwright__browser_fill_form\`: フォーム入力
-- \`mcp__plugin_playwright_playwright__browser_run_code\`: JavaScriptコード実行
-- \`mcp__plugin_playwright_playwright__browser_take_screenshot\`: スクリーンショット取得
-- \`mcp__plugin_playwright_playwright__browser_console_messages\`: コンソールログ取得
-- \`mcp__plugin_playwright_playwright__browser_network_requests\`: ネットワークリクエスト一覧
-- （その他、\`mcp__plugin_playwright_playwright__*\` で利用可能なツールを検索）
+- `mcp__plugin_playwright_playwright__browser_navigate`: ページ遷移
+- `mcp__plugin_playwright_playwright__browser_click`: 要素クリック
+- `mcp__plugin_playwright_playwright__browser_fill_form`: フォーム入力
+- `mcp__plugin_playwright_playwright__browser_run_code`: JavaScriptコード実行
+- `mcp__plugin_playwright_playwright__browser_take_screenshot`: スクリーンショット取得
+- `mcp__plugin_playwright_playwright__browser_console_messages`: コンソールログ取得
+- `mcp__plugin_playwright_playwright__browser_network_requests`: ネットワークリクエスト一覧
+- （その他、`mcp__plugin_playwright_playwright__*` で利用可能なツールを検索）
 
 ### 使い分けの判断フロー
 
-\`\`\`
+```
 既存ブラウザの状態（ログイン・Cookie等）を利用したい？
 ├─ YES → ChromeDevTools MCP
 │         （Windows側ブラウザに接続、環境変数 MCP_CHROME_DEBUG_PORT 使用）
@@ -208,17 +244,17 @@ curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
           ├─ スクレイピング？ → Playwright MCP
           ├─ クロスブラウザ検証？ → Playwright MCP
           └─ 手動操作との併用が必要？ → ChromeDevTools MCP
-\`\`\`
+```
 
 ### 注意事項
 
 1. **Xサーバ不要（重要）**：LinuxホストにXサーバがインストールされていなくても、両ツールとも動作します
    - **ChromeDevTools MCP**: Windows側のブラウザに接続するため、Linux側にXサーバ不要（SSHポートフォワーディング経由）
    - **Playwright MCP**: Linux側でヘッドレスブラウザを起動するため、Xサーバ不要
-   - ⚠️ **選択基準はXサーバの有無ではありません**。既存ブラウザ（ログイン状態等）を使うか、クリーンな環境かで判断してください
+   - 選択基準はXサーバの有無ではありません。既存ブラウザ（ログイン状態等）を使うか、クリーンな環境かで判断してください
 2. **ポート範囲**：ChromeDevTools MCPは9222～9229の範囲で動作（config.jsonで設定）
 3. **並行利用**：両ツールは同時に使用可能（異なるユースケースで併用可）
-4. **ツール検索**：利用可能なツールを確認するには \`ToolSearch\` を使用してキーワード検索（例：\`ToolSearch "chrome-devtools screenshot"\`）
+4. **ツール検索**：利用可能なツールを確認するには `ToolSearch` を使用してキーワード検索（例：`ToolSearch "chrome-devtools screenshot"`）
 5. **ChromeDevTools 優先原則**：ユーザーがブラウザ操作を依頼した場合、**既存のWindows側ブラウザ（ChromeDevTools MCP）を優先使用**してください。Playwrightは自動テスト・スクレイピング・クリーンな環境が必要な場合のみ使用
 
 ### 推奨ワークフロー
@@ -260,113 +296,342 @@ curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
 4. タスクの規模・性質に応じて、SubAgent（軽量・単一セッション内）と
    Agent Teams（重量・マルチインスタンス）を適切に使い分けてください。
    判断に迷う場合は私に確認してください。
+
+---
+
+# 🏛 CLAUDE.md
+
+## Claude Code Global Constitution
+
+### Agent Teams First Edition（tmux非使用・完全統合版）
+
+---
+
+# 0️⃣ 実行モード
+
+本プロジェクトでは：
+
+> ❌ tmuxは使用しない
+> ✅ 常に単一セッション統治モード
+
+セッション分離は tmux ではなく：
+
+* Agent Teams
+* Git WorkTree
+* ブランチ戦略
+
+で実現する。
+
+---
+
+# 1️⃣ 本ファイルの位置づけ
+
+本 CLAUDE.md は本リポジトリの
+
+> 🏛 最上位統治ルール（準憲法）
+
+である。
+
+以下すべては本ファイルに従う：
+
+* Agent Teams
+* SubAgent
+* Hooks
+* Git WorkTree
+* MCP
+* GitHub Actions
+* 標準機能
+
+---
+
+# 2️⃣ 起動時自動実行（必須）
+
+Claudeは開始時に必ず以下を実施：
+
+## 🧠 2.1 リポジトリ統治確認
+
+1. CLAUDE.md 読込
+2. `.github/workflows/` 読込
+3. 現在ブランチ確認
+4. WorkTree一覧確認
+5. CIコマンド抽出
+6. CI制約要約
+
+---
+
+## 📊 2.2 状況レポート提示（必須）
+
+必ず提示：
+
+* 現在フェーズ
+* 進捗率
+* CI状態
+* 技術的負債
+* 並列状況
+* 統治違反の有無
+* Agent Teams稼働状況
+
+---
+
+# 3️⃣ 実行モデル（最重要）
+
+## 🧭 基本原則
+
+> 小タスク → SubAgent
+> 中〜大規模 → Agent Teams
+
+---
+
+## 3.1 SubAgentの役割
+
+用途：
+
+* Lint修正
+* 単一ファイル改善
+* 単一ロジック修正
+* 軽量レビュー
+
+特徴：
+
+* 同一コンテキスト
+* WorkTree分離不要
+* 低コスト
+
+---
+
+## 3.2 Agent Teamsの役割（積極利用）
+
+以下の場合は原則Agent Teams：
+
+* 複数レイヤー変更
+* API＋UI同時開発
+* テスト並列設計
+* 多角的レビュー
+* 仮説分岐デバッグ
+* セキュリティ＋性能＋構造レビュー
+
+---
+
+# 4️⃣ Agent Teams 統治規則（厳守）
+
+## 4.1 Spawn前必須提示
+
+* チーム構成
+* 各役割
+* WorkTree名
+* ブランチ名
+* 影響範囲
+* 予想トークンコスト
+
+承認後にspawn。
+
+---
+
+## 4.2 絶対原則
+
+* 1 Agent = 1 WorkTree
+* 同一ファイル同時編集禁止
+* main直編集禁止
+* 各AgentもGit統制に従う
+* shutdownはリードのみ実行
+
+---
+
+## 4.3 標準編成テンプレ
+
+### 🔹 機能開発
+
+* 🧑 Backend
+* 🎨 Frontend
+* 🧪 Test
+* 🔐 Security（任意）
+
+### 🔹 レビュー
+
+* 🔐 Security
+* ⚡ Performance
+* 🧪 Coverage
+* 🏛 Architecture
+
+---
+
+# 5️⃣ Git / GitHub 統治（CI最上位）
+
+CIは準憲法より上位。
+
+---
+
+## 5.1 自動許可
+
+* git status
+* git diff
+* WorkTree作成
+
+---
+
+## 5.2 必ず確認
+
+* git add
+* git commit
+* git push
+* PR作成
+* merge
+
+---
+
+## 5.3 CI整合原則
+
+* ローカルはCIと同一コマンド使用
+* CI違反設計は提案しない
+* main直push提案禁止
+
+---
+
+# 6️⃣ ChromeDevTools / Playwright 運用規則
+
+## 6.1 ChromeDevTools優先条件
+
+* 既存ログイン状態利用
+* 手動操作併用
+* 実ブラウザ検証
+* デバッグフェーズ
+
+---
+
+## 6.2 Playwright優先条件
+
+* CI統合
+* E2E自動化
+* クリーン環境
+* クロスブラウザ検証
+
+---
+
+## 6.3 選択判断原則
+
+> 「既存セッションを使うか？」で判断する。
+
+---
+
+# 7️⃣ 標準レビュー〜修復フロー
+
+1. Agent Teamsレビュー
+2. 問題提示
+3. 修復オプション複数提示
+4. 人間選択
+5. 選択案のみ実行
+6. 再レビュー
+
+---
+
+## 修復提示フォーマット（必須）
+
+* オプション名
+* 内容概要
+* 影響範囲（小/中/大）
+* リスク（低/中/高）
+* CI影響
+
+---
+
+# 8️⃣ Hooks方針
+
+推奨：
+
+* pre-edit: lint
+* pre-commit: test
+* post-commit: 差分要約
+* on-startup: 環境確認
+
+Agent Teams利用時も各WorkTreeでHooks有効。
+
+---
+
+# 9️⃣ memory保存原則
+
+保存可：
+
+* 最終設計決定
+* CI重大変更
+* 統治原則
+* ブランチ戦略
+
+保存禁止：
+
+* 仮説段階
+* 実験ログ
+* 一時思考
+
+---
+
+# 🔟 禁止事項
+
+* 独断仕様変更
+* 無断Agent拡張
+* CI違反設計
+* force push提案
+* main直変更
+
+---
+
+# 1️⃣1️⃣ 最終目的
+
+✔ CI成功率最大化
+✔ 並列効率最大化
+✔ 衝突ゼロ
+✔ GitHub整合100%
+✔ Agent Teams主軸開発
+✔ tmux不要運用
+✔ 監査耐性強化
+
+---
+
+# 🔚 結語
+
+本プロジェクトは
+
+> 🧠 単一セッション統治
+> 🤖 Agent Teams主軸
+> 🌲 WorkTree分離
+> 🧪 CI最優先
+
+のオーケストレーション型開発体制である。
+
+変更は人間の明示判断によってのみ許可される。
+
 INITPROMPTEOF
 )
 
-trap 'echo "🛑 Ctrl+C で終了"; exit 0' INT
 
-echo "🔍 DevTools 応答確認..."
-echo "PORT=${PORT}"
-MAX_RETRY=10
-for i in $(seq 1 $MAX_RETRY); do
-  if curl -sf --connect-timeout 2 http://127.0.0.1:${PORT}/json/version >/dev/null 2>&1; then
-    echo "✅ DevTools 接続成功!"
-    break
-  fi
-  if [ "$i" -eq "$MAX_RETRY" ]; then
-    echo "❌ DevTools 応答なし (port=${PORT})"
-    exit 1
-  fi
-  echo "   リトライ中... ($i/$MAX_RETRY)"
-  sleep 2
-done
 
-# 環境変数を設定
-export CLAUDE_CHROME_DEBUG_PORT=${PORT}
-export MCP_CHROME_DEBUG_PORT=${PORT}
-
-# Agent Teams オーケストレーション有効化
-export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
-
-# on-startup hook 実行（環境変数設定後）
-if [ -f ".claude/hooks/on-startup.sh" ]; then
-    bash .claude/hooks/on-startup.sh
-fi
-
-# DevTools詳細接続テスト関数
-test_devtools_connection() {
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🔍 DevTools 詳細接続テスト"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-
-    # 1. バージョン情報
-    echo "📋 1. バージョン情報:"
-    if command -v jq &> /dev/null; then
-        curl -s http://127.0.0.1:${PORT}/json/version | jq '.' || echo "❌ バージョン取得失敗"
-    else
-        curl -s http://127.0.0.1:${PORT}/json/version || echo "❌ バージョン取得失敗"
-    fi
-    echo ""
-
-    # 2. タブ数確認
-    echo "📋 2. 開いているタブ数:"
-    if command -v jq &> /dev/null; then
-        TAB_COUNT=$(curl -s http://127.0.0.1:${PORT}/json/list | jq 'length')
-        echo "   タブ数: ${TAB_COUNT}"
-    else
-        echo "   (jqがインストールされていないため詳細表示不可)"
-        curl -s http://127.0.0.1:${PORT}/json/list | head -n 3
-    fi
-    echo ""
-
-    # 3. WebSocketエンドポイント確認
-    echo "📋 3. WebSocket接続エンドポイント:"
-    if command -v jq &> /dev/null; then
-        WS_URL=$(curl -s http://127.0.0.1:${PORT}/json/list | jq -r '.[0].webSocketDebuggerUrl // "N/A"')
-        echo "   ${WS_URL}"
-    else
-        echo "   (jqがインストールされていないため表示不可)"
-    fi
-    echo ""
-
-    # 4. Protocol version確認
-    echo "📋 4. DevTools Protocol Version:"
-    if command -v jq &> /dev/null; then
-        PROTO_VER=$(curl -s http://127.0.0.1:${PORT}/json/version | jq -r '."Protocol-Version" // "N/A"')
-        echo "   ${PROTO_VER}"
-    else
-        echo "   (jqがインストールされていないため表示不可)"
-    fi
-    echo ""
-
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "✅ DevTools接続テスト完了"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-}
-
-# 詳細テスト実行
-test_devtools_connection
-
-echo ""
-echo "🚀 Claude 起動 (port=${PORT})"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "📝 初期プロンプトを自動入力します..."
-echo ""
-
+# --- Claude Code 起動ループ ---
+echo "🤖 Claude Code を起動します..."
 while true; do
-  # 初期プロンプトをパイプで自動入力
-  echo "$INIT_PROMPT" | claude --dangerously-skip-permissions
-  EXIT_CODE=$?
-
-  [ "$EXIT_CODE" -eq 0 ] && break
-
-  echo ""
-  echo "🔄 Claude 再起動 (${RESTART_DELAY}秒後)..."
-  sleep $RESTART_DELAY
+    if [ -n "$INIT_PROMPT" ]; then
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📋 初期プロンプト指示内容:"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "$INIT_PROMPT"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        claude --dangerously-skip-permissions "$INIT_PROMPT" || true
+    else
+        claude --dangerously-skip-permissions || true
+    fi
+    echo ""
+    echo "🔄 Claude Code が終了しました。再起動モードを選択してください:"
+    echo "  [P] プロンプト指示付きで再起動 (デフォルト)"
+    echo "  [I] 対話モードで再起動 (プロンプト指示なし)"
+    echo "  [N] 終了"
+    read -r RESTART_ANSWER
+    case "$RESTART_ANSWER" in
+        [Nn])
+            echo "👋 終了します"
+            break
+            ;;
+        [Ii])
+            INIT_PROMPT=""
+            ;;
+        *)
+            ;;
+    esac
 done
-
-echo "👋 終了しました"
