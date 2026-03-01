@@ -113,7 +113,7 @@ app.include_router(security.router, prefix="/api")
 app.include_router(backup.router, prefix="/api/backup", tags=["backup"])
 app.include_router(journal.router, prefix="/api/journal", tags=["journal"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
-app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
+app.include_router(alerts.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信

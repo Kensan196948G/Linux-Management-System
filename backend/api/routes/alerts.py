@@ -84,16 +84,14 @@ def get_load_average() -> float:
 
 
 @router.get("/rules")
-async def get_alert_rules(current_user: dict = Depends(get_current_user)):
+async def get_alert_rules(current_user: TokenData = Depends(require_permission("read:alerts"))):
     """アラートルール一覧"""
-    require_permission(current_user, "read:alerts")
     return {"rules": DEFAULT_RULES, "count": len(DEFAULT_RULES)}
 
 
 @router.get("/active")
-async def get_active_alerts(current_user: dict = Depends(get_current_user)):
+async def get_active_alerts(current_user: TokenData = Depends(require_permission("read:alerts"))):
     """アクティブなアラート一覧（現在値が閾値超過）"""
-    require_permission(current_user, "read:alerts")
     try:
         cpu = get_current_cpu_usage()
         mem = get_current_memory_usage()
@@ -133,9 +131,8 @@ async def get_active_alerts(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/summary")
-async def get_alerts_summary(current_user: dict = Depends(get_current_user)):
+async def get_alerts_summary(current_user: TokenData = Depends(require_permission("read:alerts"))):
     """アラートサマリー（ルール数/アクティブ数）"""
-    require_permission(current_user, "read:alerts")
     try:
         cpu = get_current_cpu_usage()
         mem = get_current_memory_usage()
