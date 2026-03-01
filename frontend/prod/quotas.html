@@ -3,369 +3,462 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ディスククォータ管理 - Linux Management System</title>
+    <title>ディスククォータ - Linux Management System</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <style>
-        .status-card {
+        .tab-nav {
+            display: flex;
+            gap: 4px;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 8px 18px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #6b7280;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            border-radius: 4px 4px 0 0;
+            transition: color 0.15s, border-color 0.15s, background 0.15s;
+        }
+        .tab-btn:hover { background: #f3f4f6; color: #111827; }
+        .tab-btn.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+            font-weight: 600;
+            background: #eff6ff;
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        .quota-card {
             background: white;
             border-radius: 8px;
             border: 1px solid #e5e7eb;
             padding: 20px;
             margin-bottom: 16px;
         }
-        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
-        .quota-table th { font-size: 12px; color: #6b7280; font-weight: 600; }
-        .quota-table td { font-size: 13px; vertical-align: middle; }
-        .usage-bar { width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; }
-        .usage-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
-        .usage-ok { background: #10b981; }
-        .usage-warn { background: #f59e0b; }
-        .usage-over { background: #ef4444; }
-        .badge-ok { background-color: #d1fae5; color: #065f46; }
-        .badge-warn { background-color: #fef3c7; color: #92400e; }
-        .badge-over { background-color: #fee2e2; color: #991b1b; }
-        .badge-unavail { background-color: #f3f4f6; color: #6b7280; }
-        .form-label-sm { font-size: 13px; color: #374151; }
-        .quota-set-card {
-            background: #f0fdf4;
-            border: 1px solid #86efac;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 16px;
+        .quota-card h5 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 14px;
         }
-        .unavailable-notice {
-            background: #fefce8;
-            border: 1px solid #fde047;
+        .fs-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: #f9fafb;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .fs-item code {
+            font-size: 12px;
+            color: #1d4ed8;
+            background: #dbeafe;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .pill {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .pill-enabled { background: #d1fae5; color: #065f46; }
+        .pill-disabled { background: #fee2e2; color: #991b1b; }
+
+        .users-table-wrap { overflow-x: auto; }
+
+        .quota-form-card {
+            background: white;
             border-radius: 8px;
-            padding: 16px;
-            color: #713f12;
+            border: 1px solid #e5e7eb;
+            padding: 24px;
+            max-width: 640px;
+        }
+        .quota-form-card h5 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 20px;
+        }
+        .section-note {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
         }
     </style>
 </head>
 <body>
 <div class="app-layout">
-    <!-- サイドバー -->
     <aside class="sidebar" id="sidebar-container"></aside>
 
-    <!-- メインコンテンツ -->
-    <div class="main-content">
-        <div class="container-fluid py-3">
-            <!-- ヘッダー -->
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <h4 class="mb-0">ディスククォータ管理</h4>
-                    <p class="text-muted small mb-0">ユーザー・グループのディスク使用量制限を管理します</p>
-                </div>
-                <div class="d-flex gap-2">
-                    <select id="fsFilter" class="form-select form-select-sm" style="width:160px;">
-                        <option value="">全ファイルシステム</option>
-                    </select>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">
-                        <i class="bi bi-arrow-clockwise"></i> 更新
-                    </button>
-                </div>
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">💾 ディスククォータ</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshCurrentTab()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- タブナビゲーション -->
+            <div class="tab-nav">
+                <button class="tab-btn active" data-tab="status" onclick="switchTab('status')">📊 クォータ状態</button>
+                <button class="tab-btn" data-tab="users" onclick="switchTab('users')">👤 ユーザークォータ</button>
+                <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">⚙️ クォータ設定</button>
             </div>
 
-            <!-- アラート表示エリア -->
-            <div id="alertArea"></div>
-
-            <!-- クォータ未インストール通知 -->
-            <div id="unavailableNotice" class="unavailable-notice d-none">
-                <strong>⚠️ quota ツール未インストール</strong>
-                <p class="mb-0 mt-1 small">ディスククォータ機能を使用するには <code>quota</code> パッケージのインストールが必要です。<br>
-                <code>sudo apt-get install quota</code> を実行してください。</p>
+            <!-- タブ1: クォータ状態 -->
+            <div class="tab-panel active" id="tab-status">
+                <div id="status-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="status-content" style="display:none"></div>
             </div>
 
-            <!-- タブ -->
-            <ul class="nav nav-tabs mb-3" id="quotaTabs">
-                <li class="nav-item">
-                    <button class="nav-link active" data-tab="users" onclick="switchTab('users')">ユーザークォータ</button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link" data-tab="report" onclick="switchTab('report')">レポート</button>
-                </li>
-                <li class="nav-item" id="setTabItem">
-                    <button class="nav-link" data-tab="set" onclick="switchTab('set')">クォータ設定</button>
-                </li>
-            </ul>
-
-            <!-- ユーザークォータタブ -->
-            <div id="tab-users">
-                <div class="status-card">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="status-title">ユーザークォータ一覧</span>
-                        <span id="quotaStatusBadge" class="badge badge-unavail px-2 py-1">読み込み中...</span>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm quota-table">
-                            <thead>
-                                <tr>
-                                    <th>ユーザー</th>
-                                    <th>ファイルシステム</th>
-                                    <th>使用量</th>
-                                    <th>ソフトリミット</th>
-                                    <th>ハードリミット</th>
-                                    <th>使用率</th>
-                                    <th>状態</th>
-                                </tr>
-                            </thead>
-                            <tbody id="userQuotaTable">
-                                <tr><td colspan="7" class="text-center text-muted py-3">読み込み中...</td></tr>
-                            </tbody>
-                        </table>
+            <!-- タブ2: ユーザークォータ -->
+            <div class="tab-panel" id="tab-users">
+                <div id="users-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="users-content" style="display:none">
+                    <div class="quota-card">
+                        <h5>👤 ユーザー別クォータ使用量</h5>
+                        <div class="users-table-wrap">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>ユーザー</th>
+                                        <th>FS</th>
+                                        <th>使用量</th>
+                                        <th>ソフト制限</th>
+                                        <th>ハード制限</th>
+                                        <th>使用率</th>
+                                        <th>猶予期間</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-tbody"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- レポートタブ -->
-            <div id="tab-report" class="d-none">
-                <div class="status-card">
-                    <span class="status-title">クォータレポート</span>
-                    <pre id="reportContent" class="bg-dark text-light p-3 rounded" style="font-size:12px; max-height:500px; overflow-y:auto;">読み込み中...</pre>
-                </div>
-            </div>
-
-            <!-- クォータ設定タブ -->
-            <div id="tab-set" class="d-none">
-                <div class="quota-set-card">
-                    <span class="status-title">🔒 クォータ設定</span>
-                    <p class="text-muted small">ユーザーまたはグループにディスク使用量制限を設定します。Admin/Approver 権限が必要です。</p>
-                    <form id="quotaSetForm" onsubmit="submitQuotaSet(event)">
-                        <div class="row g-3">
-                            <div class="col-md-3">
-                                <label class="form-label form-label-sm">種別</label>
-                                <select class="form-select form-select-sm" id="setType">
-                                    <option value="user">ユーザー</option>
-                                    <option value="group">グループ</option>
-                                </select>
+            <!-- タブ3: クォータ設定 -->
+            <div class="tab-panel" id="tab-settings">
+                <div class="quota-form-card">
+                    <h5>⚙️ クォータ設定</h5>
+                    <div class="alert alert-info mb-4" style="font-size:13px">
+                        ℹ️ クォータ設定は管理者権限が必要です。承認フローが有効な場合、管理者の承認後に反映されます。
+                    </div>
+                    <form id="quota-form">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">種別</label>
+                            <select class="form-select" id="quota-type">
+                                <option value="user">ユーザー</option>
+                                <option value="group">グループ</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">名前</label>
+                            <input class="form-control" id="quota-name" placeholder="ユーザー名またはグループ名">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">ファイルシステム</label>
+                            <input class="form-control" id="quota-fs" value="/" placeholder="/home など">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">ソフト制限 (KB)</label>
+                                <input class="form-control" id="quota-soft" type="number" min="0" placeholder="例: 1048576 (1GB)">
+                                <div class="section-note">超過しても猶予期間内は書き込み可能</div>
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label form-label-sm" id="setNameLabel">ユーザー名</label>
-                                <input type="text" class="form-control form-control-sm" id="setName" pattern="[a-zA-Z0-9._-]+" maxlength="64" required>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label form-label-sm">ファイルシステム</label>
-                                <input type="text" class="form-control form-control-sm" id="setFilesystem" value="/" pattern="[/a-zA-Z0-9_.-]+" required>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">ハード制限 (KB)</label>
+                                <input class="form-control" id="quota-hard" type="number" min="0" placeholder="例: 2097152 (2GB)">
+                                <div class="section-note">絶対上限。これ以上は書き込み不可</div>
                             </div>
                         </div>
-                        <div class="row g-3 mt-1">
-                            <div class="col-md-3">
-                                <label class="form-label form-label-sm">ソフトリミット (KB)</label>
-                                <input type="number" class="form-control form-control-sm" id="setSoftKb" min="0" value="524288" required>
-                                <div class="form-text">512MB = 524288KB</div>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label form-label-sm">ハードリミット (KB)</label>
-                                <input type="number" class="form-control form-control-sm" id="setHardKb" min="0" value="1048576" required>
-                                <div class="form-text">1GB = 1048576KB</div>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label form-label-sm">inode ソフトリミット</label>
-                                <input type="number" class="form-control form-control-sm" id="setIsoft" min="0" value="0">
-                                <div class="form-text">0 = 無制限</div>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label form-label-sm">inode ハードリミット</label>
-                                <input type="number" class="form-control form-control-sm" id="setIhard" min="0" value="0">
-                                <div class="form-text">0 = 無制限</div>
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <button type="submit" class="btn btn-sm btn-success" id="setSubmitBtn">クォータを設定する</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="resetForm()">リセット</button>
-                        </div>
+                        <div id="form-alert-area"></div>
+                        <button type="submit" class="btn btn-primary">💾 クォータ設定</button>
                     </form>
                 </div>
             </div>
         </div>
-    </div>
+    </main>
 </div>
 
-<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
 <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('quotas')):renderSidebar('quotas');</script>
 <script>
-let currentTab = 'users';
-const API_BASE = '/api';
+// ===================================================================
+// ユーティリティ
+// ===================================================================
 
-async function getToken() {
-    return localStorage.getItem('access_token') || '';
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
-function showAlert(message, type = 'danger') {
-    const area = document.getElementById('alertArea');
-    area.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+function formatKB(kb) {
+    if (!kb) return '0 KB';
+    if (kb >= 1024 * 1024) return (kb / 1024 / 1024).toFixed(1) + ' GB';
+    if (kb >= 1024) return (kb / 1024).toFixed(1) + ' MB';
+    return kb + ' KB';
+}
+
+function usageBar(used, soft, hard) {
+    const limit = hard || soft || 0;
+    if (!limit) return '<span class="text-muted">無制限</span>';
+    const pct = Math.min(100, Math.round(used / limit * 100));
+    const color = pct >= 90 ? 'danger' : pct >= 75 ? 'warning' : 'success';
+    return `<div class="progress" style="height:18px;min-width:120px">
+        <div class="progress-bar bg-${color}" style="width:${pct}%">${pct}%</div>
     </div>`;
 }
 
-function switchTab(tab) {
-    currentTab = tab;
-    document.querySelectorAll('[data-tab]').forEach(el => el.classList.remove('active'));
-    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
-    ['users', 'report', 'set'].forEach(t => {
-        document.getElementById(`tab-${t}`).classList.toggle('d-none', t !== tab);
-    });
-    if (tab === 'users') loadUserQuotas();
-    else if (tab === 'report') loadReport();
+function showAlert(message, type, areaId) {
+    const area = document.getElementById(areaId || 'alert-area');
+    if (!area) return;
+    area.innerHTML = `<div class="alert alert-${escapeHtml(type)} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+    setTimeout(() => { area.innerHTML = ''; }, 6000);
 }
 
-function formatBytes(kb) {
-    if (kb === 0) return '無制限';
-    if (kb < 1024) return `${kb} KB`;
-    if (kb < 1024 * 1024) return `${(kb / 1024).toFixed(1)} MB`;
-    return `${(kb / 1024 / 1024).toFixed(1)} GB`;
+// ===================================================================
+// タブ管理
+// ===================================================================
+
+let currentTab = 'status';
+const tabLoaded = { status: false, users: false, settings: true };
+
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    const panel = document.getElementById(`tab-${tabName}`);
+    if (btn) btn.classList.add('active');
+    if (panel) panel.classList.add('active');
+
+    currentTab = tabName;
+
+    if (!tabLoaded[tabName]) {
+        if (tabName === 'status') loadStatus();
+        if (tabName === 'users') loadUsers();
+    }
 }
 
-async function loadUserQuotas() {
-    const token = await getToken();
-    const fs = document.getElementById('fsFilter').value;
-    const url = fs ? `${API_BASE}/quotas/users?filesystem=${encodeURIComponent(fs)}` : `${API_BASE}/quotas/users`;
+function refreshCurrentTab() {
+    tabLoaded[currentTab] = false;
+    if (currentTab === 'status') {
+        document.getElementById('status-content').style.display = 'none';
+        document.getElementById('status-loading').style.display = '';
+        loadStatus();
+    } else if (currentTab === 'users') {
+        document.getElementById('users-content').style.display = 'none';
+        document.getElementById('users-loading').style.display = '';
+        loadUsers();
+    }
+}
+
+// ===================================================================
+// タブ1: クォータ状態
+// ===================================================================
+
+async function loadStatus() {
+    const loading = document.getElementById('status-loading');
+    const content = document.getElementById('status-content');
+    loading.style.display = '';
+    content.style.display = 'none';
+
     try {
-        const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await resp.json();
-        const tbody = document.getElementById('userQuotaTable');
-        const badge = document.getElementById('quotaStatusBadge');
+        const resp = await api.getQuotasStatus();
+        const data = resp.data || resp;
+        const quotaEnabled = data.quota_enabled;
+        const filesystems = data.filesystems || [];
 
-        if (data.status === 'unavailable') {
-            document.getElementById('unavailableNotice').classList.remove('d-none');
-            badge.textContent = '未インストール';
-            badge.className = 'badge badge-unavail px-2 py-1';
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">quota ツールが未インストールです</td></tr>';
-            return;
+        let html = '';
+
+        // quota_enabled が false の場合の警告バナー
+        if (!quotaEnabled) {
+            html += `<div class="alert alert-warning">⚠️ クォータ機能が無効です。edquota または setquota コマンドで有効化が必要です。</div>`;
+        } else {
+            html += `<div class="alert alert-success">✅ クォータ機能が有効です。</div>`;
         }
 
-        document.getElementById('unavailableNotice').classList.add('d-none');
-        badge.textContent = '有効';
-        badge.className = 'badge badge-ok px-2 py-1';
+        // 全体ステータスカード
+        html += `<div class="quota-card">
+            <h5>📊 クォータ全体状態</h5>
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div>
+                    <span class="fw-semibold">クォータ機能:</span>
+                    <span class="pill ${quotaEnabled ? 'pill-enabled' : 'pill-disabled'} ms-2">
+                        ${quotaEnabled ? '✅ 有効' : '❌ 無効'}
+                    </span>
+                </div>
+                <div class="text-muted" style="font-size:13px">
+                    ファイルシステム数: <strong>${filesystems.length}</strong>
+                </div>
+            </div>`;
 
-        const users = data.data?.users || [];
+        if (filesystems.length > 0) {
+            html += `<h5 style="font-size:14px;color:#6b7280;margin-bottom:10px">📂 ファイルシステム一覧</h5>`;
+            filesystems.forEach(fs => {
+                const fsPath = escapeHtml(fs.path || fs.filesystem || fs.device || String(fs));
+                const fsType = escapeHtml(fs.type || '');
+                const fsQuota = fs.quota_enabled !== undefined
+                    ? `<span class="pill ${fs.quota_enabled ? 'pill-enabled' : 'pill-disabled'}">${fs.quota_enabled ? '有効' : '無効'}</span>`
+                    : '';
+                const fsSize = fs.size ? `<span class="text-muted" style="margin-left:auto;font-size:12px">容量: ${escapeHtml(String(fs.size))}</span>` : '';
+                html += `<div class="fs-item">
+                    📂 <code>${fsPath}</code>
+                    ${fsType ? `<span class="text-muted">(${fsType})</span>` : ''}
+                    ${fsQuota}
+                    ${fsSize}
+                </div>`;
+            });
+        } else {
+            html += `<p class="text-muted" style="font-size:13px">ファイルシステム情報がありません</p>`;
+        }
+
+        html += `</div>`;
+
+        content.innerHTML = html;
+        loading.style.display = 'none';
+        content.style.display = '';
+        tabLoaded['status'] = true;
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">
+            クォータ状態の取得に失敗しました: ${escapeHtml(e.message)}
+        </div>`;
+    }
+}
+
+// ===================================================================
+// タブ2: ユーザークォータ
+// ===================================================================
+
+async function loadUsers() {
+    const loading = document.getElementById('users-loading');
+    const content = document.getElementById('users-content');
+    loading.style.display = '';
+    content.style.display = 'none';
+
+    try {
+        const resp = await api.getQuotaUsers();
+        const data = resp.data || resp;
+        const users = data.users || [];
+
+        const tbody = document.getElementById('users-tbody');
+
         if (users.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">クォータデータがありません</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">クォータ設定のあるユーザーが見つかりません</td></tr>`;
+        } else {
+            tbody.innerHTML = users.map(u => {
+                const used = u.used_kb || 0;
+                const soft = u.soft_kb || 0;
+                const hard = u.hard_kb || 0;
+                const grace = u.grace || '-';
+
+                return `<tr>
+                    <td><strong>${escapeHtml(u.username || '-')}</strong></td>
+                    <td><code>${escapeHtml(u.filesystem || '-')}</code></td>
+                    <td>${escapeHtml(formatKB(used))}</td>
+                    <td>${soft ? escapeHtml(formatKB(soft)) : '<span class="text-muted">-</span>'}</td>
+                    <td>${hard ? escapeHtml(formatKB(hard)) : '<span class="text-muted">-</span>'}</td>
+                    <td>${usageBar(used, soft, hard)}</td>
+                    <td>${escapeHtml(String(grace))}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        loading.style.display = 'none';
+        content.style.display = '';
+        tabLoaded['users'] = true;
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">
+            ユーザークォータ情報の取得に失敗しました: ${escapeHtml(e.message)}
+        </div>`;
+    }
+}
+
+// ===================================================================
+// 初期化
+// ===================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 認証チェック
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+    api.setToken(token);
+
+    // 初期タブ読み込み
+    loadStatus();
+
+    // フォーム送信
+    document.getElementById('quota-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const name = document.getElementById('quota-name').value.trim();
+        const filesystem = document.getElementById('quota-fs').value.trim();
+
+        if (!name) {
+            showAlert('❌ 名前を入力してください', 'danger', 'form-alert-area');
+            return;
+        }
+        if (!filesystem) {
+            showAlert('❌ ファイルシステムを入力してください', 'danger', 'form-alert-area');
             return;
         }
 
-        tbody.innerHTML = users.map(u => {
-            const usagePercent = u.soft_limit_kb > 0 ? Math.min(100, Math.round(u.used_kb / u.soft_limit_kb * 100)) : 0;
-            const barClass = usagePercent >= 100 ? 'usage-over' : usagePercent >= 80 ? 'usage-warn' : 'usage-ok';
-            const statusClass = usagePercent >= 100 ? 'badge-over' : usagePercent >= 80 ? 'badge-warn' : 'badge-ok';
-            const statusText = usagePercent >= 100 ? '超過' : usagePercent >= 80 ? '警告' : '正常';
-            return `<tr>
-                <td><strong>${u.username || '-'}</strong></td>
-                <td><code>${u.filesystem || '-'}</code></td>
-                <td>${formatBytes(u.used_kb || 0)}</td>
-                <td>${formatBytes(u.soft_limit_kb || 0)}</td>
-                <td>${formatBytes(u.hard_limit_kb || 0)}</td>
-                <td>
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="usage-bar flex-grow-1"><div class="usage-bar-fill ${barClass}" style="width:${usagePercent}%"></div></div>
-                        <span class="small">${usagePercent}%</span>
-                    </div>
-                </td>
-                <td><span class="badge ${statusClass} px-2 py-1">${statusText}</span></td>
-            </tr>`;
-        }).join('');
-    } catch (e) {
-        document.getElementById('userQuotaTable').innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">エラー: ${e.message}</td></tr>`;
-    }
-}
+        const payload = {
+            type: document.getElementById('quota-type').value,
+            name: name,
+            filesystem: filesystem,
+            soft_kb: parseInt(document.getElementById('quota-soft').value) || 0,
+            hard_kb: parseInt(document.getElementById('quota-hard').value) || 0,
+            isoft: 0,
+            ihard: 0
+        };
 
-async function loadReport() {
-    const token = await getToken();
-    const fs = document.getElementById('fsFilter').value;
-    const url = fs ? `${API_BASE}/quotas/report?filesystem=${encodeURIComponent(fs)}` : `${API_BASE}/quotas/report`;
-    try {
-        const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await resp.json();
-        const el = document.getElementById('reportContent');
-        if (data.status === 'unavailable') {
-            el.textContent = '⚠️ quota ツールが未インストールです';
-        } else {
-            el.textContent = data.data?.report || JSON.stringify(data, null, 2);
+        const submitBtn = document.querySelector('#quota-form button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '送信中...';
+
+        try {
+            const result = await api.post('/api/quotas/set', payload);
+            showAlert(`✅ ${escapeHtml(result.message || 'クォータを設定しました')}`, 'success', 'form-alert-area');
+            // ユーザータブのキャッシュを無効化（次回切り替え時に再取得）
+            tabLoaded['users'] = false;
+        } catch (err) {
+            showAlert(`❌ エラー: ${escapeHtml(err.message)}`, 'danger', 'form-alert-area');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '💾 クォータ設定';
         }
-    } catch (e) {
-        document.getElementById('reportContent').textContent = `エラー: ${e.message}`;
-    }
-}
-
-async function submitQuotaSet(e) {
-    e.preventDefault();
-    const token = await getToken();
-    const btn = document.getElementById('setSubmitBtn');
-    btn.disabled = true;
-    btn.textContent = '設定中...';
-
-    const payload = {
-        type: document.getElementById('setType').value,
-        name: document.getElementById('setName').value.trim(),
-        filesystem: document.getElementById('setFilesystem').value.trim(),
-        soft_kb: parseInt(document.getElementById('setSoftKb').value),
-        hard_kb: parseInt(document.getElementById('setHardKb').value),
-        isoft: parseInt(document.getElementById('setIsoft').value) || 0,
-        ihard: parseInt(document.getElementById('setIhard').value) || 0,
-    };
-
-    try {
-        const resp = await fetch(`${API_BASE}/quotas/set`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        const data = await resp.json();
-        if (resp.ok) {
-            showAlert(`✅ クォータを設定しました: ${payload.type} ${payload.name} (${formatBytes(payload.soft_kb)} / ${formatBytes(payload.hard_kb)})`, 'success');
-        } else {
-            showAlert(`❌ エラー: ${data.detail || JSON.stringify(data)}`);
-        }
-    } catch (e) {
-        showAlert(`❌ 通信エラー: ${e.message}`);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'クォータを設定する';
-    }
-}
-
-function resetForm() {
-    document.getElementById('quotaSetForm').reset();
-}
-
-document.getElementById('setType').addEventListener('change', function() {
-    document.getElementById('setNameLabel').textContent = this.value === 'user' ? 'ユーザー名' : 'グループ名';
+    });
 });
-
-document.getElementById('fsFilter').addEventListener('change', refreshAll);
-
-async function refreshAll() {
-    if (currentTab === 'users') await loadUserQuotas();
-    else if (currentTab === 'report') await loadReport();
-}
-
-// 権限チェック: write:quotas がなければ設定タブを非表示
-async function checkPermissions() {
-    const token = await getToken();
-    if (!token) return;
-    try {
-        const resp = await fetch(`${API_BASE}/auth/me`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (resp.ok) {
-            const user = await resp.json();
-            const perms = user.permissions || [];
-            if (!perms.includes('write:quotas')) {
-                document.getElementById('setTabItem').classList.add('d-none');
-            }
-        }
-    } catch {}
-}
-
-// 初期化
-(async () => {
-    await checkPermissions();
-    await loadUserQuotas();
-})();
 </script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
 </html>

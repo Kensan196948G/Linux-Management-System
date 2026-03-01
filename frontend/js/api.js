@@ -314,8 +314,23 @@ class APIClient {
         return await this.request('GET', '/api/bandwidth/interfaces');
     }
 
-    async getBandwidthLive() {
-        return await this.request('GET', '/api/bandwidth/live');
+    async getBandwidthLive(iface = '') {
+        const q = iface ? `?iface=${encodeURIComponent(iface)}` : '';
+        return await this.request('GET', `/api/bandwidth/live${q}`);
+    }
+
+    async getBandwidthDaily(iface = '') {
+        const q = iface ? `?iface=${encodeURIComponent(iface)}` : '';
+        return await this.request('GET', `/api/bandwidth/daily${q}`);
+    }
+
+    async getBandwidthHourly(iface = '') {
+        const q = iface ? `?iface=${encodeURIComponent(iface)}` : '';
+        return await this.request('GET', `/api/bandwidth/hourly${q}`);
+    }
+
+    async getBandwidthTop() {
+        return await this.request('GET', '/api/bandwidth/top');
     }
 
     // ===================================================================
@@ -328,6 +343,18 @@ class APIClient {
 
     async getDbProcesses(dbType = 'mysql') {
         return await this.request('GET', `/api/dbmonitor/${dbType}/processes`);
+    }
+
+    async getDbDatabases(dbType = 'mysql') {
+        return await this.request('GET', `/api/dbmonitor/${dbType}/databases`);
+    }
+
+    async getDbConnections(dbType = 'mysql') {
+        return await this.request('GET', `/api/dbmonitor/${dbType}/connections`);
+    }
+
+    async getDbVariables(dbType = 'mysql') {
+        return await this.request('GET', `/api/dbmonitor/${dbType}/variables`);
     }
 
     // ===================================================================
@@ -360,6 +387,10 @@ class APIClient {
 
     async getPostfixQueue() {
         return await this.request('GET', '/api/postfix/queue');
+    }
+
+    async getPostfixLogs(lines = 50) {
+        return await this.request('GET', `/api/postfix/logs?lines=${lines}`);
     }
 
     // ===================================================================
@@ -408,6 +439,22 @@ class APIClient {
 
     async getBootupStatus() {
         return await this.request('GET', '/api/bootup/status');
+    }
+
+    async getBootupServices() {
+        return await this.request('GET', '/api/bootup/services');
+    }
+
+    async enableBootupService(service, reason) {
+        return await this.request('POST', '/api/bootup/enable', { service, reason });
+    }
+
+    async disableBootupService(service, reason) {
+        return await this.request('POST', '/api/bootup/disable', { service, reason });
+    }
+
+    async bootupAction(action, delay = 'now', reason) {
+        return await this.request('POST', '/api/bootup/action', { action, delay, reason });
     }
 
     // ===================================================================

@@ -3,241 +3,466 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DB監視 - Linux Management System</title>
+    <title>DBモニター - Linux Management System</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <style>
-        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
-        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
-        .db-tab-btn { font-size: 14px; }
-        .db-tab-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
-        .metric-val { font-size: 22px; font-weight: bold; color: #1e293b; }
-        .metric-label { font-size: 12px; color: #6b7280; }
-        .tbl th { font-size: 12px; color: #6b7280; font-weight: 600; }
-        .tbl td { font-size: 13px; vertical-align: middle; }
-        .badge-running { background: #d1fae5; color: #065f46; }
-        .badge-stopped { background: #fee2e2; color: #991b1b; }
-        .badge-unavail { background: #f3f4f6; color: #6b7280; }
-        .section-sep { border-top: 1px solid #f1f5f9; margin: 16px 0; }
-        .unavail-notice { background:#fefce8; border:1px solid #fde047; border-radius:8px; padding:12px; color:#713f12; font-size:13px; }
+        .db-switch-bar {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 14px 20px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+        .db-switch-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            white-space: nowrap;
+        }
+        .tab-nav {
+            background: white;
+            border-radius: 8px 8px 0 0;
+            border: 1px solid #e5e7eb;
+            border-bottom: none;
+            padding: 0 16px;
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            padding: 12px 18px;
+            border: none;
+            background: none;
+            color: #6b7280;
+            font-size: 14px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: color 0.2s, border-bottom-color 0.2s, background 0.2s;
+            white-space: nowrap;
+        }
+        .tab-btn:hover { color: #3b82f6; background: #f9fafb; }
+        .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+        .tab-content-area {
+            background: white;
+            border-radius: 0 0 8px 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            min-height: 300px;
+        }
+        .status-card {
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .status-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .status-card-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #111827;
+        }
+        .running-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .running-on  { background: #d1fae5; color: #065f46; }
+        .running-off { background: #fee2e2; color: #991b1b; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+        .info-item {
+            background: #f9fafb;
+            border-radius: 6px;
+            padding: 12px 16px;
+        }
+        .info-item-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #9ca3af;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+        .info-item-value {
+            font-size: 14px;
+            color: #111827;
+            word-break: break-all;
+        }
+        .table-container { overflow-x: auto; }
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .loading-spinner {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+        .error-box {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 16px;
+            color: #991b1b;
+            font-size: 14px;
+        }
+        .empty-msg {
+            text-align: center;
+            padding: 32px;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+        .count-badge {
+            display: inline-block;
+            background: #e0e7ff;
+            color: #3730a3;
+            border-radius: 12px;
+            padding: 1px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 6px;
+        }
     </style>
 </head>
 <body>
 <div class="app-layout">
-    <!-- サイドバー -->
     <aside class="sidebar" id="sidebar-container"></aside>
 
-    <!-- メインコンテンツ -->
-    <div class="main-content">
-        <div class="container-fluid py-4">
-            <!-- ヘッダー -->
-            <div class="d-flex align-items-center justify-content-between mb-4">
-                <div>
-                    <h1 class="h4 mb-0">🗄️ データベース監視</h1>
-                    <p class="text-muted small mb-0">MySQL / PostgreSQL の状態・プロセス・データベース監視</p>
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">🗃️ DBモニター</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshCurrentTab()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- DB切り替えボタン -->
+            <div class="db-switch-bar">
+                <span class="db-switch-label">データベース選択:</span>
+                <div class="btn-group mb-0">
+                    <button class="btn btn-outline-primary active" id="btn-mysql" onclick="switchDb('mysql')">🐬 MySQL</button>
+                    <button class="btn btn-outline-primary" id="btn-postgresql" onclick="switchDb('postgresql')">🐘 PostgreSQL</button>
                 </div>
-                <div class="d-flex gap-2">
-                    <button id="btnRefresh" class="btn btn-outline-primary btn-sm" onclick="loadAll()">🔄 更新</button>
-                </div>
+                <span id="db-status-indicator" class="ms-2" style="font-size:13px;color:#6b7280;"></span>
             </div>
 
-            <!-- DB タブ選択 -->
-            <div class="btn-group mb-3" role="group">
-                <button type="button" class="btn btn-outline-primary db-tab-btn active" id="tabMySQL" onclick="switchDB('mysql')">🐬 MySQL</button>
-                <button type="button" class="btn btn-outline-primary db-tab-btn" id="tabPostgres" onclick="switchDB('postgresql')">🐘 PostgreSQL</button>
+            <!-- タブナビゲーション -->
+            <div class="tab-nav">
+                <button class="tab-btn active" id="tab-btn-status"      onclick="showTab('status')">📊 ステータス</button>
+                <button class="tab-btn"        id="tab-btn-processes"   onclick="showTab('processes')">⚙️ プロセス</button>
+                <button class="tab-btn"        id="tab-btn-databases"   onclick="showTab('databases')">🗄️ データベース</button>
+                <button class="tab-btn"        id="tab-btn-connections" onclick="showTab('connections')">🔗 接続</button>
+                <button class="tab-btn"        id="tab-btn-variables"   onclick="showTab('variables')">⚙️ 変数</button>
             </div>
 
-            <!-- 状態カード -->
-            <div id="statusSection">
-                <div class="status-card" id="statusCard">
-                    <div class="status-title">DBサービス状態</div>
-                    <div id="statusBody"><div class="text-muted small">読み込み中...</div></div>
-                </div>
-            </div>
-
-            <!-- プロセス / アクティビティ -->
-            <div class="status-card">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="status-title mb-0">プロセス / アクティビティ</div>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="loadProcesses()">🔄 更新</button>
-                </div>
-                <div id="processBody"><div class="text-muted small">読み込み中...</div></div>
-            </div>
-
-            <!-- データベース一覧 -->
-            <div class="status-card">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="status-title mb-0">データベース一覧</div>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="loadDatabases()">🔄 更新</button>
-                </div>
-                <div id="dbListBody"><div class="text-muted small">読み込み中...</div></div>
-            </div>
-
-            <!-- 接続一覧 -->
-            <div class="status-card">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="status-title mb-0">接続一覧</div>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="loadConnections()">🔄 更新</button>
-                </div>
-                <div id="connBody"><div class="text-muted small">読み込み中...</div></div>
-            </div>
-
-            <!-- 変数・設定 (MySQL) -->
-            <div class="status-card" id="varSection">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="status-title mb-0">変数・設定</div>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="loadVariables()">🔄 更新</button>
-                </div>
-                <div id="varBody"><div class="text-muted small">読み込み中...</div></div>
+            <!-- タブコンテンツ -->
+            <div class="tab-content-area">
+                <div id="tab-status"></div>
+                <div id="tab-processes"   style="display:none"></div>
+                <div id="tab-databases"   style="display:none"></div>
+                <div id="tab-connections" style="display:none"></div>
+                <div id="tab-variables"   style="display:none"></div>
             </div>
         </div>
-    </div>
+    </main>
 </div>
 
-<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
 <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('dbmonitor')):renderSidebar('dbmonitor');</script>
 <script>
-let currentDB = 'mysql';
-
-function switchDB(db) {
-    currentDB = db;
-    document.getElementById('tabMySQL').classList.toggle('active', db === 'mysql');
-    document.getElementById('tabPostgres').classList.toggle('active', db === 'postgresql');
-    loadAll();
+// ===================================================================
+// XSS防止ユーティリティ
+// ===================================================================
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
-async function apiFetch(path) {
-    const token = localStorage.getItem('access_token');
-    const resp = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });
-    if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
-    return resp.json();
+// ===================================================================
+// 状態管理
+// ===================================================================
+let currentDb  = 'mysql';
+let currentTab = 'status';
+
+// ===================================================================
+// DB切り替え
+// ===================================================================
+function switchDb(dbType) {
+    currentDb = dbType;
+    document.getElementById('btn-mysql').classList.toggle('active', dbType === 'mysql');
+    document.getElementById('btn-postgresql').classList.toggle('active', dbType === 'postgresql');
+    // 現在のタブをリロード
+    showTab(currentTab);
 }
 
-function statusBadge(running, status) {
-    if (status === 'unavailable') return '<span class="badge badge-unavail">利用不可</span>';
-    if (running) return '<span class="badge badge-running">稼働中</span>';
-    return '<span class="badge badge-stopped">停止</span>';
+// ===================================================================
+// タブ切り替え
+// ===================================================================
+function showTab(tabName) {
+    const tabs = ['status', 'processes', 'databases', 'connections', 'variables'];
+    tabs.forEach(function(t) {
+        document.getElementById('tab-' + t).style.display = (t === tabName) ? '' : 'none';
+        var btn = document.getElementById('tab-btn-' + t);
+        if (btn) btn.classList.toggle('active', t === tabName);
+    });
+    currentTab = tabName;
+
+    switch (tabName) {
+        case 'status':      loadStatus();      break;
+        case 'processes':   loadProcesses();   break;
+        case 'databases':   loadDatabases();   break;
+        case 'connections': loadConnections(); break;
+        case 'variables':   loadVariables();   break;
+    }
 }
 
+function refreshCurrentTab() {
+    showTab(currentTab);
+}
+
+// ===================================================================
+// ローディング / エラー表示ヘルパー
+// ===================================================================
+function setTabLoading(tabName) {
+    document.getElementById('tab-' + tabName).innerHTML =
+        '<div class="loading-spinner">読み込み中...</div>';
+}
+
+function setTabError(tabName, msg) {
+    document.getElementById('tab-' + tabName).innerHTML =
+        '<div class="error-box">&#x26A0;&#xFE0F; データの取得に失敗しました: ' + escapeHtml(msg) + '</div>';
+}
+
+// ===================================================================
+// 動的テーブル生成ヘルパー
+// ===================================================================
+function renderTable(items) {
+    if (!items) {
+        return '<div class="empty-msg">データがありません</div>';
+    }
+
+    if (Array.isArray(items)) {
+        if (items.length === 0) {
+            return '<div class="empty-msg">データがありません</div>';
+        }
+        var cols = Object.keys(items[0]);
+        var headerCells = cols.map(function(c) { return '<th>' + escapeHtml(c) + '</th>'; }).join('');
+        var rows = items.map(function(row) {
+            var cells = cols.map(function(c) {
+                return '<td>' + escapeHtml(row[c]) + '</td>';
+            }).join('');
+            return '<tr>' + cells + '</tr>';
+        }).join('');
+        return '<div class="table-container">'
+            + '<table class="table table-sm table-hover mb-0">'
+            + '<thead class="table-dark"><tr>' + headerCells + '</tr></thead>'
+            + '<tbody>' + rows + '</tbody>'
+            + '</table></div>';
+
+    } else if (typeof items === 'object') {
+        var entries = Object.entries(items);
+        if (entries.length === 0) {
+            return '<div class="empty-msg">データがありません</div>';
+        }
+        var rows2 = entries.map(function(kv) {
+            return '<tr>'
+                + '<td class="fw-semibold" style="width:40%;white-space:nowrap">' + escapeHtml(kv[0]) + '</td>'
+                + '<td>' + escapeHtml(kv[1]) + '</td>'
+                + '</tr>';
+        }).join('');
+        return '<div class="table-container">'
+            + '<table class="table table-sm table-hover mb-0">'
+            + '<thead class="table-dark"><tr><th>キー</th><th>値</th></tr></thead>'
+            + '<tbody>' + rows2 + '</tbody>'
+            + '</table></div>';
+    }
+
+    return '<div class="empty-msg">データがありません</div>';
+}
+
+// ===================================================================
+// タブ1: ステータス
+// ===================================================================
 async function loadStatus() {
-    const el = document.getElementById('statusBody');
+    setTabLoading('status');
     try {
-        const d = await apiFetch(`/api/dbmonitor/${currentDB}/status`);
-        if (d.status === 'unavailable') {
-            el.innerHTML = `<div class="unavail-notice">⚠️ ${d.message || 'DB クライアントが未インストールです'}</div>`;
-            return;
+        var data = await api.getDbStatus(currentDb);
+        var dbLabel = currentDb === 'mysql' ? '🐬 MySQL' : '🐘 PostgreSQL';
+        var running = data.running;
+        var badgeClass = running ? 'running-on' : 'running-off';
+        var badgeText  = running ? '&#x2705; 稼働中' : '&#x274C; 停止中';
+
+        // ステータスインジケータ更新
+        document.getElementById('db-status-indicator').innerHTML =
+            '<span class="running-badge ' + badgeClass + '" style="font-size:11px;padding:2px 10px;">' + badgeText + '</span>';
+
+        var html = '<div class="status-card">'
+            + '<div class="status-card-header">'
+            + '<span class="status-card-title">' + escapeHtml(dbLabel) + ' ステータス</span>'
+            + '<span class="running-badge ' + badgeClass + '">' + badgeText + '</span>'
+            + '</div>';
+
+        if (data.message) {
+            html += '<div class="alert alert-info py-2 mb-3" style="font-size:13px">' + escapeHtml(data.message) + '</div>';
         }
-        el.innerHTML = `
-        <div class="row g-3">
-            <div class="col-md-3">
-                <div class="metric-label">状態</div>
-                <div>${statusBadge(d.running, d.status)}</div>
-            </div>
-            <div class="col-md-3">
-                <div class="metric-label">バージョン</div>
-                <div class="metric-val" style="font-size:14px">${d.version || '-'}</div>
-            </div>
-            <div class="col-md-3">
-                <div class="metric-label">DBタイプ</div>
-                <div class="metric-val" style="font-size:14px">${d.db_type || currentDB}</div>
-            </div>
-        </div>`;
-    } catch(e) {
-        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+
+        if (data.version) {
+            html += '<div class="info-grid">'
+                + '<div class="info-item">'
+                + '<div class="info-item-label">バージョン</div>'
+                + '<div class="info-item-value"><code>' + escapeHtml(data.version) + '</code></div>'
+                + '</div>'
+                + '</div>';
+        }
+
+        // 追加データ (data.data が存在する場合)
+        if (data.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
+            html += '<div class="section-title mt-4">詳細情報</div>';
+            var items = data.data;
+            if (Array.isArray(items)) {
+                html += renderTable(items);
+            } else {
+                var entries = Object.entries(items);
+                html += '<div class="info-grid">';
+                entries.forEach(function(kv) {
+                    html += '<div class="info-item">'
+                        + '<div class="info-item-label">' + escapeHtml(kv[0]) + '</div>'
+                        + '<div class="info-item-value">' + escapeHtml(kv[1]) + '</div>'
+                        + '</div>';
+                });
+                html += '</div>';
+            }
+        }
+
+        html += '</div>';
+        document.getElementById('tab-status').innerHTML = html;
+
+    } catch (e) {
+        document.getElementById('db-status-indicator').innerHTML = '';
+        setTabError('status', e.message);
     }
 }
 
+// ===================================================================
+// タブ2: プロセス
+// ===================================================================
 async function loadProcesses() {
-    const el = document.getElementById('processBody');
+    setTabLoading('processes');
     try {
-        const d = await apiFetch(`/api/dbmonitor/${currentDB}/processes`);
-        if (!d.data || d.data.length === 0) {
-            el.innerHTML = '<div class="text-muted small">プロセスなし</div>';
-            return;
-        }
-        const keys = Object.keys(d.data[0]);
-        const header = keys.map(k => `<th>${k}</th>`).join('');
-        const rows = d.data.map(row =>
-            '<tr>' + keys.map(k => `<td>${row[k] ?? ''}</td>`).join('') + '</tr>'
-        ).join('');
-        el.innerHTML = `<div class="table-responsive"><table class="table table-sm tbl"><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></div>
-        <div class="text-muted small mt-1">合計: ${d.count} 件</div>`;
-    } catch(e) {
-        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+        var data = await api.getDbProcesses(currentDb);
+        // MySQLは data.processes、PostgreSQLは data.activity
+        var items = (data.data && data.data.processes)
+                 || (data.data && data.data.activity)
+                 || data.data
+                 || [];
+        var count = data.count !== undefined ? data.count : (Array.isArray(items) ? items.length : 0);
+
+        var html = '<div class="section-title">プロセス / アクティビティ <span class="count-badge">' + escapeHtml(count) + '</span></div>';
+        html += renderTable(items);
+        document.getElementById('tab-processes').innerHTML = html;
+    } catch (e) {
+        setTabError('processes', e.message);
     }
 }
 
+// ===================================================================
+// タブ3: データベース
+// ===================================================================
 async function loadDatabases() {
-    const el = document.getElementById('dbListBody');
+    setTabLoading('databases');
     try {
-        const d = await apiFetch(`/api/dbmonitor/${currentDB}/databases`);
-        if (!d.data || d.data.length === 0) {
-            el.innerHTML = '<div class="text-muted small">データなし</div>';
-            return;
-        }
-        const items = d.data.map(name => `<span class="badge bg-light text-dark border me-1 mb-1">${name}</span>`).join('');
-        el.innerHTML = `<div>${items}</div><div class="text-muted small mt-1">合計: ${d.count} 件</div>`;
-    } catch(e) {
-        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+        var data = await api.getDbDatabases(currentDb);
+        var items = data.data || [];
+        var count = data.count !== undefined ? data.count : (Array.isArray(items) ? items.length : 0);
+
+        var html = '<div class="section-title">データベース一覧 <span class="count-badge">' + escapeHtml(count) + '</span></div>';
+        html += renderTable(items);
+        document.getElementById('tab-databases').innerHTML = html;
+    } catch (e) {
+        setTabError('databases', e.message);
     }
 }
 
+// ===================================================================
+// タブ4: 接続
+// ===================================================================
 async function loadConnections() {
-    const el = document.getElementById('connBody');
+    setTabLoading('connections');
     try {
-        const d = await apiFetch(`/api/dbmonitor/${currentDB}/connections`);
-        if (!d.data || d.data.length === 0) {
-            el.innerHTML = '<div class="text-muted small">接続なし</div>';
-            return;
-        }
-        const keys = Object.keys(d.data[0]);
-        const header = keys.map(k => `<th>${k}</th>`).join('');
-        const rows = d.data.map(row =>
-            '<tr>' + keys.map(k => `<td>${row[k] ?? ''}</td>`).join('') + '</tr>'
-        ).join('');
-        el.innerHTML = `<div class="table-responsive"><table class="table table-sm tbl"><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></div>`;
-    } catch(e) {
-        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+        var data = await api.getDbConnections(currentDb);
+        var items = data.data || [];
+        var count = data.count !== undefined ? data.count : (Array.isArray(items) ? items.length : 0);
+
+        var html = '<div class="section-title">接続一覧 <span class="count-badge">' + escapeHtml(count) + '</span></div>';
+        html += renderTable(items);
+        document.getElementById('tab-connections').innerHTML = html;
+    } catch (e) {
+        setTabError('connections', e.message);
     }
 }
 
+// ===================================================================
+// タブ5: 変数
+// ===================================================================
 async function loadVariables() {
-    const el = document.getElementById('varBody');
+    setTabLoading('variables');
     try {
-        const d = await apiFetch(`/api/dbmonitor/${currentDB}/variables`);
-        if (!d.data) {
-            el.innerHTML = '<div class="text-muted small">データなし</div>';
-            return;
-        }
-        if (typeof d.data === 'object' && !Array.isArray(d.data)) {
-            const rows = Object.entries(d.data).map(([k, v]) =>
-                `<tr><td class="text-muted">${k}</td><td>${v}</td></tr>`
-            ).join('');
-            el.innerHTML = `<div class="table-responsive"><table class="table table-sm tbl"><thead><tr><th>変数名</th><th>値</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-        } else {
-            el.innerHTML = `<pre class="small">${JSON.stringify(d.data, null, 2)}</pre>`;
-        }
-    } catch(e) {
-        el.innerHTML = `<div class="text-danger small">取得失敗: ${e.message}</div>`;
+        var data = await api.getDbVariables(currentDb);
+        var items = data.data || {};
+
+        var html = '<div class="section-title">設定変数</div>';
+        html += renderTable(items);
+        document.getElementById('tab-variables').innerHTML = html;
+    } catch (e) {
+        setTabError('variables', e.message);
     }
 }
 
-function loadAll() {
-    loadStatus();
-    loadProcesses();
-    loadDatabases();
-    loadConnections();
-    loadVariables();
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-    if (typeof loadSidebar === 'function') loadSidebar('dbmonitor');
-    loadAll();
+// ===================================================================
+// 初期化
+// ===================================================================
+document.addEventListener('DOMContentLoaded', function() {
+    var token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+    api.setToken(token);
+    if (typeof initSidebar === 'function') initSidebar('dbmonitor');
+    showTab('status');
 });
 </script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
 </html>
