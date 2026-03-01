@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ファイルシステム - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .fs-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .fs-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+        }
+        .progress-container { margin-bottom: 10px; }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+        .progress { height: 12px; border-radius: 6px; }
+        .fs-detail {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        .mount-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .mount-table th {
+            background: #f9fafb;
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            border-bottom: 2px solid #e5e7eb;
+            text-align: left;
+        }
+        .mount-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 13px;
+            color: #374151;
+        }
+        .mount-table tr:hover td {
+            background: #f9fafb;
+        }
+        .warning-banner {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin-bottom: 16px;
+            color: #991b1b;
+            font-size: 14px;
+        }
+        .warning-banner strong { display: block; margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">ファイルシステム</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
+                更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+            <div id="warnings-area"></div>
+
+            <div id="usage-loading" class="text-center py-4 text-muted">読み込み中...</div>
+            <div id="usage-content" style="display:none"></div>
+
+            <div id="mounts-loading" class="text-center py-4 text-muted" style="display:none">読み込み中...</div>
+            <div id="mounts-content" style="display:none"></div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('filemanager')):renderSidebar('filemanager');</script>
+<script>
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function progressColor(pct) {
+    if (pct >= 85) return 'bg-danger';
+    if (pct >= 70) return 'bg-warning';
+    return 'bg-success';
+}
+
+function showError(msg) {
+    const area = document.getElementById('alert-area');
+    area.innerHTML = '<div class="alert alert-warning">' + escapeHtml(msg) + '</div>';
+}
+
+function renderWarnings(warnings) {
+    const area = document.getElementById('warnings-area');
+    if (!warnings || warnings.length === 0) {
+        area.innerHTML = '';
+        return;
+    }
+    area.innerHTML = '<div class="warning-banner"><strong>警告</strong>' +
+        warnings.map(function(w) { return escapeHtml(w); }).join('<br>') +
+        '</div>';
+}
+
+function renderUsage(filesystems) {
+    var html = '<div class="fs-card"><div class="fs-title">ファイルシステム使用量</div>';
+    if (!filesystems || filesystems.length === 0) {
+        html += '<p class="text-muted">ファイルシステム情報が取得できませんでした</p>';
+    } else {
+        filesystems.forEach(function(fs) {
+            var pct = typeof fs.use_percent === 'number' ? fs.use_percent : parseInt(fs.use_pct || '0');
+            var safePct = Math.min(Math.max(pct, 0), 100);
+            html += '<div class="progress-container">' +
+                '<div class="progress-label">' +
+                '<span><strong>' + escapeHtml(fs.device || '-') + '</strong> &rarr; ' + escapeHtml(fs.mount || '-') + '</span>' +
+                '<span>' + escapeHtml(fs.used || '-') + ' / ' + escapeHtml(fs.total || '-') + ' (' + escapeHtml(fs.use_pct || (pct + '%')) + ')</span>' +
+                '</div>' +
+                '<div class="progress">' +
+                '<div class="progress-bar ' + progressColor(safePct) + '" style="width:' + safePct + '%"></div>' +
+                '</div>' +
+                '<div class="fs-detail">空き: ' + escapeHtml(fs.free || '-') + ' | タイプ: ' + escapeHtml(fs.fstype || '-') + '</div>' +
+                '</div>';
+        });
+    }
+    html += '</div>';
+    return html;
+}
+
+function renderMounts(mounts) {
+    var html = '<div class="fs-card"><div class="fs-title">マウントポイント一覧</div>';
+    if (!mounts || mounts.length === 0) {
+        html += '<p class="text-muted">マウント情報が取得できませんでした</p>';
+    } else {
+        html += '<div style="overflow-x:auto"><table class="mount-table">' +
+            '<thead><tr>' +
+            '<th>デバイス</th>' +
+            '<th>マウントポイント</th>' +
+            '<th>タイプ</th>' +
+            '<th>オプション</th>' +
+            '</tr></thead><tbody>';
+        mounts.forEach(function(m) {
+            html += '<tr>' +
+                '<td>' + escapeHtml(m.device || '-') + '</td>' +
+                '<td>' + escapeHtml(m.mount || '-') + '</td>' +
+                '<td>' + escapeHtml(m.fstype || '-') + '</td>' +
+                '<td><code>' + escapeHtml(m.options || '-') + '</code></td>' +
+                '</tr>';
+        });
+        html += '</tbody></table></div>';
+    }
+    html += '</div>';
+    return html;
+}
+
+async function loadFilesystemData() {
+    var usageLoading = document.getElementById('usage-loading');
+    var usageContent = document.getElementById('usage-content');
+    var mountsLoading = document.getElementById('mounts-loading');
+    var mountsContent = document.getElementById('mounts-content');
+
+    usageLoading.style.display = '';
+    usageContent.style.display = 'none';
+    mountsLoading.style.display = '';
+    mountsContent.style.display = 'none';
+
+    var results = await Promise.allSettled([
+        api.getFilesystemUsage(),
+        api.getFilesystemMounts()
+    ]);
+
+    // Usage
+    if (results[0].status === 'fulfilled') {
+        var data = results[0].value;
+        renderWarnings(data.warnings || []);
+        usageContent.innerHTML = renderUsage(data.filesystems || []);
+        usageLoading.style.display = 'none';
+        usageContent.style.display = '';
+    } else {
+        usageLoading.innerHTML = '<div class="alert alert-warning">ファイルシステム使用量の取得に失敗しました: ' + escapeHtml(results[0].reason ? results[0].reason.message : '不明なエラー') + '</div>';
+    }
+
+    // Mounts
+    if (results[1].status === 'fulfilled') {
+        var mountData = results[1].value;
+        mountsContent.innerHTML = renderMounts(mountData.mounts || []);
+        mountsLoading.style.display = 'none';
+        mountsContent.style.display = '';
+    } else {
+        mountsLoading.innerHTML = '<div class="alert alert-warning">マウント情報の取得に失敗しました: ' + escapeHtml(results[1].reason ? results[1].reason.message : '不明なエラー') + '</div>';
+    }
+}
+
+function refreshAll() {
+    document.getElementById('alert-area').innerHTML = '';
+    loadFilesystemData();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+    api.setToken(token);
+    loadFilesystemData();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>

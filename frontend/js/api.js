@@ -378,6 +378,18 @@ class APIClient {
     }
 
     // ===================================================================
+    // SSH API
+    // ===================================================================
+
+    async getSshStatus() {
+        return await this.request('GET', '/api/ssh/status');
+    }
+
+    async getSshConfig() {
+        return await this.request('GET', '/api/ssh/config');
+    }
+
+    // ===================================================================
     // Postfix API
     // ===================================================================
 
@@ -467,6 +479,18 @@ class APIClient {
 
     async getMyApprovalRequests() {
         return await this.request('GET', '/api/approval/my-requests');
+    }
+
+    // ===================================================================
+    // ファイルシステム API
+    // ===================================================================
+
+    async getFilesystemUsage() {
+        return await this.request('GET', '/api/filesystem/usage');
+    }
+
+    async getFilesystemMounts() {
+        return await this.request('GET', '/api/filesystem/mounts');
     }
 }
 

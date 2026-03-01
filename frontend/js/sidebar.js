@@ -73,6 +73,7 @@ function showPage(pageName) {
         'bandwidth-monitoring': 'Bandwidth Monitoring - 帯域幅監視',
         'apache': 'Apache Webserver - Apache管理',
         'postfix': 'Postfix メール - メール管理',
+        'ssh': 'SSH Server - SSH管理',
         'smart-status': 'SMART Drive Status - ドライブ健全性',
         'sensors': 'Sensors - ハードウェアセンサー',
         'packages': 'Package Updates - パッケージ管理',
@@ -152,6 +153,9 @@ function showPage(pageName) {
             return;
         case 'postfix':
             location.href = 'postfix.html';
+            return;
+        case 'ssh':
+            location.href = 'ssh.html';
             return;
         case 'smart-status':
             showSmartStatusPage(mainBody);
@@ -333,7 +337,7 @@ function renderSidebar(activePage) {
             </div>
 
             <!-- サーバー カテゴリ -->
-            <div class="accordion-item ${['servers','apache','postfix','dbmonitor'].includes(activePage) ? 'open' : ''}">
+            <div class="accordion-item ${['servers','ssh','apache','postfix','dbmonitor'].includes(activePage) ? 'open' : ''}">
                 <div class="accordion-header" onclick="toggleAccordion(this)">
                     <div class="accordion-title"><span>🖥️</span><span>サーバー</span></div>
                     <span class="accordion-icon">▼</span>
@@ -342,6 +346,10 @@ function renderSidebar(activePage) {
                     <div class="accordion-submenu">
                         <div class="submenu-item${a('servers')}" onclick="location.href='servers.html'">
                             <div class="submenu-item-name">サーバー状態一覧</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('ssh')}" onclick="location.href='ssh.html'">
+                            <div class="submenu-item-name">SSH Server</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
                         <div class="submenu-item${a('apache')}" onclick="location.href='apache.html'">
@@ -385,7 +393,7 @@ function renderSidebar(activePage) {
             </div>
 
             <!-- ハードウェア カテゴリ -->
-            <div class="accordion-item ${['hardware','time','quotas'].includes(activePage) ? 'open' : ''}">
+            <div class="accordion-item ${['hardware','time','quotas','filemanager'].includes(activePage) ? 'open' : ''}">
                 <div class="accordion-header" onclick="toggleAccordion(this)">
                     <div class="accordion-title"><span>🔧</span><span>ハードウェア</span></div>
                     <span class="accordion-icon">▼</span>
@@ -394,6 +402,10 @@ function renderSidebar(activePage) {
                     <div class="accordion-submenu">
                         <div class="submenu-item${a('hardware')}" onclick="location.href='hardware.html'">
                             <div class="submenu-item-name">ハードウェア情報</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('filemanager')}" onclick="location.href='filemanager.html'">
+                            <div class="submenu-item-name">ファイルシステム</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
                         <div class="submenu-item${a('time')}" onclick="location.href='time.html'">

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <style>
         .filter-bar { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 16px; margin-bottom: 16px; }
         .log-table td, .log-table th { padding: 8px 10px; font-size: 13px; vertical-align: middle; }
@@ -78,6 +79,12 @@
                 </div>
             </div>
 
+            <!-- 操作頻度グラフ -->
+            <div class="chart-area" id="chart-area" style="display:none; background:white; border-radius:8px; border:1px solid #e5e7eb; padding:16px; margin-bottom:16px;">
+                <h6 style="font-weight:600; color:#374151; margin-bottom:12px;">操作頻度グラフ</h6>
+                <canvas id="operations-chart" height="150"></canvas>
+            </div>
+
             <!-- フィルターバー -->
             <div class="filter-bar">
                 <div class="row g-2 align-items-end">
@@ -91,9 +98,18 @@
                             <option value="">すべて</option>
                             <option value="service_restart">service_restart</option>
                             <option value="service_stop">service_stop</option>
+                            <option value="package_upgrade">package_upgrade</option>
+                            <option value="firewall_rule_add">firewall_rule_add</option>
+                            <option value="firewall_rule_delete">firewall_rule_delete</option>
                             <option value="firewall_rules_read">firewall_rules_read</option>
-                            <option value="ssh_config_read">ssh_config_read</option>
+                            <option value="bootup_enable">bootup_enable</option>
+                            <option value="bootup_disable">bootup_disable</option>
+                            <option value="login">login</option>
+                            <option value="logout">logout</option>
+                            <option value="user_list_read">user_list_read</option>
+                            <option value="packages_list_read">packages_list_read</option>
                             <option value="packages_installed_read">packages_installed_read</option>
+                            <option value="ssh_config_read">ssh_config_read</option>
                             <option value="log_view">log_view</option>
                             <option value="process_list">process_list</option>
                         </select>
@@ -108,15 +124,20 @@
                         </select>
                     </div>
                     <div class="col-sm-2">
-                        <label class="form-label form-label-sm mb-1">開始日時</label>
-                        <input type="datetime-local" class="form-control form-control-sm" id="filter-start">
+                        <label class="form-label form-label-sm mb-1">開始日</label>
+                        <input type="date" class="form-control form-control-sm" id="filter-date-from">
                     </div>
                     <div class="col-sm-2">
-                        <label class="form-label form-label-sm mb-1">終了日時</label>
-                        <input type="datetime-local" class="form-control form-control-sm" id="filter-end">
+                        <label class="form-label form-label-sm mb-1">終了日</label>
+                        <input type="date" class="form-control form-control-sm" id="filter-date-to">
                     </div>
-                    <div class="col-sm-2">
+                    <div class="col-sm-1">
+                        <label class="form-label form-label-sm mb-1">&nbsp;</label>
                         <button class="btn btn-sm btn-primary w-100" onclick="applyFilter()">🔍 検索</button>
+                    </div>
+                    <div class="col-sm-1">
+                        <label class="form-label form-label-sm mb-1">&nbsp;</label>
+                        <button class="btn btn-sm btn-outline-secondary w-100" onclick="resetFilters()">↻ リセット</button>
                     </div>
                 </div>
             </div>
@@ -213,14 +234,60 @@
         const user = document.getElementById('filter-user').value.trim();
         const op = document.getElementById('filter-operation').value;
         const st = document.getElementById('filter-status').value;
-        const start = document.getElementById('filter-start').value;
-        const end = document.getElementById('filter-end').value;
+        const dateFrom = document.getElementById('filter-date-from').value;
+        const dateTo = document.getElementById('filter-date-to').value;
         if (user) params.set('user_id', user);
         if (op) params.set('operation', op);
         if (st) params.set('status', st);
-        if (start) params.set('start_date', new Date(start).toISOString());
-        if (end) params.set('end_date', new Date(end).toISOString());
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
         return params;
+    }
+
+    function resetFilters() {
+        document.getElementById('filter-user').value = '';
+        document.getElementById('filter-operation').value = '';
+        document.getElementById('filter-status').value = '';
+        document.getElementById('filter-date-from').value = '';
+        document.getElementById('filter-date-to').value = '';
+        currentPage = 1;
+        fetchLogs();
+    }
+
+    function renderOperationsChart(logs) {
+        const counts = {};
+        logs.forEach(function(log) {
+            const op = log.operation || 'unknown';
+            counts[op] = (counts[op] || 0) + 1;
+        });
+        const sorted = Object.entries(counts).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 10);
+        const labels = sorted.map(function(item) { return item[0]; });
+        const data = sorted.map(function(item) { return item[1]; });
+
+        if (sorted.length === 0) {
+            document.getElementById('chart-area').style.display = 'none';
+            return;
+        }
+
+        const ctx = document.getElementById('operations-chart').getContext('2d');
+        if (window._opsChart) window._opsChart.destroy();
+        window._opsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '操作件数',
+                    data: data,
+                    backgroundColor: 'rgba(59,130,246,0.7)'
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: { legend: { display: false } }
+            }
+        });
+        document.getElementById('chart-area').style.display = '';
     }
 
     async function fetchLogs() {
@@ -293,6 +360,9 @@
         // 統計更新
         updateStats(entries);
         document.getElementById('stat-total').textContent = data.total;
+
+        // グラフ描画
+        renderOperationsChart(entries);
     }
 
     function updateStats(entries) {
