@@ -2113,6 +2113,40 @@ class SudoWrapper:
         """
         safe_lines = max(1, min(200, lines))
         return self._execute("adminui-apache.sh", ["logs", str(safe_lines)], timeout=15)
+    # ===================================================================
+    # File Manager
+    def _validate_filemanager_arg(self, value: str) -> None:
+        """ファイルマネージャー引数の禁止文字チェック。
+            value: 検証する文字列
+            SudoWrapperError: 禁止文字が含まれる場合
+        forbidden = [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?"]
+        for char in forbidden:
+            if char in value:
+                raise SudoWrapperError(f"Forbidden character in argument: {char}")
+    def list_files(self, path: str) -> Dict[str, Any]:
+        """指定ディレクトリの内容一覧を取得 (ls -la)
+            path: 一覧表示するディレクトリパス（検証済み）
+            実行結果の辞書
+            SudoWrapperError: 禁止文字が含まれる場合 / 実行失敗時
+        self._validate_filemanager_arg(path)
+        return self._execute("adminui-filemanager.sh", ["list", path], timeout=15)
+    def stat_file(self, path: str) -> Dict[str, Any]:
+        """指定ファイルの属性を取得 (stat)
+            path: 属性を取得するファイルパス（検証済み）
+        return self._execute("adminui-filemanager.sh", ["stat", path], timeout=10)
+    def read_file(self, path: str, lines: int = 50) -> Dict[str, Any]:
+        """指定ファイルの内容を取得 (head -n lines、最大200行)
+            path: 読み取るファイルパス（検証済み）
+            lines: 読み取る行数 (1-200)
+        safe_lines = max(1, min(int(lines), 200))
+        return self._execute("adminui-filemanager.sh", ["read", path, str(safe_lines)], timeout=15)
+    def search_files(self, directory: str, pattern: str) -> Dict[str, Any]:
+        """ディレクトリ内でファイルを検索 (find -maxdepth 2 -name pattern)
+            directory: 検索するディレクトリパス（検証済み）
+            pattern: 検索パターン (例: *.log)
+        self._validate_filemanager_arg(directory)
+        self._validate_filemanager_arg(pattern)
+        return self._execute("adminui-filemanager.sh", ["search", directory, pattern], timeout=30)
 
 
 # グローバルインスタンス

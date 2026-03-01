@@ -109,6 +109,8 @@ ROLES = {
             "read:nginx",
             # Apache 管理
             "read:apache",
+            # File Manager
+            "read:filemanager",
         ],
     ),
     "Operator": UserRole(
@@ -166,6 +168,8 @@ ROLES = {
             "read:nginx",
             # Apache 管理
             "read:apache",
+            # File Manager
+            "read:filemanager",
         ],
     ),
     "Approver": UserRole(
@@ -230,6 +234,8 @@ ROLES = {
             "read:nginx",
             # Apache 管理
             "read:apache",
+            # File Manager
+            "read:filemanager",
         ],
     ),
     "Admin": UserRole(
@@ -307,6 +313,8 @@ ROLES = {
             "read:nginx",
             # Apache 管理
             "read:apache",
+            # File Manager
+            "read:filemanager",
         ],
     ),
 }

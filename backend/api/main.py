@@ -20,6 +20,7 @@ from .routes import approval, audit, auth, bandwidth, bind, bootup, cron, dbmoni
 from .routes import approval, audit, auth, bandwidth, bind, bootup, cron, dbmonitor, filesystem, firewall, hardware, logs, mysql, netstat, network, packages, postfix, postgresql, processes, quotas, servers, services, ssh, stream, system, system_time, users, apache
 from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, dhcp, filesystem, firewall, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, ssh, stream, system, system_time, users, apache
 from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filesystem, firewall, ftp, hardware, logs, mysql, network, nginx, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, squid, ssh, stream, system, system_time, users, apache
+from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filemanager, filesystem, firewall, ftp, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, squid, ssh, stream, system, system_time, users, apache
 
 # ログ設定
 logging.basicConfig(
@@ -104,6 +105,7 @@ app.include_router(sysconfig.router, prefix="/api")
 app.include_router(routing.router, prefix="/api")
 app.include_router(ftp.router, prefix="/api")
 app.include_router(squid.router, prefix="/api")
+app.include_router(filemanager.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信

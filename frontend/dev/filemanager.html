@@ -3,94 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ファイルシステム - Linux Management System</title>
+    <title>ファイルマネージャー - Linux Management System</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        .fs-card {
-            background: white;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-            padding: 20px;
-            margin-bottom: 16px;
-        }
-        .fs-title {
-            font-size: 16px;
-            font-weight: bold;
-            color: #111827;
-            margin-bottom: 14px;
-        }
-        .progress-container { margin-bottom: 10px; }
-        .progress-label {
-            display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-            color: #374151;
-            margin-bottom: 4px;
-        }
-        .progress { height: 12px; border-radius: 6px; }
-        .fs-detail {
-            font-size: 12px;
-            color: #6b7280;
-            margin-top: 4px;
-        }
-        .mount-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .mount-table th {
-            background: #f9fafb;
-            font-size: 12px;
-            font-weight: 600;
-            color: #6b7280;
-            text-transform: uppercase;
-            padding: 10px 14px;
-            border-bottom: 2px solid #e5e7eb;
-            text-align: left;
-        }
-        .mount-table td {
-            padding: 10px 14px;
-            border-bottom: 1px solid #f3f4f6;
-            font-size: 13px;
-            color: #374151;
-        }
-        .mount-table tr:hover td {
-            background: #f9fafb;
-        }
-        .warning-banner {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 8px;
-            padding: 14px 18px;
-            margin-bottom: 16px;
-            color: #991b1b;
-            font-size: 14px;
-        }
-        .warning-banner strong { display: block; margin-bottom: 4px; }
+        .fm-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .fm-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .file-table { width: 100%; border-collapse: collapse; }
+        .file-table th { background: #f9fafb; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; padding: 10px 14px; border-bottom: 2px solid #e5e7eb; text-align: left; }
+        .file-table td { padding: 8px 14px; border-bottom: 1px solid #f3f4f6; font-size: 13px; color: #374151; font-family: monospace; }
+        .file-table tr:hover td { background: #f9fafb; cursor: pointer; }
+        .file-table .clickable:hover { color: #2563eb; text-decoration: underline; }
+        .content-pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 6px; font-size: 12px; font-family: monospace; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 500px; overflow-y: auto; }
+        .breadcrumb-item { cursor: pointer; color: #2563eb; }
+        .breadcrumb-item:hover { text-decoration: underline; }
+        .breadcrumb-item.active { color: #374151; cursor: default; text-decoration: none; }
+        .dir-icon { color: #f59e0b; }
+        .file-icon { color: #6b7280; }
     </style>
 </head>
 <body>
 <div class="app-layout">
     <aside class="sidebar" id="sidebar-container"></aside>
-
     <main class="main-content">
         <div class="main-header">
-            <h2 id="page-title">ファイルシステム</h2>
-            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
-                更新
-            </button>
+            <h2 id="page-title">ファイルマネージャー</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshCurrent()" id="refresh-btn">更新</button>
         </div>
-
         <div class="main-body">
             <div id="alert-area"></div>
-            <div id="warnings-area"></div>
 
-            <div id="usage-loading" class="text-center py-4 text-muted">読み込み中...</div>
-            <div id="usage-content" style="display:none"></div>
+            <!-- ディレクトリ選択 -->
+            <div class="fm-card">
+                <div class="fm-title">ベースディレクトリ選択</div>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <select class="form-select form-select-sm" id="base-dir-select" style="max-width:240px">
+                        <option value="">-- ディレクトリを選択 --</option>
+                    </select>
+                    <div id="lines-group" class="d-none d-flex align-items-center gap-1">
+                        <label class="small text-muted">行数:</label>
+                        <input type="number" id="lines-input" class="form-control form-control-sm" value="50" min="1" max="200" style="width:80px">
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="navigateTo(document.getElementById('base-dir-select').value)">
+                        <i class="bi bi-folder2-open"></i> 開く
+                    </button>
+                </div>
+            </div>
 
-            <div id="mounts-loading" class="text-center py-4 text-muted" style="display:none">読み込み中...</div>
-            <div id="mounts-content" style="display:none"></div>
+            <!-- パンくずリスト -->
+            <div id="breadcrumb-area" class="mb-2" style="display:none">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb" id="breadcrumb-list"></ol>
+                </nav>
+            </div>
+
+            <!-- ファイル一覧 -->
+            <div id="file-list-area" class="fm-card" style="display:none">
+                <div class="fm-title" id="current-path-title">-</div>
+                <div id="file-list-content"></div>
+            </div>
+
+            <!-- ファイル内容 -->
+            <div id="file-content-area" class="fm-card" style="display:none">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fm-title mb-0" id="file-content-title">-</div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="closeContent()">
+                        <i class="bi bi-x-lg"></i> 閉じる
+                    </button>
+                </div>
+                <div id="file-content-pre" class="content-pre"></div>
+            </div>
+
+            <!-- ファイル属性 -->
+            <div id="file-stat-area" class="fm-card" style="display:none">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fm-title mb-0">ファイル属性</div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="closeStat()">
+                        <i class="bi bi-x-lg"></i> 閉じる
+                    </button>
+                </div>
+                <pre id="file-stat-pre" class="content-pre"></pre>
+            </div>
         </div>
     </main>
 </div>
@@ -100,134 +95,159 @@
 <script src="../js/sidebar.js"></script>
 <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('filemanager')):renderSidebar('filemanager');</script>
 <script>
+var currentPath = '';
+var pathHistory = [];
+
 function escapeHtml(str) {
     if (typeof str !== 'string') return '';
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function progressColor(pct) {
-    if (pct >= 85) return 'bg-danger';
-    if (pct >= 70) return 'bg-warning';
-    return 'bg-success';
+function showAlert(msg, type) {
+    type = type || 'warning';
+    document.getElementById('alert-area').innerHTML =
+        '<div class="alert alert-' + type + ' alert-dismissible">' + escapeHtml(msg) +
+        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
 }
 
-function showError(msg) {
-    const area = document.getElementById('alert-area');
-    area.innerHTML = '<div class="alert alert-warning">' + escapeHtml(msg) + '</div>';
+function updateBreadcrumb(path) {
+    var parts = path.split('/').filter(function(p) { return p !== ''; });
+    var nav = document.getElementById('breadcrumb-area');
+    var list = document.getElementById('breadcrumb-list');
+    nav.style.display = '';
+    var html = '<li class="breadcrumb-item breadcrumb-item" onclick="navigateTo(\'/\')"><i class="bi bi-house"></i></li>';
+    var accumulated = '';
+    parts.forEach(function(part, idx) {
+        accumulated += '/' + part;
+        var isLast = idx === parts.length - 1;
+        var captured = accumulated;
+        if (isLast) {
+            html += '<li class="breadcrumb-item active" aria-current="page">' + escapeHtml(part) + '</li>';
+        } else {
+            html += '<li class="breadcrumb-item"><span class="breadcrumb-item" onclick="navigateTo(\'' + escapeHtml(captured) + '\')">' + escapeHtml(part) + '</span></li>';
+        }
+    });
+    list.innerHTML = html;
 }
 
-function renderWarnings(warnings) {
-    const area = document.getElementById('warnings-area');
-    if (!warnings || warnings.length === 0) {
-        area.innerHTML = '';
-        return;
-    }
-    area.innerHTML = '<div class="warning-banner"><strong>警告</strong>' +
-        warnings.map(function(w) { return escapeHtml(w); }).join('<br>') +
-        '</div>';
-}
+async function navigateTo(path) {
+    if (!path) return;
+    currentPath = path;
+    document.getElementById('file-list-area').style.display = '';
+    document.getElementById('file-content-area').style.display = 'none';
+    document.getElementById('file-stat-area').style.display = 'none';
+    document.getElementById('current-path-title').textContent = path;
+    document.getElementById('file-list-content').innerHTML = '<div class="text-center py-3 text-muted">読み込み中...</div>';
+    updateBreadcrumb(path);
 
-function renderUsage(filesystems) {
-    var html = '<div class="fs-card"><div class="fs-title">ファイルシステム使用量</div>';
-    if (!filesystems || filesystems.length === 0) {
-        html += '<p class="text-muted">ファイルシステム情報が取得できませんでした</p>';
-    } else {
-        filesystems.forEach(function(fs) {
-            var pct = typeof fs.use_percent === 'number' ? fs.use_percent : parseInt(fs.use_pct || '0');
-            var safePct = Math.min(Math.max(pct, 0), 100);
-            html += '<div class="progress-container">' +
-                '<div class="progress-label">' +
-                '<span><strong>' + escapeHtml(fs.device || '-') + '</strong> &rarr; ' + escapeHtml(fs.mount || '-') + '</span>' +
-                '<span>' + escapeHtml(fs.used || '-') + ' / ' + escapeHtml(fs.total || '-') + ' (' + escapeHtml(fs.use_pct || (pct + '%')) + ')</span>' +
-                '</div>' +
-                '<div class="progress">' +
-                '<div class="progress-bar ' + progressColor(safePct) + '" style="width:' + safePct + '%"></div>' +
-                '</div>' +
-                '<div class="fs-detail">空き: ' + escapeHtml(fs.free || '-') + ' | タイプ: ' + escapeHtml(fs.fstype || '-') + '</div>' +
-                '</div>';
-        });
-    }
-    html += '</div>';
-    return html;
-}
-
-function renderMounts(mounts) {
-    var html = '<div class="fs-card"><div class="fs-title">マウントポイント一覧</div>';
-    if (!mounts || mounts.length === 0) {
-        html += '<p class="text-muted">マウント情報が取得できませんでした</p>';
-    } else {
-        html += '<div style="overflow-x:auto"><table class="mount-table">' +
-            '<thead><tr>' +
-            '<th>デバイス</th>' +
-            '<th>マウントポイント</th>' +
-            '<th>タイプ</th>' +
-            '<th>オプション</th>' +
-            '</tr></thead><tbody>';
-        mounts.forEach(function(m) {
-            html += '<tr>' +
-                '<td>' + escapeHtml(m.device || '-') + '</td>' +
-                '<td>' + escapeHtml(m.mount || '-') + '</td>' +
-                '<td>' + escapeHtml(m.fstype || '-') + '</td>' +
-                '<td><code>' + escapeHtml(m.options || '-') + '</code></td>' +
-                '</tr>';
-        });
-        html += '</tbody></table></div>';
-    }
-    html += '</div>';
-    return html;
-}
-
-async function loadFilesystemData() {
-    var usageLoading = document.getElementById('usage-loading');
-    var usageContent = document.getElementById('usage-content');
-    var mountsLoading = document.getElementById('mounts-loading');
-    var mountsContent = document.getElementById('mounts-content');
-
-    usageLoading.style.display = '';
-    usageContent.style.display = 'none';
-    mountsLoading.style.display = '';
-    mountsContent.style.display = 'none';
-
-    var results = await Promise.allSettled([
-        api.getFilesystemUsage(),
-        api.getFilesystemMounts()
-    ]);
-
-    // Usage
-    if (results[0].status === 'fulfilled') {
-        var data = results[0].value;
-        renderWarnings(data.warnings || []);
-        usageContent.innerHTML = renderUsage(data.filesystems || []);
-        usageLoading.style.display = 'none';
-        usageContent.style.display = '';
-    } else {
-        usageLoading.innerHTML = '<div class="alert alert-warning">ファイルシステム使用量の取得に失敗しました: ' + escapeHtml(results[0].reason ? results[0].reason.message : '不明なエラー') + '</div>';
-    }
-
-    // Mounts
-    if (results[1].status === 'fulfilled') {
-        var mountData = results[1].value;
-        mountsContent.innerHTML = renderMounts(mountData.mounts || []);
-        mountsLoading.style.display = 'none';
-        mountsContent.style.display = '';
-    } else {
-        mountsLoading.innerHTML = '<div class="alert alert-warning">マウント情報の取得に失敗しました: ' + escapeHtml(results[1].reason ? results[1].reason.message : '不明なエラー') + '</div>';
+    try {
+        var data = await api.request('GET', '/api/files/list?path=' + encodeURIComponent(path));
+        renderFileList(data.output || '');
+    } catch (e) {
+        document.getElementById('file-list-content').innerHTML =
+            '<div class="alert alert-warning">' + escapeHtml(e.message || String(e)) + '</div>';
     }
 }
 
-function refreshAll() {
+function renderFileList(output) {
+    var lines = output.split('\n').filter(function(l) { return l.trim() !== '' && !l.startsWith('total'); });
+    var html = '<div style="overflow-x:auto"><table class="file-table"><thead><tr>' +
+        '<th>種別</th><th>パーミッション</th><th>オーナー</th><th>サイズ</th><th>更新日時</th><th>名前</th><th>操作</th>' +
+        '</tr></thead><tbody>';
+
+    lines.forEach(function(line) {
+        var parts = line.trim().split(/\s+/);
+        if (parts.length < 8) return;
+        var perms = parts[0];
+        var owner = parts[2];
+        var size = parts[4];
+        var mtime = (parts[5] || '') + ' ' + (parts[6] || '');
+        var name = parts.slice(7).join(' ');
+        if (name === '.' || name === '..') return;
+        var isDir = perms.startsWith('d');
+        var icon = isDir
+            ? '<i class="bi bi-folder-fill dir-icon"></i>'
+            : '<i class="bi bi-file-text file-icon"></i>';
+        var fullPath = currentPath.replace(/\/$/, '') + '/' + name;
+        var actions = '';
+        if (isDir) {
+            actions = '<button class="btn btn-xs btn-outline-primary btn-sm py-0 px-1" onclick="navigateTo(\'' + escapeHtml(fullPath) + '\')"><i class="bi bi-folder2-open"></i> 開く</button>';
+        } else {
+            actions = '<button class="btn btn-xs btn-outline-success btn-sm py-0 px-1 me-1" onclick="readFile(\'' + escapeHtml(fullPath) + '\')"><i class="bi bi-eye"></i> 表示</button>' +
+                '<button class="btn btn-xs btn-outline-secondary btn-sm py-0 px-1" onclick="statFile(\'' + escapeHtml(fullPath) + '\')"><i class="bi bi-info-circle"></i> 属性</button>';
+        }
+        html += '<tr>' +
+            '<td>' + icon + '</td>' +
+            '<td>' + escapeHtml(perms) + '</td>' +
+            '<td>' + escapeHtml(owner) + '</td>' +
+            '<td>' + escapeHtml(size) + '</td>' +
+            '<td>' + escapeHtml(mtime) + '</td>' +
+            '<td class="clickable" onclick="' + (isDir ? 'navigateTo(\'' + escapeHtml(fullPath) + '\')' : 'readFile(\'' + escapeHtml(fullPath) + '\')') + '">' + escapeHtml(name) + '</td>' +
+            '<td>' + actions + '</td>' +
+            '</tr>';
+    });
+    html += '</tbody></table></div>';
+    document.getElementById('file-list-content').innerHTML = lines.length === 0
+        ? '<p class="text-muted">ファイルが見つかりませんでした</p>'
+        : html;
+}
+
+async function readFile(path) {
+    var lines = parseInt(document.getElementById('lines-input').value) || 50;
+    document.getElementById('file-content-area').style.display = '';
+    document.getElementById('file-content-title').textContent = path;
+    document.getElementById('file-content-pre').textContent = '読み込み中...';
+    try {
+        var data = await api.request('GET', '/api/files/read?path=' + encodeURIComponent(path) + '&lines=' + lines);
+        document.getElementById('file-content-pre').textContent = data.content || '(空のファイル)';
+    } catch (e) {
+        document.getElementById('file-content-pre').textContent = 'エラー: ' + (e.message || String(e));
+    }
+}
+
+async function statFile(path) {
+    document.getElementById('file-stat-area').style.display = '';
+    document.getElementById('file-stat-pre').textContent = '読み込み中...';
+    try {
+        var data = await api.request('GET', '/api/files/stat?path=' + encodeURIComponent(path));
+        document.getElementById('file-stat-pre').textContent = data.output || '(情報なし)';
+    } catch (e) {
+        document.getElementById('file-stat-pre').textContent = 'エラー: ' + (e.message || String(e));
+    }
+}
+
+function closeContent() { document.getElementById('file-content-area').style.display = 'none'; }
+function closeStat() { document.getElementById('file-stat-area').style.display = 'none'; }
+
+function refreshCurrent() {
     document.getElementById('alert-area').innerHTML = '';
-    loadFilesystemData();
+    if (currentPath) navigateTo(currentPath);
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    const token = localStorage.getItem('access_token');
+async function loadAllowedDirs() {
+    try {
+        var data = await api.request('GET', '/api/files/allowed-dirs');
+        var select = document.getElementById('base-dir-select');
+        (data.allowed_dirs || []).forEach(function(dir) {
+            var opt = document.createElement('option');
+            opt.value = dir;
+            opt.textContent = dir;
+            select.appendChild(opt);
+        });
+    } catch (e) {
+        showAlert('許可ディレクトリの取得に失敗: ' + (e.message || String(e)));
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+    var token = localStorage.getItem('access_token');
     if (!token) {
         window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
         return;
     }
     api.setToken(token);
-    loadFilesystemData();
+    await loadAllowedDirs();
+    document.getElementById('lines-group').classList.remove('d-none');
 });
 </script>
 <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
