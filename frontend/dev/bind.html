@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIND DNS - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .badge-running { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-stopped { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-unavail { background: #f3f4f6; color: #6b7280; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-valid { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-invalid { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .raw-output { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; font-family: monospace; white-space: pre-wrap; max-height: 500px; overflow-y: auto; }
+        .metric-val { font-size: 22px; font-weight: bold; color: #1e293b; }
+        .metric-label { font-size: 12px; color: #6b7280; }
+        .unavail-notice { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px; color: #713f12; font-size: 13px; }
+        .nav-tabs .nav-link.active { color: #2563eb; font-weight: 600; border-bottom: 2px solid #2563eb; background: none; }
+        .nav-tabs .nav-link { color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+    <div class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">🌍 BIND DNS サーバー管理</h1>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">🔄 更新</button>
+        </div>
+
+        <!-- ステータスカード -->
+        <div class="status-card">
+            <div class="status-title">📊 BIND ステータス</div>
+            <div id="status-content"><span class="text-muted">読み込み中...</span></div>
+        </div>
+
+        <!-- タブ -->
+        <ul class="nav nav-tabs mb-3" id="mainTab">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-zones">🗂️ ゾーン</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-config">⚙️ 設定</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs">📜 ログ</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- ゾーンタブ -->
+            <div class="tab-pane fade show active" id="tab-zones">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">🗂️ ゾーン一覧</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadZones()">🔄 更新</button>
+                    </div>
+                    <div id="zones-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- 設定タブ -->
+            <div class="tab-pane fade" id="tab-config">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">⚙️ 設定確認 (named-checkconf)</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadConfig()">🔄 更新</button>
+                    </div>
+                    <div id="config-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- ログタブ -->
+            <div class="tab-pane fade" id="tab-logs">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">📜 DNS ログ</div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <select id="log-lines" class="form-select form-select-sm" style="width:100px">
+                                <option value="50">50行</option>
+                                <option value="100">100行</option>
+                                <option value="200">200行</option>
+                            </select>
+                            <button class="btn btn-sm btn-primary" onclick="loadLogs()">🔄 更新</button>
+                        </div>
+                    </div>
+                    <div id="logs-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('bind')):renderSidebar('bind');</script>
+<script>
+const API_BASE = '/api';
+
+function getToken() {
+    return localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+}
+
+function authHeaders() {
+    return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
+}
+
+async function apiFetch(path) {
+    const resp = await fetch(API_BASE + path, { headers: authHeaders() });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function statusBadge(status) {
+    if (status === 'running') return '<span class="badge-running">● 稼働中</span>';
+    if (status === 'stopped') return '<span class="badge-stopped">● 停止</span>';
+    if (status === 'unavailable') return '<span class="badge-unavail">未インストール</span>';
+    return `<span class="badge-unavail">${escapeHtml(status)}</span>`;
+}
+
+async function loadStatus() {
+    const el = document.getElementById('status-content');
+    try {
+        const res = await apiFetch('/bind/status');
+        const d = res.data;
+        if (d.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">⚠️ BIND (named) はインストールされていません。</div>';
+            return;
+        }
+        el.innerHTML = `
+        <div class="row g-3">
+          <div class="col-md-3 text-center">
+            <div class="metric-val">${statusBadge(d.status)}</div>
+            <div class="metric-label">ステータス</div>
+          </div>
+          <div class="col-md-3 text-center">
+            <div class="metric-val" style="font-size:14px">${escapeHtml(d.service || '—')}</div>
+            <div class="metric-label">サービス名</div>
+          </div>
+          <div class="col-md-6">
+            <div class="metric-label">バージョン</div>
+            <div class="metric-val" style="font-size:14px">${escapeHtml(d.version || '—')}</div>
+          </div>
+        </div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadZones() {
+    const el = document.getElementById('zones-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/bind/zones');
+        const d = res.data;
+        const zonesText = d.zones || '(ゾーンなし)';
+        el.innerHTML = `<div class="raw-output">${escapeHtml(zonesText)}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadConfig() {
+    const el = document.getElementById('config-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/bind/config');
+        const d = res.data;
+        const validBadge = d.valid === true
+            ? '<span class="badge-valid">✅ 設定OK</span>'
+            : d.valid === false
+            ? '<span class="badge-invalid">❌ 設定エラー</span>'
+            : '<span class="badge-unavail">不明</span>';
+        el.innerHTML = `
+        <div class="mb-2">${validBadge}</div>
+        <div class="raw-output">${escapeHtml(d.output || '(出力なし)')}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadLogs() {
+    const el = document.getElementById('logs-content');
+    const lines = document.getElementById('log-lines').value;
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch(`/bind/logs?lines=${lines}`);
+        const d = res.data;
+        const logText = d.logs || '(ログなし)';
+        el.innerHTML = `<div class="raw-output">${escapeHtml(logText)}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+function refreshAll() {
+    loadStatus();
+    loadZones();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (!getToken()) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
+    loadStatus();
+    loadZones();
+    document.querySelector('[href="#tab-config"]').addEventListener('shown.bs.tab', loadConfig);
+    document.querySelector('[href="#tab-logs"]').addEventListener('shown.bs.tab', loadLogs);
+});
+</script>
+</body>
+</html>

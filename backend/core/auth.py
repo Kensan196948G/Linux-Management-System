@@ -85,6 +85,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # Netstat
+            "read:netstat",
+            # BIND DNS
+            "read:bind",
         ],
     ),
     "Operator": UserRole(
@@ -118,6 +122,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # Netstat
+            "read:netstat",
+            # BIND DNS
+            "read:bind",
         ],
     ),
     "Approver": UserRole(
@@ -158,6 +166,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # Netstat
+            "read:netstat",
+            # BIND DNS
+            "read:bind",
         ],
     ),
     "Admin": UserRole(
@@ -211,6 +223,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # Netstat
+            "read:netstat",
+            # BIND DNS
+            "read:bind",
         ],
     ),
 }
