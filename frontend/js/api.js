@@ -390,6 +390,18 @@ class APIClient {
         return await this.request('GET', '/api/firewall/rules');
     }
 
+    async getFirewallPolicy() {
+        return await this.request('GET', '/api/firewall/policy');
+    }
+
+    async createFirewallRule(port, protocol, action, reason) {
+        return await this.request('POST', '/api/firewall/rules', { port, protocol, action, reason });
+    }
+
+    async deleteFirewallRule(ruleNum) {
+        return await this.request('DELETE', `/api/firewall/rules/${ruleNum}`);
+    }
+
     // ===================================================================
     // ブートアップ API
     // ===================================================================

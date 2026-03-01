@@ -113,8 +113,8 @@ function showPage(pageName) {
             showLogsPage(mainBody);
             break;
         case 'firewall':
-            showFirewallPage(mainBody);
-            break;
+            location.href = 'firewall.html';
+            return;
         case 'network-config':
             showNetworkConfigPage(mainBody);
             break;

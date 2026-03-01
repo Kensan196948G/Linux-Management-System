@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ファイアウォール - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-inactive { background: #f3f4f6; color: #6b7280; }
+        .status-unknown { background: #fef3c7; color: #92400e; }
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .backend-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .backend-title { font-size: 14px; font-weight: bold; color: #374151; margin-bottom: 10px; }
+        .backend-grid { display: flex; gap: 16px; flex-wrap: wrap; }
+        .backend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+        .table-compact td, .table-compact th { padding: 6px 10px; font-size: 13px; }
+        code { background: #f3f4f6; padding: 2px 5px; border-radius: 3px; font-size: 12px; }
+        .policy-chain {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 14px 18px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .chain-name { font-weight: bold; font-size: 14px; color: #111827; min-width: 100px; }
+        .policy-accept { background: #d1fae5; color: #065f46; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .policy-drop { background: #fee2e2; color: #991b1b; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .policy-reject { background: #fef3c7; color: #92400e; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .approval-notice {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #1e40af;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">🔥 ファイアウォール管理</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- バックエンドステータスバー -->
+            <div class="backend-card" id="status-bar" style="display:none">
+                <div class="backend-title">🛡️ ファイアウォールバックエンド状態</div>
+                <div class="backend-grid" id="status-grid"></div>
+            </div>
+            <div id="status-loading" class="text-center py-2 text-muted" style="font-size:13px">ステータス読み込み中...</div>
+
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-3" id="firewall-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('rules')" id="tab-rules">
+                        📋 ルール一覧
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('policy')" id="tab-policy">
+                        🔐 デフォルトポリシー
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('add-rule')" id="tab-add-rule">
+                        ➕ ルール追加申請
+                    </a>
+                </li>
+            </ul>
+
+            <!-- ルール一覧 -->
+            <div id="pane-rules">
+                <div id="rules-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="rules-content" style="display:none"></div>
+            </div>
+
+            <!-- デフォルトポリシー -->
+            <div id="pane-policy" style="display:none">
+                <div id="policy-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="policy-content" style="display:none"></div>
+            </div>
+
+            <!-- ルール追加申請 -->
+            <div id="pane-add-rule" style="display:none">
+                <div class="approval-notice">
+                    ℹ️ ルールの追加・削除は<strong>承認フロー</strong>が必要です。申請後、管理者の承認を経て適用されます。
+                </div>
+                <div class="backend-card">
+                    <div class="backend-title">📝 新規ルール追加申請</div>
+                    <form id="add-rule-form" onsubmit="submitAddRule(event)">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">ポート番号 <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control form-control-sm" id="rule-port"
+                                       min="1" max="65535" placeholder="例: 80" required>
+                                <div class="form-text">1〜65535</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">プロトコル <span class="text-danger">*</span></label>
+                                <select class="form-select form-select-sm" id="rule-protocol" required>
+                                    <option value="tcp">TCP</option>
+                                    <option value="udp">UDP</option>
+                                    <option value="any">ANY</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">アクション <span class="text-danger">*</span></label>
+                                <select class="form-select form-select-sm" id="rule-action" required>
+                                    <option value="allow">許可 (allow)</option>
+                                    <option value="deny">拒否 (deny)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label">申請理由 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="rule-reason"
+                                       placeholder="例: Webサーバー公開のためHTTPポートを開放" required maxlength="200">
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-sm btn-warning" id="submit-btn">
+                                📨 承認申請を送信
+                            </button>
+                        </div>
+                    </form>
+                    <div id="add-rule-result" class="mt-3" style="display:none"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('firewall')):renderSidebar('firewall');</script>
+<script>
+let currentTab = 'rules';
+
+function showTab(tab) {
+    ['rules', 'policy', 'add-rule'].forEach(t => {
+        document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+    });
+    currentTab = tab;
+    if (tab === 'rules') loadRules();
+    else if (tab === 'policy') loadPolicy();
+}
+
+function showAlert(msg, type = 'danger') {
+    document.getElementById('alert-area').innerHTML =
+        `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${msg}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+}
+
+// バックエンドステータス
+async function loadStatus() {
+    const loading = document.getElementById('status-loading');
+    const bar = document.getElementById('status-bar');
+    try {
+        const data = await api.getFirewallStatus();
+        const grid = document.getElementById('status-grid');
+        const items = [
+            { label: 'UFW', active: data.ufw_active },
+            { label: 'firewalld', active: data.firewalld_active },
+            { label: 'iptables', active: data.iptables_available },
+            { label: 'nftables', active: data.nftables_available },
+        ];
+        grid.innerHTML = items.map(item => {
+            const cls = item.active ? 'status-active' : 'status-inactive';
+            const icon = item.active ? '✅' : '⬜';
+            return `<div class="backend-item">
+                <span class="status-badge ${cls}">${icon} ${item.label}</span>
+            </div>`;
+        }).join('');
+        if (data.available_backends && data.available_backends.length > 0) {
+            grid.innerHTML += `<div class="backend-item text-muted" style="font-size:12px; margin-left:8px">
+                アクティブ: <strong>${data.available_backends.join(', ')}</strong>
+            </div>`;
+        }
+        loading.style.display = 'none';
+        bar.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="text-warning" style="font-size:13px">⚠️ ステータス取得失敗: ${e.message}</div>`;
+    }
+}
+
+// ルール一覧
+async function loadRules() {
+    const loading = document.getElementById('rules-loading');
+    const content = document.getElementById('rules-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.getFirewallRules();
+        if (data.message && !data.tables && !data.ruleset && !data.raw_lines) {
+            content.innerHTML = `<div class="text-muted">${data.message}</div>`;
+        } else if (data.raw_lines && data.raw_lines.length > 0) {
+            // iptables/nftables raw output
+            content.innerHTML = `
+                <div class="mb-2 text-muted" style="font-size:12px">バックエンド: <strong>${data.backend || '-'}</strong></div>
+                <div class="backend-card">
+                    <pre style="font-size:12px; margin:0; white-space:pre-wrap;">${escapeHtml(data.raw_lines.join('\n'))}</pre>
+                </div>`;
+        } else if (data.ruleset) {
+            // UFW style ruleset
+            content.innerHTML = buildUfwRulesTable(data.ruleset, data.backend);
+        } else {
+            content.innerHTML = '<div class="text-muted">ルール情報を取得できませんでした</div>';
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+function buildUfwRulesTable(ruleset, backend) {
+    if (!ruleset || ruleset.length === 0) {
+        return '<div class="text-muted">ルールが設定されていません</div>';
+    }
+    const rows = ruleset.map((rule, i) => {
+        const action = (rule.action || '').toLowerCase();
+        const actionClass = action === 'allow' ? 'status-active' : (action === 'deny' || action === 'reject' ? 'status-inactive' : '');
+        return `<tr>
+            <td>${i + 1}</td>
+            <td>${escapeHtml(rule.to || rule.dst || '-')}</td>
+            <td>${escapeHtml(rule.from || rule.src || '-')}</td>
+            <td><span class="status-badge ${actionClass}">${escapeHtml(rule.action || '-')}</span></td>
+            <td style="font-size:11px; color:#6b7280">${escapeHtml(rule.comment || '')}</td>
+        </tr>`;
+    }).join('');
+    return `
+        <div class="mb-2 text-muted" style="font-size:12px">バックエンド: <strong>${escapeHtml(backend || '-')}</strong> / 合計: ${ruleset.length} 件</div>
+        <table class="table table-sm table-hover table-compact">
+            <thead class="table-dark">
+                <tr><th>#</th><th>宛先</th><th>送信元</th><th>アクション</th><th>コメント</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+}
+
+// デフォルトポリシー
+async function loadPolicy() {
+    const loading = document.getElementById('policy-loading');
+    const content = document.getElementById('policy-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.getFirewallPolicy();
+        const chains = data.chains || [];
+        if (chains.length === 0) {
+            content.innerHTML = '<div class="text-muted">ポリシー情報を取得できませんでした</div>';
+        } else {
+            content.innerHTML = `
+                <div class="mb-2 text-muted" style="font-size:12px">バックエンド: <strong>${escapeHtml(data.backend || '-')}</strong></div>
+                ${chains.map(c => buildPolicyCard(c)).join('')}`;
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+function buildPolicyCard(chain) {
+    const p = (chain.policy || '').toUpperCase();
+    let policyClass = '';
+    if (p === 'ACCEPT') policyClass = 'policy-accept';
+    else if (p === 'DROP' || p === 'DENY') policyClass = 'policy-drop';
+    else if (p === 'REJECT') policyClass = 'policy-reject';
+    return `<div class="policy-chain">
+        <span class="chain-name">${escapeHtml(chain.chain || '-')}</span>
+        <span class="${policyClass}">${escapeHtml(p || '-')}</span>
+        ${chain.table ? `<span class="text-muted" style="font-size:12px">テーブル: ${escapeHtml(chain.table)}</span>` : ''}
+    </div>`;
+}
+
+// ルール追加申請
+async function submitAddRule(event) {
+    event.preventDefault();
+    const btn = document.getElementById('submit-btn');
+    const result = document.getElementById('add-rule-result');
+    const port = parseInt(document.getElementById('rule-port').value, 10);
+    const protocol = document.getElementById('rule-protocol').value;
+    const action = document.getElementById('rule-action').value;
+    const reason = document.getElementById('rule-reason').value.trim();
+
+    if (!port || port < 1 || port > 65535) {
+        showAlert('ポート番号は 1〜65535 の範囲で入力してください。');
+        return;
+    }
+    if (!reason) {
+        showAlert('申請理由を入力してください。');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+    result.style.display = 'none';
+
+    try {
+        const data = await api.createFirewallRule(port, protocol, action, reason);
+        if (data.status === 'pending_approval') {
+            result.innerHTML = `<div class="alert alert-info">
+                ✅ 申請を受け付けました。<br>
+                申請ID: <code>${data.request_id || '-'}</code><br>
+                <small class="text-muted">${data.message || ''}</small>
+            </div>`;
+            document.getElementById('add-rule-form').reset();
+        } else {
+            result.innerHTML = `<div class="alert alert-success">✅ ${data.message || '申請が完了しました'}</div>`;
+        }
+        result.style.display = '';
+    } catch (e) {
+        result.innerHTML = `<div class="alert alert-danger">❌ 申請失敗: ${escapeHtml(e.message)}</div>`;
+        result.style.display = '';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📨 承認申請を送信';
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function refreshAll() {
+    loadStatus();
+    showTab(currentTab);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
+    api.setToken(token);
+    if (typeof initSidebar === 'function') initSidebar('firewall');
+    loadStatus();
+    loadRules();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>
