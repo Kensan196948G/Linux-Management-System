@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ディスクパーティション - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .raw-output { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        .part-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
+        .part-row:last-child { border-bottom: none; }
+        .part-name { font-weight: 600; color: #1e293b; font-size: 13px; }
+        .part-meta { font-size: 12px; color: #6b7280; }
+        .badge-disk { background: #dbeafe; color: #1e40af; border-radius: 4px; padding: 1px 6px; font-size: 11px; }
+        .badge-part { background: #f3f4f6; color: #374151; border-radius: 4px; padding: 1px 6px; font-size: 11px; }
+        .unavail-notice { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px; color: #713f12; font-size: 13px; }
+        .nav-tabs .nav-link.active { color: #2563eb; font-weight: 600; border-bottom: 2px solid #2563eb; background: none; }
+        .nav-tabs .nav-link { color: #6b7280; cursor: pointer; }
+        .use-bar { height: 8px; border-radius: 4px; background: #e5e7eb; overflow: hidden; margin-top: 4px; }
+        .use-fill { height: 100%; border-radius: 4px; background: #2563eb; }
+        .use-fill-warn { background: #f59e0b; }
+        .use-fill-crit { background: #dc2626; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2>🗂️ ディスクパーティション</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">🔄 更新</button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <ul class="nav nav-tabs mb-3" id="part-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('list')" id="tab-list">📋 パーティション一覧</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('usage')" id="tab-usage">📊 ディスク使用量</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('detail')" id="tab-detail">🔍 デバイス詳細</a>
+                </li>
+            </ul>
+
+            <!-- パーティション一覧 -->
+            <div id="pane-list">
+                <div class="status-card">
+                    <div class="status-title">パーティション一覧 (lsblk)</div>
+                    <div id="list-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- ディスク使用量 -->
+            <div id="pane-usage" style="display:none">
+                <div class="status-card">
+                    <div class="status-title">ディスク使用量 (df -h)</div>
+                    <div id="usage-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- デバイス詳細 -->
+            <div id="pane-detail" style="display:none">
+                <div class="status-card">
+                    <div class="status-title">ブロックデバイス詳細 (blkid)</div>
+                    <div id="detail-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/common.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+const API_BASE = '/api';
+
+function getToken() { return localStorage.getItem('access_token') || ''; }
+function authHeaders() { return { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' }; }
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderRaw(text) {
+    return `<div class="raw-output">${escHtml(text || '')}</div>`;
+}
+
+function showTab(tab) {
+    ['list','usage','detail'].forEach(t => {
+        document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    });
+}
+
+function renderDeviceTree(devices, indent) {
+    indent = indent || 0;
+    let html = '';
+    (devices || []).forEach(dev => {
+        const prefix = '&nbsp;'.repeat(indent * 4);
+        const badgeClass = dev.type === 'disk' ? 'badge-disk' : 'badge-part';
+        const fs = dev.fstype ? ` <small class="text-muted">${escHtml(dev.fstype)}</small>` : '';
+        const mp = dev.mountpoint ? ` → <code>${escHtml(dev.mountpoint)}</code>` : '';
+        html += `<div class="part-row">
+            <span class="part-name">${prefix}${escHtml(dev.name)} <span class="${badgeClass}">${escHtml(dev.type||'?')}</span>${fs}${mp}</span>
+            <span class="part-meta">${escHtml(dev.size||'-')} ${escHtml(dev.label||'')}</span>
+        </div>`;
+        if (dev.children && dev.children.length) {
+            html += renderDeviceTree(dev.children, indent + 1);
+        }
+    });
+    return html;
+}
+
+async function loadList() {
+    const el = document.getElementById('list-content');
+    try {
+        const r = await fetch(API_BASE + '/partitions/list', { headers: authHeaders() });
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${escHtml(d.message || 'lsblk が見つかりません')}</div>`;
+            return;
+        }
+        const devices = d.partitions && d.partitions.blockdevices ? d.partitions.blockdevices : [];
+        if (devices.length === 0) {
+            el.innerHTML = '<div class="text-muted">パーティションが見つかりません。</div>';
+            return;
+        }
+        el.innerHTML = renderDeviceTree(devices, 0);
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger">取得エラー: ${escHtml(String(e))}</div>`;
+    }
+}
+
+async function loadUsage() {
+    const el = document.getElementById('usage-content');
+    try {
+        const r = await fetch(API_BASE + '/partitions/usage', { headers: authHeaders() });
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${escHtml(d.message || 'df が見つかりません')}</div>`;
+            return;
+        }
+        // Parse df output
+        const lines = (d.usage_raw || '').split('\n').filter(l => l.trim());
+        if (lines.length === 0) { el.innerHTML = '<div class="text-muted">データがありません。</div>'; return; }
+        let html = '<table class="table table-sm table-hover"><thead><tr><th>デバイス</th><th>サイズ</th><th>使用</th><th>空き</th><th>使用率</th><th>マウントポイント</th></tr></thead><tbody>';
+        lines.forEach(line => {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length < 6) return;
+            const [src, size, used, avail, pct, ...mpParts] = parts;
+            const mp = mpParts.join(' ');
+            const pctNum = parseInt(pct) || 0;
+            const fillClass = pctNum >= 90 ? 'use-fill-crit' : pctNum >= 75 ? 'use-fill-warn' : 'use-fill';
+            html += `<tr>
+                <td><code>${escHtml(src)}</code></td>
+                <td>${escHtml(size)}</td>
+                <td>${escHtml(used)}</td>
+                <td>${escHtml(avail)}</td>
+                <td><div class="use-bar"><div class="${fillClass}" style="width:${pctNum}%"></div></div><small>${escHtml(pct)}</small></td>
+                <td><code>${escHtml(mp)}</code></td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger">取得エラー: ${escHtml(String(e))}</div>`;
+    }
+}
+
+async function loadDetail() {
+    const el = document.getElementById('detail-content');
+    try {
+        const r = await fetch(API_BASE + '/partitions/detail', { headers: authHeaders() });
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${escHtml(d.message || 'blkid が見つかりません')}</div>`;
+            return;
+        }
+        el.innerHTML = renderRaw(d.blkid_raw);
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger">取得エラー: ${escHtml(String(e))}</div>`;
+    }
+}
+
+function refreshAll() {
+    loadList();
+    loadUsage();
+    loadDetail();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+    loadList();
+    loadUsage();
+    loadDetail();
+});
+</script>
+</body>
+</html>

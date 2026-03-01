@@ -1509,6 +1509,97 @@ class SudoWrapper:
         safe_lines = max(1, min(200, lines))
         return self._execute("adminui-mysql.sh", ["logs", str(safe_lines)])
 
+    # ===================================================================
+    # SMART Drive Status メソッド
+    # ===================================================================
+
+    def get_smart_disks(self) -> Dict[str, Any]:
+        """SMART 対応ディスク一覧を取得 (lsblk 経由)
+
+        Returns:
+            ディスク一覧と smartctl 有無の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-smart.sh", ["list"], timeout=15)
+
+    def get_smart_info(self, disk: str) -> Dict[str, Any]:
+        """ディスク詳細情報を取得 (smartctl -i)
+
+        Args:
+            disk: ディスクデバイスパス（allowlist 検証済み）
+
+        Returns:
+            ディスク詳細情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-smart.sh", ["info", disk], timeout=15)
+
+    def get_smart_health(self, disk: str) -> Dict[str, Any]:
+        """ディスク健全性を取得 (smartctl -H)
+
+        Args:
+            disk: ディスクデバイスパス（allowlist 検証済み）
+
+        Returns:
+            健全性チェック結果の辞書（health: PASSED/FAILED/unknown）
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-smart.sh", ["health", disk], timeout=15)
+
+    def get_smart_tests(self) -> Dict[str, Any]:
+        """SMART selftest ログ一覧を取得 (smartctl -l selftest)
+
+        Returns:
+            全ディスクの selftest ログ一覧の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-smart.sh", ["tests"], timeout=30)
+
+    # ===================================================================
+    # Disk Partitions メソッド
+    # ===================================================================
+
+    def get_partitions_list(self) -> Dict[str, Any]:
+        """パーティション一覧を取得 (lsblk -J)
+
+        Returns:
+            パーティション一覧の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-partitions.sh", ["list"], timeout=15)
+
+    def get_partitions_usage(self) -> Dict[str, Any]:
+        """ディスク使用量を取得 (df -h)
+
+        Returns:
+            ディスク使用量の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-partitions.sh", ["usage"], timeout=15)
+
+    def get_partitions_detail(self) -> Dict[str, Any]:
+        """ブロックデバイス詳細を取得 (blkid)
+
+        Returns:
+            ブロックデバイス詳細の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-partitions.sh", ["detail"], timeout=15)
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()

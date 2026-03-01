@@ -85,6 +85,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # SMART Drive Status
+            "read:smart",
+            # Disk Partitions
+            "read:partitions",
         ],
     ),
     "Operator": UserRole(
@@ -118,6 +122,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # SMART Drive Status
+            "read:smart",
+            # Disk Partitions
+            "read:partitions",
         ],
     ),
     "Approver": UserRole(
@@ -158,6 +166,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # SMART Drive Status
+            "read:smart",
+            # Disk Partitions
+            "read:partitions",
         ],
     ),
     "Admin": UserRole(
@@ -211,6 +223,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # SMART Drive Status
+            "read:smart",
+            # Disk Partitions
+            "read:partitions",
         ],
     ),
 }
