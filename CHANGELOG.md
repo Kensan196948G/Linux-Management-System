@@ -11,6 +11,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.24.0] - 2026-03-01
+
+### Added (Steps 29-30)
+- System Time/NTP UI強化
+  - `GET /api/system-time/ntp-servers` — NTPサーバー一覧 (chrony/ntpd対応)
+  - `GET /api/system-time/sync-status` — 時刻同期状態詳細
+  - `GET /api/system-time/timezones` — タイムゾーン一覧
+  - `wrappers/adminui-time.sh` — ntp-servers/sync-status/timezones サブコマンド追加
+  - `frontend/dev/time.html` — NTPサーバータブ追加
+- Bandwidth監視強化
+  - `GET /api/bandwidth/history` — 帯域使用履歴 (vnstat/proc対応)
+  - `GET /api/bandwidth/monthly` — 月次帯域使用量
+  - `GET /api/bandwidth/alert-config` — アラート設定
+  - `wrappers/adminui-bandwidth.sh` — history/monthly/alert-config追加
+
+## [v0.23.0] - 2026-03-01
+
+### Added (Steps 27-28)
+- Network Configuration UI強化
+  - `GET /api/network/interfaces-detail` — インターフェース詳細 (IP/MAC/状態)
+  - `GET /api/network/dns-config` — DNS設定 (/etc/resolv.conf + /etc/hosts)
+  - `GET /api/network/active-connections` — アクティブ接続一覧 (ss -tunp)
+  - `wrappers/adminui-network.sh` — 3サブコマンド追加
+  - `frontend/dev/network.html` — インターフェース詳細/DNS/接続タブ追加
+- Package Manager UI強化
+  - `GET /api/packages/upgradeable` — アップグレード可能パッケージ一覧
+  - `GET /api/packages/search?q=` — パッケージ検索 (apt-cache search)
+  - `GET /api/packages/info/{package}` — パッケージ詳細情報
+  - `GET /api/packages/installed` — インストール済み一覧
+  - `GET /api/packages/security-updates` — セキュリティアップデート一覧
+  - `wrappers/adminui-packages.sh` — 新規作成
+  - `frontend/dev/packages.html` — 新規作成
+
+---
+
 ## [v0.22.0] - 2026-03-01
 
 ### Added (Step 26)
