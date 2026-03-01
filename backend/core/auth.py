@@ -111,6 +111,8 @@ ROLES = {
             "read:apache",
             # File Manager
             "read:filemanager",
+            # SSH Keys 管理
+            "read:sshkeys",
         ],
     ),
     "Operator": UserRole(
@@ -170,6 +172,8 @@ ROLES = {
             "read:apache",
             # File Manager
             "read:filemanager",
+            # SSH Keys 管理
+            "read:sshkeys",
         ],
     ),
     "Approver": UserRole(
@@ -236,6 +240,8 @@ ROLES = {
             "read:apache",
             # File Manager
             "read:filemanager",
+            # SSH Keys 管理
+            "read:sshkeys",
         ],
     ),
     "Admin": UserRole(
@@ -315,6 +321,8 @@ ROLES = {
             "read:apache",
             # File Manager
             "read:filemanager",
+            # SSH Keys 管理
+            "read:sshkeys",
         ],
     ),
 }

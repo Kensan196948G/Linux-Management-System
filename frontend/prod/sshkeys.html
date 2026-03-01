@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Keys Management - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .config-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .dark-mode .config-card {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        .dark-mode body, .dark-mode .main-content {
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .dark-mode .config-row {
+            border-bottom-color: #334155;
+        }
+        .dark-mode .config-label {
+            color: #94a3b8;
+        }
+        .config-card-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dark-mode .config-card-title { color: #f1f5f9; }
+        .config-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 7px 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 14px;
+        }
+        .config-row:last-child { border-bottom: none; }
+        .config-label { color: #6b7280; min-width: 160px; }
+        .config-value { font-weight: 500; text-align: right; word-break: break-all; }
+        .loading-placeholder { color: #9ca3af; font-size: 13px; }
+        .key-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #dbeafe;
+            color: #1d4ed8;
+            margin-right: 4px;
+        }
+        .dark-mode .key-badge { background: #1e3a5f; color: #93c5fd; }
+        .fp-mono {
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            color: #374151;
+        }
+        .dark-mode .fp-mono { color: #cbd5e1; }
+        #theme-toggle-btn {
+            position: fixed;
+            top: 16px;
+            right: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2>🔑 SSH Keys Management</h2>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">🔄 更新</button>
+                <button class="btn btn-sm btn-outline-secondary" id="theme-toggle-btn" onclick="toggleTheme()">🌙 ダーク</button>
+            </div>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <div class="row g-3">
+                <!-- 公開鍵一覧 -->
+                <div class="col-md-6">
+                    <div class="config-card">
+                        <div class="config-card-title">📂 公開鍵一覧 (/etc/ssh/*.pub)</div>
+                        <div id="keys-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- sshd_config 設定 -->
+                <div class="col-md-6">
+                    <div class="config-card">
+                        <div class="config-card-title">⚙️ sshd_config 設定</div>
+                        <div id="sshd-config-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- ホスト鍵フィンガープリント -->
+                <div class="col-md-6">
+                    <div class="config-card">
+                        <div class="config-card-title">🔐 ホスト鍵フィンガープリント</div>
+                        <div id="host-keys-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- known-hosts カウント -->
+                <div class="col-md-6">
+                    <div class="config-card">
+                        <div class="config-card-title">📋 known-hosts エントリ数</div>
+                        <div id="known-hosts-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+function row(label, value) {
+    return `<div class="config-row"><span class="config-label">${label}</span><span class="config-value">${value || '—'}</span></div>`;
+}
+
+function escapeHtml(s) {
+    if (!s) return '—';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadKeys() {
+    const el = document.getElementById('keys-content');
+    try {
+        const d = await api.get('/api/ssh/keys');
+        if (!d.keys || d.keys.length === 0) {
+            el.innerHTML = '<div class="loading-placeholder">公開鍵が見つかりません</div>';
+            return;
+        }
+        let html = row('検出数', `${d.count} 件`) + row('ディレクトリ', escapeHtml(d.ssh_dir));
+        html += '<div style="margin-top:10px;">';
+        for (const k of d.keys) {
+            html += `<div class="config-row">
+                <span class="config-label">${escapeHtml(k.filename)}</span>
+                <span class="config-value">
+                    <span class="key-badge">${escapeHtml(k.key_type) || '不明'}</span>
+                    ${escapeHtml(k.comment)}
+                </span>
+            </div>`;
+        }
+        html += '</div>';
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadSshdConfig() {
+    const el = document.getElementById('sshd-config-content');
+    try {
+        const d = await api.get('/api/ssh/sshd-config');
+        const settings = d.settings || {};
+        const keys = Object.keys(settings);
+        if (keys.length === 0) {
+            el.innerHTML = '<div class="loading-placeholder">設定が取得できませんでした</div>';
+            return;
+        }
+        let html = '';
+        for (const k of keys) {
+            html += row(escapeHtml(k), escapeHtml(settings[k]));
+        }
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadHostKeys() {
+    const el = document.getElementById('host-keys-content');
+    try {
+        const d = await api.get('/api/ssh/host-keys');
+        if (!d.host_keys || d.host_keys.length === 0) {
+            el.innerHTML = '<div class="loading-placeholder">ホスト鍵が見つかりません</div>';
+            return;
+        }
+        let html = row('検出数', `${d.count} 件`);
+        for (const k of d.host_keys) {
+            html += `<div style="margin-top:8px;padding:8px;border:1px solid #e5e7eb;border-radius:6px;">
+                <div style="font-weight:600;margin-bottom:4px;">
+                    <span class="key-badge">${escapeHtml(k.key_type.toUpperCase())}</span>
+                    ${escapeHtml(k.bits)} bits
+                </div>
+                <div class="fp-mono">${escapeHtml(k.fingerprint)}</div>
+                ${k.algorithm ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;">${escapeHtml(k.algorithm)}</div>` : ''}
+            </div>`;
+        }
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadKnownHostsCount() {
+    const el = document.getElementById('known-hosts-content');
+    try {
+        const d = await api.get('/api/ssh/known-hosts-count');
+        let html = row('エントリ数', `${d.count} 件`);
+        html += row('ファイル', escapeHtml(d.path));
+        if (d.note) {
+            html += `<div style="margin-top:10px;font-size:12px;color:#6b7280;">ℹ️ ${escapeHtml(d.note)}</div>`;
+        }
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function refreshAll() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.textContent = '更新中...';
+    await Promise.all([loadKeys(), loadSshdConfig(), loadHostKeys(), loadKnownHostsCount()]);
+    btn.disabled = false;
+    btn.textContent = '🔄 更新';
+}
+
+function toggleTheme() {
+    document.body.classList.toggle('dark-mode');
+    const btn = document.getElementById('theme-toggle-btn');
+    btn.textContent = document.body.classList.contains('dark-mode') ? '☀️ ライト' : '🌙 ダーク';
+}
+
+// 初期ロード
+refreshAll();
+</script>
+</body>
+</html>
