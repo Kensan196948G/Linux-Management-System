@@ -8,30 +8,28 @@ on:
 
 jobs:
   test:
-    name: Test & Lint
+    name: Test & Lint (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # requirements-dev.txt は -r requirements.txt を含むため、これだけで全依存関係がインストールされる
-          if [ -f backend/requirements-dev.txt ]; then
-            pip install -r backend/requirements-dev.txt
-          elif [ -f backend/requirements.txt ]; then
-            pip install -r backend/requirements.txt
-            # フォールバック: requirements-dev.txt がない場合は個別にインストール
-            pip install pytest pytest-cov pytest-asyncio bandit flake8 black isort mypy
-          fi
+          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 
       - name: Code formatting check (Black)
         run: |
@@ -69,7 +67,7 @@ jobs:
       - name: Run tests (pytest)
         run: |
           if [ -d tests ] && [ -n "$(find tests -name 'test_*.py' 2>/dev/null | grep -v e2e)" ]; then
-            pytest tests/ --ignore=tests/e2e -v --cov=backend --cov-report=html --cov-report=term
+            pytest tests/ --ignore=tests/e2e -v --cov=backend --cov-report=xml --cov-report=html --cov-report=term
           else
             echo "No tests found yet - skipping"
           fi
@@ -78,8 +76,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: htmlcov/
+          name: coverage-report-py${{ matrix.python-version }}
+          path: |
+            htmlcov/
+            coverage.xml
           retention-days: 30
 
       - name: Upload bandit report
@@ -91,7 +91,7 @@ jobs:
           retention-days: 30
 
   e2e-test:
-    name: E2E Tests (Playwright)
+    name: E2E Tests (smoke + security headers)
     runs-on: ubuntu-latest
     needs: test  # ユニットテスト成功後にのみ実行
 
@@ -108,24 +108,26 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f backend/requirements-dev.txt ]; then
-            pip install -r backend/requirements-dev.txt
-          elif [ -f backend/requirements.txt ]; then
-            pip install -r backend/requirements.txt
-          fi
-          # E2E テスト追加依存
-          pip install pytest-playwright httpx
+          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+          pip install httpx
 
-      - name: Install Playwright browsers
+      - name: Run E2E smoke + security header tests (TestClient, no server needed)
         run: |
-          python -m playwright install --with-deps chromium
+          pytest tests/e2e/test_api_smoke.py tests/e2e/test_security_headers.py \
+            -v --tb=short --no-cov
 
-      - name: Run E2E tests
+      - name: Run all E2E tests (Playwright optional)
         run: |
-          if [ -d tests/e2e ] && [ -n "$(find tests/e2e -name 'test_*.py' 2>/dev/null)" ]; then
-            pytest tests/e2e/ -v --browser chromium --timeout=60 || echo "E2E tests completed with failures"
+          if find tests/e2e -name 'test_*.py' | xargs grep -l 'playwright\|page,' 2>/dev/null | grep -qv 'test_api_smoke\|test_security_headers'; then
+            pip install pytest-playwright httpx
+            python -m playwright install --with-deps chromium
+            pytest tests/e2e/ \
+              --ignore=tests/e2e/test_api_smoke.py \
+              --ignore=tests/e2e/test_security_headers.py \
+              -v --browser chromium --timeout=60 --no-cov \
+              || echo "Playwright E2E tests completed with failures"
           else
-            echo "No E2E tests found - skipping"
+            echo "No Playwright E2E tests found - skipping"
           fi
 
   shellcheck:
@@ -147,6 +149,12 @@ jobs:
             shellcheck --severity=error wrappers/*.sh
           else
             echo "No shell scripts found yet - skipping"
+          fi
+
+      - name: Run ShellCheck on scripts/
+        run: |
+          if [ -d scripts ] && [ -n "$(find scripts -name '*.sh' 2>/dev/null)" ]; then
+            shellcheck scripts/*.sh || echo "scripts/ shellcheck warnings (non-blocking)"
           fi
 
       - name: Run ShellCheck on other scripts
