@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MySQL/MariaDB - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .status-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+        }
+        .badge-running {
+            background: #d1fae5;
+            color: #065f46;
+            border-radius: 20px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .badge-stopped {
+            background: #fee2e2;
+            color: #991b1b;
+            border-radius: 20px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .badge-unavail {
+            background: #f3f4f6;
+            color: #6b7280;
+            border-radius: 20px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .metric-val {
+            font-size: 22px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .unavail-notice {
+            background: #fefce8;
+            border: 1px solid #fde047;
+            border-radius: 8px;
+            padding: 12px;
+            color: #713f12;
+            font-size: 13px;
+        }
+        .nav-tabs .nav-link.active {
+            color: #2563eb;
+            font-weight: 600;
+            border-bottom: 2px solid #2563eb;
+            background: none;
+        }
+        .nav-tabs .nav-link { color: #6b7280; }
+        .field-row {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .field-row:last-child { border-bottom: none; }
+        .field-key {
+            font-size: 12px;
+            color: #6b7280;
+            min-width: 200px;
+            font-weight: 500;
+        }
+        .field-val {
+            font-size: 13px;
+            color: #1e293b;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">🐬 MySQL/MariaDB 管理</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">🔄 更新</button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-3" id="mainTab">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#tab-status">📊 ステータス</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-databases">🗄️ データベース</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-users">👤 ユーザー</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-processes">⚙️ プロセス</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-variables">🔧 変数</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-logs">📋 ログ</a>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- ステータスタブ -->
+                <div class="tab-pane fade show active" id="tab-status">
+                    <div class="status-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="status-title">📊 MySQL/MariaDB ステータス</div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadStatus()">🔄 更新</button>
+                        </div>
+                        <div id="status-content">
+                            <div class="text-center text-muted py-4">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- データベースタブ -->
+                <div class="tab-pane fade" id="tab-databases">
+                    <div class="status-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="status-title">🗄️ データベース一覧</div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadDatabases()">🔄 更新</button>
+                        </div>
+                        <div id="databases-content">
+                            <div class="text-center text-muted py-4">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ユーザータブ -->
+                <div class="tab-pane fade" id="tab-users">
+                    <div class="status-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="status-title">👤 ユーザー一覧</div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadUsers()">🔄 更新</button>
+                        </div>
+                        <div id="users-content">
+                            <div class="text-center text-muted py-4">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- プロセスタブ -->
+                <div class="tab-pane fade" id="tab-processes">
+                    <div class="status-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="status-title">⚙️ プロセスリスト</div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadProcesses()">🔄 更新</button>
+                        </div>
+                        <div id="processes-content">
+                            <div class="text-center text-muted py-4">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 変数タブ -->
+                <div class="tab-pane fade" id="tab-variables">
+                    <div class="status-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="status-title">🔧 システム変数</div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadVariables()">🔄 更新</button>
+                        </div>
+                        <div id="variables-content">
+                            <div class="text-center text-muted py-4">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ログタブ -->
+                <div class="tab-pane fade" id="tab-logs">
+                    <div class="status-card">
+                        <div class="status-title">📋 MySQL エラーログ</div>
+                        <div class="mb-2 d-flex align-items-center gap-2">
+                            <select class="form-select form-select-sm" id="log-lines" style="width:auto">
+                                <option value="50">50行</option>
+                                <option value="100">100行</option>
+                                <option value="200">200行</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadLogs()">🔄 更新</button>
+                        </div>
+                        <pre id="log-content" style="background:#1a1a2e;color:#00ff88;padding:16px;border-radius:8px;max-height:500px;overflow-y:auto;font-size:12px;white-space:pre-wrap">読み込み中...</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('mysql')):renderSidebar('mysql');</script>
+<script>
+function escapeHtml(str) {
+    if (!str && str !== 0) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function statusBadge(s) {
+    if (s === 'running') return '<span class="badge-running">&#10003; 稼働中</span>';
+    if (s === 'stopped') return '<span class="badge-stopped">&#10007; 停止中</span>';
+    return '<span class="badge-unavail">不明</span>';
+}
+
+async function apiGet(path) {
+    const token = localStorage.getItem('access_token');
+    const base = (window.ENV_CONFIG && window.ENV_CONFIG.API_BASE_URL) || '';
+    const resp = await fetch(base + path, {
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp.json();
+}
+
+async function loadStatus() {
+    const el = document.getElementById('status-content');
+    el.innerHTML = '<div class="text-center text-muted py-4">読み込み中...</div>';
+    try {
+        const res = await apiGet('/api/mysql/status');
+        const data = res.data || res;
+        if (data.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">&#9888; MySQL/MariaDB はインストールされていないか、利用できません。</div>';
+            return;
+        }
+        let html = '<div class="row g-3 mb-4">';
+        html += `<div class="col-md-3 text-center"><div class="metric-label mb-1">サービス状態</div><div class="metric-val mb-1">${statusBadge(data.status)}</div></div>`;
+        if (data.version) {
+            html += `<div class="col-md-9 text-center"><div class="metric-label mb-1">バージョン</div><div class="metric-val" style="font-size:14px">${escapeHtml(data.version)}</div></div>`;
+        }
+        html += '</div>';
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning">ステータスの取得に失敗しました: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadDatabases() {
+    const el = document.getElementById('databases-content');
+    el.innerHTML = '<div class="text-center text-muted py-4">読み込み中...</div>';
+    try {
+        const res = await apiGet('/api/mysql/databases');
+        const data = res.data || res;
+        if (data.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">&#9888; MySQL/MariaDB は利用できません。</div>';
+            return;
+        }
+        const dbs = data.databases || [];
+        if (dbs.length === 0) {
+            el.innerHTML = '<div class="alert alert-info">データベースが見つかりません。</div>';
+            return;
+        }
+        let html = `<p class="text-muted small mb-2">データベース数: ${escapeHtml(String(dbs.length))} 件</p>`;
+        html += '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-dark"><tr><th>#</th><th>データベース名</th></tr></thead><tbody>';
+        dbs.forEach((db, i) => {
+            html += `<tr><td>${i + 1}</td><td><code>${escapeHtml(db)}</code></td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning">データベース一覧の取得に失敗しました: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadUsers() {
+    const el = document.getElementById('users-content');
+    el.innerHTML = '<div class="text-center text-muted py-4">読み込み中...</div>';
+    try {
+        const res = await apiGet('/api/mysql/users');
+        const data = res.data || res;
+        if (data.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">&#9888; MySQL/MariaDB は利用できません。</div>';
+            return;
+        }
+        const users = data.users || [];
+        if (users.length === 0) {
+            el.innerHTML = '<div class="alert alert-info">ユーザーが見つかりません。</div>';
+            return;
+        }
+        let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-dark"><tr><th>ユーザー</th><th>ホスト</th><th>アカウントロック</th></tr></thead><tbody>';
+        users.forEach(u => {
+            const locked = u.account_locked === 'Y' ? '<span class="badge bg-warning text-dark">ロック中</span>' : '<span class="badge bg-success">有効</span>';
+            html += `<tr><td><code>${escapeHtml(u.user)}</code></td><td>${escapeHtml(u.host)}</td><td>${locked}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning">ユーザー一覧の取得に失敗しました: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadProcesses() {
+    const el = document.getElementById('processes-content');
+    el.innerHTML = '<div class="text-center text-muted py-4">読み込み中...</div>';
+    try {
+        const res = await apiGet('/api/mysql/processes');
+        const data = res.data || res;
+        if (data.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">&#9888; MySQL/MariaDB は利用できません。</div>';
+            return;
+        }
+        const procs = data.processes || [];
+        if (procs.length === 0) {
+            el.innerHTML = '<div class="alert alert-info">実行中のプロセスがありません。</div>';
+            return;
+        }
+        const keys = Object.keys(procs[0]);
+        let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-dark"><tr>';
+        keys.forEach(k => { html += `<th>${escapeHtml(k)}</th>`; });
+        html += '</tr></thead><tbody>';
+        procs.forEach(p => {
+            html += '<tr>';
+            keys.forEach(k => { html += `<td><small>${escapeHtml(String(p[k] || ''))}</small></td>`; });
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning">プロセスリストの取得に失敗しました: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadVariables() {
+    const el = document.getElementById('variables-content');
+    el.innerHTML = '<div class="text-center text-muted py-4">読み込み中...</div>';
+    try {
+        const res = await apiGet('/api/mysql/variables');
+        const data = res.data || res;
+        if (data.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">&#9888; MySQL/MariaDB は利用できません。</div>';
+            return;
+        }
+        const vars = data.variables || {};
+        const entries = Object.entries(vars);
+        if (entries.length === 0) {
+            el.innerHTML = '<div class="alert alert-info">変数が見つかりません。</div>';
+            return;
+        }
+        let html = '';
+        entries.forEach(([k, v]) => {
+            html += `<div class="field-row"><span class="field-key">${escapeHtml(k)}</span><span class="field-val">${escapeHtml(String(v))}</span></div>`;
+        });
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning">変数の取得に失敗しました: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadLogs() {
+    const logEl = document.getElementById('log-content');
+    const lines = document.getElementById('log-lines').value;
+    logEl.textContent = '読み込み中...';
+    try {
+        const res = await apiGet('/api/mysql/logs?lines=' + encodeURIComponent(lines));
+        const data = res.data || res;
+        if (data.status === 'unavailable') {
+            logEl.textContent = '(MySQL/MariaDB がインストールされていないか、ログを取得できません)';
+            return;
+        }
+        const logText = data.logs || '';
+        logEl.textContent = logText || '(ログなし)';
+    } catch (e) {
+        logEl.textContent = 'ログの取得に失敗しました: ' + e.message;
+    }
+}
+
+function refreshAll() {
+    loadStatus();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+
+    loadStatus();
+
+    document.querySelectorAll('#mainTab .nav-link').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(e) {
+            const target = e.target.getAttribute('href');
+            if (target === '#tab-databases') loadDatabases();
+            else if (target === '#tab-users') loadUsers();
+            else if (target === '#tab-processes') loadProcesses();
+            else if (target === '#tab-variables') loadVariables();
+            else if (target === '#tab-logs') loadLogs();
+            else if (target === '#tab-status') loadStatus();
+        });
+    });
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>
