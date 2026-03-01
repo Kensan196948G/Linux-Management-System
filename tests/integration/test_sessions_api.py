@@ -2,6 +2,9 @@
 import sys
 sys.path.insert(0, "/mnt/LinuxHDD/Linux-Management-Systm")
 
+import os
+os.environ["ENV"] = "dev"
+
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from backend.api.main import app
@@ -10,7 +13,7 @@ client = TestClient(app)
 
 
 def get_auth_headers():
-    resp = client.post("/api/auth/token", json={"username": "admin", "password": "admin123"})
+    resp = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "admin123"})
     if resp.status_code == 200:
         return {"Authorization": f"Bearer {resp.json().get('access_token', '')}"}
     return {}

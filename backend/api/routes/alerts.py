@@ -4,9 +4,10 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from backend.core.auth import get_current_user, require_permission
+from ...core import require_permission
+from ...core.auth import TokenData
 
-router = APIRouter()
+router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 # デフォルトアラートルール（設定ファイルがない場合）
 DEFAULT_RULES = [
