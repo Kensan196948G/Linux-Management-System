@@ -106,13 +106,13 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 
 | モジュール | 内容 | 実装状況 |
 |----------|------|---------|
-| **Bootup and Shutdown** | 起動・シャットダウン管理 | 📋 v0.2計画 |
-| **Disk and Network Filesystems** | ファイルシステム管理 | 📋 v0.2計画 |
-| **Disk Quotas** | ディスククォータ | 📋 v0.3計画 |
+| **Bootup and Shutdown** | 起動・シャットダウン管理 | ✅ v0.7実装済み |
+| **Disk and Network Filesystems** | ファイルシステム管理 | ✅ v0.6実装済み |
+| **Disk Quotas** | ディスククォータ | ✅ v0.8実装済み |
 | **Local Disk** | ディスク使用状況 | ✅ v0.1実装済み |
-| **Users and Groups** | ユーザー・グループ管理 | 📋 v0.2計画 |
-| **Software Package Updates** | APT/パッケージ更新 | 📋 v0.3計画 |
-| **Cron Jobs** | Cron ジョブ管理 | 📋 v0.2計画 |
+| **Users and Groups** | ユーザー・グループ管理 | ✅ v0.3実装済み |
+| **Software Package Updates** | APT/パッケージ更新 | ✅ v0.5実装済み |
+| **Cron Jobs** | Cron ジョブ管理 | ✅ v0.3実装済み |
 | **System Logs** | ログ閲覧 | ✅ v0.1実装済み |
 | **Running Processes** | プロセス監視 | ✅ v0.2実装済み |
 
@@ -120,34 +120,34 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 
 | サービス | 内容 | 実装状況 |
 |---------|------|---------|
-| **Apache Webserver** | Apache 設定管理 | 📋 v0.3計画 |
-| **BIND DNS Server** | DNS サーバー管理 | 📋 v0.4計画 |
-| **Postfix / Sendmail** | メールサーバー管理 | 📋 v0.4計画 |
-| **MySQL / MariaDB** | MySQL データベース | 📋 v0.3計画 |
-| **PostgreSQL** | PostgreSQL データベース | 📋 v0.3計画 |
-| **SSH Server** | SSH サーバー設定 | 📋 v0.2計画 |
-| **ProFTPD / WU-FTP** | FTP サーバー管理 | 📋 v0.4計画 |
-| **Squid Proxy** | プロキシサーバー管理 | 📋 v0.4計画 |
-| **DHCP Server** | DHCP サーバー管理 | 📋 v0.4計画 |
+| **Apache Webserver** | Apache 設定管理 | ✅ v0.9実装済み |
+| **BIND DNS Server** | DNS サーバー管理 | 📋 v0.5計画 |
+| **Postfix / Sendmail** | メールサーバー管理 | ✅ v0.9実装済み |
+| **MySQL / MariaDB** | MySQL データベース監視 | ✅ v0.8実装済み |
+| **PostgreSQL** | PostgreSQL データベース監視 | ✅ v0.8実装済み |
+| **SSH Server** | SSH サーバー設定 | ✅ v0.5実装済み |
+| **ProFTPD / WU-FTP** | FTP サーバー管理 | 📋 v0.5計画 |
+| **Squid Proxy** | プロキシサーバー管理 | 📋 v0.5計画 |
+| **DHCP Server** | DHCP サーバー管理 | 📋 v0.5計画 |
 
 ### 🌐 Networking カテゴリ（ネットワーク）
 
 | モジュール | 内容 | 実装状況 |
 |----------|------|---------|
-| **Linux Firewall** | iptables/nftables管理 | 📋 v0.3計画 |
-| **Network Configuration** | ネットワーク設定 | 📋 v0.2計画 |
-| **Routing and Gateways** | ルーティング設定 | 📋 v0.3計画 |
-| **Netstat** | ネットワーク統計 | 📋 v0.2計画 |
-| **Bandwidth Monitoring** | 帯域幅監視 | 📋 v0.3計画 |
+| **Linux Firewall** | iptables/UFW管理 | ✅ v0.5実装済み |
+| **Network Configuration** | ネットワーク設定 | ✅ v0.4実装済み |
+| **Routing and Gateways** | ルーティング設定 | ✅ v0.4実装済み（ルート表示） |
+| **Netstat** | ネットワーク統計 | ✅ v0.4実装済み（接続一覧） |
+| **Bandwidth Monitoring** | 帯域幅監視 | ✅ v0.8実装済み |
 
 ### 🔧 Hardware カテゴリ（ハードウェア）
 
 | モジュール | 内容 | 実装状況 |
 |----------|------|---------|
-| **Partitions on Local Disks** | パーティション管理 | 📋 v0.3計画 |
-| **System Time** | システム時刻設定 | 📋 v0.2計画 |
-| **SMART Drive Status** | ディスク健全性監視 | 📋 v0.3計画 |
-| **Sensors (lm-sensors)** | ハードウェアセンサー | 📋 v0.3計画 |
+| **Partitions on Local Disks** | パーティション管理 | 📋 v0.5計画 |
+| **System Time** | システム時刻設定 | ✅ v0.7実装済み |
+| **SMART Drive Status** | ディスク健全性監視 | ✅ v0.4実装済み |
+| **Sensors (lm-sensors)** | ハードウェアセンサー | ✅ v0.4実装済み |
 
 ### 🔗 Cluster / Tools カテゴリ（クラスタ・ツール）
 
@@ -157,19 +157,36 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 | **Cluster Cron Jobs** | クラスタ Cron 管理 | 📋 v0.5計画 |
 | **Cluster Users and Groups** | クラスタユーザー管理 | 📋 v0.5計画 |
 | **Command Shell** | コマンドシェル | ❌ セキュリティ上禁止 |
-| **File Manager** | ファイルマネージャー | 📋 v0.4計画 |
-| **Scheduled Commands** | スケジュールコマンド | 📋 v0.3計画 |
+| **File Manager** | ファイルマネージャー | 📋 v0.5計画 |
+| **Scheduled Commands** | スケジュールコマンド | 📋 v0.5計画 |
 | **Custom Commands** | カスタムコマンド | ⚠️ 制限付き実装予定 |
 
-### 現在実装済み（v0.1）
+### 現在実装済み（v0.10.1時点）
 
 | 機能 | 実装状況 |
 |------|---------|
-| ✅ システム状態（CPU/メモリ/ディスク） | 実装済み |
-| ✅ サービス再起動（allowlist） | 実装済み |
-| ✅ ログ閲覧（journalctl） | 実装済み |
-| ✅ 認証・認可（JWT/RBAC） | 実装済み |
-| ✅ 監査ログ | 実装済み |
+| ✅ システム状態（CPU/メモリ/ディスク） | v0.1実装済み |
+| ✅ サービス管理（allowlist） | v0.1実装済み |
+| ✅ ログ閲覧（journalctl） | v0.1実装済み |
+| ✅ 認証・認可（JWT/RBAC） | v0.1実装済み |
+| ✅ 監査ログ（API + UI） | v0.5実装済み |
+| ✅ Running Processes 管理 | v0.2実装済み |
+| ✅ Users and Groups 管理 | v0.3実装済み |
+| ✅ Cron Jobs 管理 | v0.3実装済み |
+| ✅ 承認ワークフロー | v0.3実装済み |
+| ✅ Network Configuration | v0.4実装済み |
+| ✅ Hardware（SMART/Sensors） | v0.4実装済み |
+| ✅ Linux Firewall（UFW） | v0.5実装済み |
+| ✅ Software Package Updates | v0.5実装済み |
+| ✅ SSH Server 設定 | v0.5実装済み |
+| ✅ Disk and Network Filesystems | v0.6実装済み |
+| ✅ Bootup and Shutdown | v0.7実装済み |
+| ✅ System Time | v0.7実装済み |
+| ✅ Disk Quotas | v0.8実装済み |
+| ✅ MySQL/PostgreSQL 監視 | v0.8実装済み |
+| ✅ Bandwidth Monitoring | v0.8実装済み |
+| ✅ Apache Webserver 管理 | v0.9実装済み |
+| ✅ Postfix/Sendmail 管理 | v0.9実装済み |
 
 ---
 
@@ -223,20 +240,21 @@ uvicorn api.main:app --reload
 | | - ログ閲覧（journalctl） | ✅ 実装済み | |
 | | - 認証・認可（JWT/RBAC） | ✅ 実装済み | |
 | | - 監査ログ | ✅ 実装済み | |
-| **v0.2** | **System管理拡張** | 📋 計画中 | 0% |
-| | - Users and Groups 管理 | 📋 | |
-| | - Cron Jobs 管理 | 📋 | |
+| **v0.2** | **System管理拡張** | ✅ **完了** | **100%** |
+| | - Users and Groups 管理 | ✅ | v0.3実装済み |
+| | - Cron Jobs 管理 | ✅ | v0.3実装済み |
 | | - Running Processes 詳細 | ✅ | v0.2実装済み（179 test cases） |
-| | - Network Configuration | 📋 | |
-| | - SSH Server 設定 | 📋 | |
-| **v0.3** | **Servers・Security** | 📋 計画中 | 0% |
-| | - MySQL/PostgreSQL 管理 | 📋 | |
-| | - Linux Firewall（iptables） | 📋 | |
-| | - Package Updates（APT） | 📋 | |
-| | - 承認フロー実装 | 📋 | |
-| | - SMART Drive Status | 📋 | |
-| **v0.4** | **高度な管理** | 📋 計画中 | 0% |
-| | - Apache Webserver 管理 | 📋 | |
+| | - Network Configuration | ✅ | v0.4実装済み |
+| | - SSH Server 設定 | ✅ | v0.5実装済み |
+| **v0.3** | **Servers・Security** | ✅ **完了** | **100%** |
+| | - MySQL/PostgreSQL 監視 | ✅ | v0.8実装済み |
+| | - Linux Firewall（UFW） | ✅ | v0.5実装済み |
+| | - Package Updates（APT） | ✅ | v0.5実装済み |
+| | - 承認フロー実装 | ✅ | v0.3実装済み |
+| | - SMART Drive Status | ✅ | v0.4実装済み |
+| **v0.4** | **高度な管理** | 🔄 **一部完了** | **50%** |
+| | - Apache Webserver 管理 | ✅ | v0.9実装済み |
+| | - Postfix/Sendmail 管理 | ✅ | v0.9実装済み |
 | | - File Manager（制限付き） | 📋 | |
 | | - DNS/DHCP Server 管理 | 📋 | |
 | **v0.5** | **クラスタ管理** | 📋 計画中 | 0% |

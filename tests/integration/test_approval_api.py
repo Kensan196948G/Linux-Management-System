@@ -710,27 +710,33 @@ class TestOtherEndpoints:
     """その他のエンドポイントのテスト"""
 
     def test_get_approval_history_admin(self, test_client, admin_headers):
-        """承認履歴取得（Admin専用 - v0.4 スタブ: 501）"""
+        """承認履歴取得（Admin専用）"""
         response = test_client.get(
             "/api/approval/history", headers=admin_headers
         )
-        assert response.status_code == 501
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "items" in data
+        assert "total" in data
 
     def test_export_approval_history_json(self, test_client, admin_headers):
-        """承認履歴エクスポート JSON（v0.4 スタブ: 501）"""
+        """承認履歴エクスポート JSON"""
         response = test_client.get(
             "/api/approval/history/export?format=json",
             headers=admin_headers,
         )
-        assert response.status_code == 501
+        assert response.status_code == 200
+        assert "application/json" in response.headers.get("content-type", "")
 
     def test_export_approval_history_csv(self, test_client, admin_headers):
-        """承認履歴エクスポート CSV（v0.4 スタブ: 501）"""
+        """承認履歴エクスポート CSV"""
         response = test_client.get(
             "/api/approval/history/export?format=csv",
             headers=admin_headers,
         )
-        assert response.status_code == 501
+        assert response.status_code == 200
+        assert "text/csv" in response.headers.get("content-type", "")
 
     def test_get_approval_policies(self, test_client, operator_headers):
         """承認ポリシー一覧取得"""
@@ -745,11 +751,13 @@ class TestOtherEndpoints:
         assert len(data["policies"]) > 0
 
     def test_get_approval_stats_admin(self, test_client, admin_headers):
-        """承認統計情報取得（Admin専用 - v0.4 スタブ: 501）"""
+        """承認統計情報取得（Admin専用）"""
         response = test_client.get(
             "/api/approval/stats", headers=admin_headers
         )
-        assert response.status_code == 501
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
 
 
 # ============================================================================

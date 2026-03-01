@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Server - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .ssh-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .ssh-card-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 12px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-inactive { background: #f3f4f6; color: #6b7280; }
+        .status-failed { background: #fee2e2; color: #991b1b; }
+        .status-unknown { background: #fef3c7; color: #92400e; }
+        .enabled-badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+        .enabled-disabled { background: #f3f4f6; color: #6b7280; }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .meta-label { font-size: 12px; color: #6b7280; }
+        .meta-value { font-size: 14px; font-weight: 600; color: #111827; }
+        .level-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .level-critical { background: #fee2e2; color: #991b1b; }
+        .level-warning { background: #fef3c7; color: #92400e; }
+        .level-low { background: #fef9c3; color: #854d0e; }
+        .level-info { background: #f3f4f6; color: #6b7280; }
+        .warning-banner {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .banner-critical { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .banner-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+        .config-table { width: 100%; border-collapse: collapse; }
+        .config-table th {
+            text-align: left;
+            padding: 8px 12px;
+            background: #f9fafb;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+        }
+        .config-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 13px;
+        }
+        .config-table tr:hover { background: #f9fafb; }
+        .settings-table { width: 100%; border-collapse: collapse; }
+        .settings-table th {
+            text-align: left;
+            padding: 8px 12px;
+            background: #f9fafb;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+        }
+        .settings-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 13px;
+            font-family: monospace;
+        }
+        .settings-table tr:hover { background: #f9fafb; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">SSH Server</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadAll()" id="refresh-btn">
+                更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <div id="ssh-loading" class="text-center py-4 text-muted">読み込み中...</div>
+            <div id="ssh-content" style="display:none">
+
+                <!-- 警告バナー -->
+                <div id="warning-banners"></div>
+
+                <!-- サービス状態カード -->
+                <div class="ssh-card" id="status-card">
+                    <div class="ssh-card-title">サービス状態</div>
+                    <div class="meta-grid" id="status-grid"></div>
+                </div>
+
+                <!-- sshd設定 警告テーブル -->
+                <div class="ssh-card" id="warnings-card" style="display:none">
+                    <div class="ssh-card-title">セキュリティ警告</div>
+                    <table class="config-table">
+                        <thead>
+                            <tr>
+                                <th>設定項目</th>
+                                <th>現在値</th>
+                                <th>レベル</th>
+                                <th>メッセージ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="warnings-tbody"></tbody>
+                    </table>
+                </div>
+
+                <!-- sshd設定値テーブル -->
+                <div class="ssh-card" id="settings-card" style="display:none">
+                    <div class="ssh-card-title">sshd 設定値</div>
+                    <table class="settings-table">
+                        <thead>
+                            <tr>
+                                <th>キー</th>
+                                <th>値</th>
+                            </tr>
+                        </thead>
+                        <tbody id="settings-tbody"></tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('ssh')):renderSidebar('ssh');</script>
+<script>
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function getStatusBadge(state) {
+    if (!state) return '<span class="status-badge status-unknown">-</span>';
+    const s = state.toLowerCase();
+    if (s === 'active' || s.includes('active')) return '<span class="status-badge status-active">' + escapeHtml(state) + '</span>';
+    if (s === 'inactive' || s === 'stopped') return '<span class="status-badge status-inactive">' + escapeHtml(state) + '</span>';
+    if (s === 'failed' || s === 'error') return '<span class="status-badge status-failed">' + escapeHtml(state) + '</span>';
+    return '<span class="status-badge status-unknown">' + escapeHtml(state) + '</span>';
+}
+
+function getLevelBadge(level) {
+    if (!level) return '<span class="level-badge level-info">-</span>';
+    const l = level.toUpperCase();
+    if (l === 'CRITICAL') return '<span class="level-badge level-critical">CRITICAL</span>';
+    if (l === 'WARNING') return '<span class="level-badge level-warning">WARNING</span>';
+    if (l === 'LOW') return '<span class="level-badge level-low">LOW</span>';
+    return '<span class="level-badge level-info">' + escapeHtml(level) + '</span>';
+}
+
+function showAlert(message, type) {
+    const area = document.getElementById('alert-area');
+    area.innerHTML = '<div class="alert alert-' + escapeHtml(type) + '">' + escapeHtml(message) + '</div>';
+}
+
+async function loadSshStatus() {
+    try {
+        const data = await api.getSshStatus();
+        const grid = document.getElementById('status-grid');
+
+        const enabledClass = (data.enabled_state || '').toLowerCase() === 'enabled' ? 'enabled-badge' : 'enabled-badge enabled-disabled';
+
+        grid.innerHTML =
+            '<div class="meta-item"><div class="meta-label">サービス</div><div class="meta-value">' + escapeHtml(data.service || 'sshd') + '</div></div>' +
+            '<div class="meta-item"><div class="meta-label">状態</div><div class="meta-value">' + getStatusBadge(data.active_state) + '</div></div>' +
+            '<div class="meta-item"><div class="meta-label">自動起動</div><div class="meta-value"><span class="' + enabledClass + '">' + escapeHtml(data.enabled_state || '-') + '</span></div></div>' +
+            '<div class="meta-item"><div class="meta-label">PID</div><div class="meta-value"><code>' + escapeHtml(String(data.pid || '-')) + '</code></div></div>' +
+            '<div class="meta-item"><div class="meta-label">ポート</div><div class="meta-value"><code>' + escapeHtml(String(data.port || '-')) + '</code></div></div>';
+    } catch (e) {
+        showAlert('SSH状態の取得に失敗しました: ' + e.message, 'warning');
+    }
+}
+
+async function loadSshConfig() {
+    try {
+        const data = await api.getSshConfig();
+
+        // 警告バナー
+        const banners = document.getElementById('warning-banners');
+        let bannerHtml = '';
+        if (data.critical_count > 0) {
+            bannerHtml += '<div class="warning-banner banner-critical">CRITICAL: ' + escapeHtml(String(data.critical_count)) + ' 件の重大な設定問題があります</div>';
+        }
+        if (data.warning_count > 0) {
+            bannerHtml += '<div class="warning-banner banner-warning">WARNING: ' + escapeHtml(String(data.warning_count)) + ' 件の警告があります</div>';
+        }
+        banners.innerHTML = bannerHtml;
+
+        // 警告テーブル
+        const warnings = data.warnings || [];
+        const warningsCard = document.getElementById('warnings-card');
+        const warnTbody = document.getElementById('warnings-tbody');
+        if (warnings.length > 0) {
+            warningsCard.style.display = '';
+            warnTbody.innerHTML = warnings.map(function(w) {
+                return '<tr>' +
+                    '<td><strong>' + escapeHtml(w.key || '') + '</strong></td>' +
+                    '<td><code>' + escapeHtml(String(w.value || '')) + '</code></td>' +
+                    '<td>' + getLevelBadge(w.level) + '</td>' +
+                    '<td>' + escapeHtml(w.message || '') + '</td>' +
+                    '</tr>';
+            }).join('');
+        } else {
+            warningsCard.style.display = 'none';
+        }
+
+        // 設定値テーブル
+        const settings = data.settings || {};
+        const settingsCard = document.getElementById('settings-card');
+        const setTbody = document.getElementById('settings-tbody');
+        const keys = Object.keys(settings);
+        if (keys.length > 0) {
+            settingsCard.style.display = '';
+            setTbody.innerHTML = keys.map(function(k) {
+                return '<tr>' +
+                    '<td>' + escapeHtml(k) + '</td>' +
+                    '<td>' + escapeHtml(String(settings[k])) + '</td>' +
+                    '</tr>';
+            }).join('');
+        } else {
+            settingsCard.style.display = 'none';
+        }
+
+    } catch (e) {
+        showAlert('SSH設定の取得に失敗しました: ' + e.message, 'warning');
+    }
+}
+
+async function loadAll() {
+    const loading = document.getElementById('ssh-loading');
+    const content = document.getElementById('ssh-content');
+    loading.style.display = ''; content.style.display = 'none';
+    document.getElementById('alert-area').innerHTML = '';
+
+    await Promise.all([loadSshStatus(), loadSshConfig()]);
+
+    loading.style.display = 'none'; content.style.display = '';
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
+    api.setToken(token);
+    loadAll();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>
