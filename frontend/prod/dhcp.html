@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DHCP Server - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .badge-running { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-stopped { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-unavail { background: #f3f4f6; color: #6b7280; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .raw-output { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        .metric-val { font-size: 22px; font-weight: bold; color: #1e293b; }
+        .metric-label { font-size: 12px; color: #6b7280; }
+        .unavail-notice { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px; color: #713f12; font-size: 13px; }
+        .nav-tabs .nav-link.active { color: #2563eb; font-weight: 600; border-bottom: 2px solid #2563eb; background: none; }
+        .nav-tabs .nav-link { color: #6b7280; }
+        table.leases-table { font-size: 13px; }
+        table.leases-table th { background: #f8fafc; color: #374151; font-weight: 600; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+    <div class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">🌐 DHCP Server 管理</h1>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">🔄 更新</button>
+        </div>
+
+        <!-- ステータスカード -->
+        <div class="status-card">
+            <div class="status-title">📊 DHCP ステータス</div>
+            <div id="status-content"><span class="text-muted">読み込み中...</span></div>
+        </div>
+
+        <!-- タブ -->
+        <ul class="nav nav-tabs mb-3" id="mainTab">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-leases">📋 リース一覧</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-config">⚙️ 設定</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-pools">🏊 アドレスプール</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs">📜 ログ</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- リース一覧タブ -->
+            <div class="tab-pane fade show active" id="tab-leases">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">📋 アクティブリース一覧</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadLeases()">🔄 更新</button>
+                    </div>
+                    <div id="leases-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- 設定タブ -->
+            <div class="tab-pane fade" id="tab-config">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">⚙️ DHCP 設定サマリ</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadConfig()">🔄 更新</button>
+                    </div>
+                    <div id="config-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- アドレスプールタブ -->
+            <div class="tab-pane fade" id="tab-pools">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">🏊 アドレスプール</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadPools()">🔄 更新</button>
+                    </div>
+                    <div id="pools-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- ログタブ -->
+            <div class="tab-pane fade" id="tab-logs">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">📜 DHCP ログ</div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <select id="log-lines" class="form-select form-select-sm" style="width:100px">
+                                <option value="50">50行</option>
+                                <option value="100">100行</option>
+                                <option value="200">200行</option>
+                            </select>
+                            <button class="btn btn-sm btn-primary" onclick="loadLogs()">🔄 更新</button>
+                        </div>
+                    </div>
+                    <div id="logs-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+    const API_BASE = window.API_BASE_URL || '';
+
+    function getToken() {
+        return localStorage.getItem('access_token') || '';
+    }
+
+    function authHeaders() {
+        return { 'Authorization': 'Bearer ' + getToken() };
+    }
+
+    async function apiFetch(path) {
+        const resp = await fetch(API_BASE + path, { headers: authHeaders() });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+        return resp.json();
+    }
+
+    async function loadStatus() {
+        const el = document.getElementById('status-content');
+        try {
+            const res = await apiFetch('/api/dhcp/status');
+            const d = res.data;
+            const badge = d.status === 'running'
+                ? `<span class="badge-running">● 稼働中</span>`
+                : `<span class="badge-stopped">● 停止中</span>`;
+            el.innerHTML = `
+                <div class="d-flex gap-4 flex-wrap">
+                    <div><div class="metric-label">ステータス</div><div class="metric-val">${badge}</div></div>
+                    <div><div class="metric-label">バージョン</div><div class="metric-val" style="font-size:14px">${d.version || '-'}</div></div>
+                    <div><div class="metric-label">サービス名</div><div class="metric-val" style="font-size:14px">${d.service || 'isc-dhcp-server'}</div></div>
+                </div>`;
+        } catch (e) {
+            if (e.message && e.message.includes('インストール')) {
+                el.innerHTML = `<div class="unavail-notice">⚠️ isc-dhcp-server はインストールされていません</div>`;
+            } else {
+                el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+            }
+        }
+    }
+
+    async function loadLeases() {
+        const el = document.getElementById('leases-content');
+        try {
+            const res = await apiFetch('/api/dhcp/leases');
+            const leases = res.data.leases || [];
+            if (leases.length === 0) {
+                el.innerHTML = '<p class="text-muted">アクティブなリースはありません</p>';
+                return;
+            }
+            let rows = leases.map(l => `
+                <tr>
+                    <td><code>${l.ip || '-'}</code></td>
+                    <td><code>${l.mac || '-'}</code></td>
+                    <td>${l.hostname || '-'}</td>
+                    <td>${l.expires || '-'}</td>
+                    <td><span class="badge bg-success">${l.state || 'active'}</span></td>
+                </tr>`).join('');
+            el.innerHTML = `
+                <p class="text-muted mb-2">合計: ${res.data.total || leases.length} 件</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered leases-table">
+                        <thead><tr><th>IPアドレス</th><th>MACアドレス</th><th>ホスト名</th><th>有効期限</th><th>状態</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+        } catch (e) {
+            el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+        }
+    }
+
+    async function loadConfig() {
+        const el = document.getElementById('config-content');
+        try {
+            const res = await apiFetch('/api/dhcp/config');
+            const subnets = res.data.subnets || [];
+            if (subnets.length === 0) {
+                el.innerHTML = '<p class="text-muted">設定が見つかりません</p>';
+                return;
+            }
+            let html = subnets.map(s => {
+                const ranges = (s.ranges || []).map(r => `${r.start} - ${r.end}`).join('<br>');
+                return `
+                    <div class="mb-3 p-3 border rounded">
+                        <strong>サブネット:</strong> <code>${s.subnet}/${s.netmask}</code><br>
+                        <strong>レンジ:</strong> ${ranges || '-'}<br>
+                        ${s.router ? `<strong>ルーター:</strong> ${s.router}<br>` : ''}
+                        ${s.dns ? `<strong>DNS:</strong> ${s.dns}<br>` : ''}
+                    </div>`;
+            }).join('');
+            el.innerHTML = `<p class="text-muted mb-2">サブネット数: ${res.data.total || subnets.length}</p>${html}`;
+        } catch (e) {
+            el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+        }
+    }
+
+    async function loadPools() {
+        const el = document.getElementById('pools-content');
+        try {
+            const res = await apiFetch('/api/dhcp/pools');
+            const pools = res.data.pools || [];
+            if (pools.length === 0) {
+                el.innerHTML = '<p class="text-muted">プールが見つかりません</p>';
+                return;
+            }
+            let html = pools.map((p, i) => {
+                const ranges = (p.ranges || []).map(r => `${r.start} - ${r.end}`).join('<br>');
+                return `
+                    <div class="mb-3 p-3 border rounded">
+                        <strong>プール ${i + 1}</strong> (${p.subnet || '-'})<br>
+                        <strong>レンジ:</strong> ${ranges || '-'}<br>
+                        ${p.allow && p.allow.length ? `<strong>許可:</strong> ${p.allow.join(', ')}<br>` : ''}
+                        ${p.deny && p.deny.length ? `<strong>拒否:</strong> ${p.deny.join(', ')}<br>` : ''}
+                    </div>`;
+            }).join('');
+            el.innerHTML = `<p class="text-muted mb-2">プール数: ${res.data.total || pools.length}</p>${html}`;
+        } catch (e) {
+            el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+        }
+    }
+
+    async function loadLogs() {
+        const el = document.getElementById('logs-content');
+        const lines = document.getElementById('log-lines').value;
+        try {
+            const res = await apiFetch(`/api/dhcp/logs?lines=${lines}`);
+            const text = res.data.logs || '';
+            el.innerHTML = `<div class="raw-output">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;') || '(ログなし)'}</div>`;
+        } catch (e) {
+            el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+        }
+    }
+
+    function refreshAll() {
+        loadStatus();
+        loadLeases();
+        loadConfig();
+        loadPools();
+        loadLogs();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        loadStatus();
+        loadLeases();
+        document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+            tab.addEventListener('shown.bs.tab', function (e) {
+                const target = e.target.getAttribute('href');
+                if (target === '#tab-config') loadConfig();
+                else if (target === '#tab-pools') loadPools();
+                else if (target === '#tab-logs') loadLogs();
+            });
+        });
+    });
+</script>
+</body>
+</html>

@@ -93,6 +93,8 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # DHCP Server
+            "read:dhcp",
         ],
     ),
     "Operator": UserRole(
@@ -134,6 +136,8 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # DHCP Server
+            "read:dhcp",
         ],
     ),
     "Approver": UserRole(
@@ -182,6 +186,8 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # DHCP Server
+            "read:dhcp",
         ],
     ),
     "Admin": UserRole(
@@ -243,6 +249,8 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # DHCP Server
+            "read:dhcp",
         ],
     ),
 }
