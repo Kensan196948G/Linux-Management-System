@@ -477,6 +477,101 @@ function logout() {
     window.location.href = 'dashboard.html';
 }
 
+// ===== ログ検索 (Step 25) =====
+async function searchLogs() {
+    const q     = document.getElementById('search-input').value.trim();
+    const file  = document.getElementById('search-file-select').value;
+    const lines = document.getElementById('search-lines-select').value;
+    const resCont = document.getElementById('search-result-container');
+    const resBox  = document.getElementById('search-result-box');
+    const resLbl  = document.getElementById('search-result-label');
+    if (!q) { return; }
+    resBox.innerHTML = '<span class="text-muted">検索中...</span>';
+    resCont.style.display = 'block';
+    try {
+        const resp = await fetch(
+            `${window.location.origin}/api/logs/search?q=${encodeURIComponent(q)}&file=${encodeURIComponent(file)}&lines=${lines}`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }
+        );
+        if (resp.status === 401) { window.location.href = 'dashboard.html'; return; }
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            resBox.innerHTML = `<span class="text-danger">エラー: ${escapeHtml(err.detail || resp.status)}</span>`;
+            resLbl.textContent = '検索失敗';
+            return;
+        }
+        const data = await resp.json();
+        const results = data.results || [];
+        resLbl.textContent = `"${escapeHtml(q)}" — ${results.length} 件`;
+        if (results.length === 0) {
+            resBox.innerHTML = '<span class="text-muted">結果なし</span>';
+            return;
+        }
+        const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        resBox.innerHTML = results.map(line => {
+            const escaped = escapeHtml(line);
+            const highlighted = escaped.replace(re, m => `<mark class="search-highlight">${escapeHtml(m)}</mark>`);
+            const errClass = /error|critical|fatal/i.test(line) ? ' err-highlight' : '';
+            return `<div class="py-1 border-bottom${errClass}">${highlighted}</div>`;
+        }).join('');
+    } catch (e) {
+        resBox.innerHTML = `<span class="text-danger">通信エラー: ${escapeHtml(e.message)}</span>`;
+    }
+}
+
+function clearSearch() {
+    document.getElementById('search-result-container').style.display = 'none';
+    document.getElementById('search-input').value = '';
+}
+
+// ファイル一覧を動的取得してドロップダウンを更新
+async function loadLogFiles() {
+    try {
+        const resp = await fetch(
+            `${window.location.origin}/api/logs/files`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }
+        );
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const files = (data.files || []).map(f => f.replace(/.*\//, ''));
+        const sel = document.getElementById('search-file-select');
+        const current = sel.value;
+        sel.innerHTML = '';
+        const unique = [...new Set(['syslog', 'auth.log', 'kern.log', ...files])];
+        unique.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f; opt.textContent = f;
+            if (f === current) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    } catch (e) { /* ignore */ }
+}
+
+// 直近エラーパネルを表示
+async function loadRecentErrors() {
+    const panel = document.getElementById('recent-errors-panel');
+    const body  = document.getElementById('recent-errors-body');
+    try {
+        const resp = await fetch(
+            `${window.location.origin}/api/logs/recent-errors`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }
+        );
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const errors = data.errors || [];
+        if (errors.length === 0) return;
+        panel.style.display = 'block';
+        body.innerHTML = errors.map(line => `<div class="err-line">${escapeHtml(line)}</div>`).join('');
+    } catch (e) { /* ignore */ }
+}
+
+// Enterキーで検索
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'search-input') {
+        searchLogs();
+    }
+});
+
 // ===== 初期化 =====
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof restoreAccordionState === 'function') {
@@ -494,6 +589,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (emailEl) emailEl.textContent = u.email    || '-';
         }).catch(() => {});
     }
+    // Step 25: ファイル一覧と直近エラーを非同期で取得
+    loadLogFiles();
+    loadRecentErrors();
 });
 </script>
 </body>
