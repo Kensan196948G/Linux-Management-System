@@ -915,6 +915,110 @@ class SudoWrapper:
         """
         return self._execute("adminui-apache.sh", ["config-check"], timeout=15)
 
+    # ===================================================================
+    # FTP Server (ProFTPD/vsftpd) メソッド
+    # ===================================================================
+
+    def get_ftp_status(self) -> Dict[str, Any]:
+        """FTP サービス状態を取得 (proftpd/vsftpd)
+
+        Returns:
+            FTP サービス状態の辞書（active/enabled/version）
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-proftpd.sh", ["status"], timeout=15)
+
+    def get_ftp_users(self) -> Dict[str, Any]:
+        """FTP 許可ユーザー一覧を取得 (/etc/ftpusers 等)
+
+        Returns:
+            FTP ユーザー一覧の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-proftpd.sh", ["users"], timeout=15)
+
+    def get_ftp_sessions(self) -> Dict[str, Any]:
+        """FTP アクティブセッションを取得 (ss -tnp ポート21)
+
+        Returns:
+            アクティブセッションの辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-proftpd.sh", ["sessions"], timeout=15)
+
+    def get_ftp_logs(self, lines: int = 50) -> Dict[str, Any]:
+        """FTP ログを取得 (journalctl / /var/log/proftpd/)
+
+        Args:
+            lines: 取得するログ行数（1〜200）
+
+        Returns:
+            FTP ログの辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        safe_lines = max(1, min(200, lines))
+        return self._execute("adminui-proftpd.sh", ["logs", str(safe_lines)], timeout=15)
+
+    # ===================================================================
+    # Squid Proxy Server メソッド
+    # ===================================================================
+
+    def get_squid_status(self) -> Dict[str, Any]:
+        """Squid サービス状態を取得
+
+        Returns:
+            Squid サービス状態の辞書（active/enabled/version）
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-squid.sh", ["status"], timeout=15)
+
+    def get_squid_cache(self) -> Dict[str, Any]:
+        """Squid キャッシュ統計を取得 (squidclient mgr:info)
+
+        Returns:
+            キャッシュ統計の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-squid.sh", ["cache"], timeout=15)
+
+    def get_squid_logs(self, lines: int = 50) -> Dict[str, Any]:
+        """Squid アクセスログを取得 (/var/log/squid/access.log)
+
+        Args:
+            lines: 取得するログ行数（1〜200）
+
+        Returns:
+            Squid ログの辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        safe_lines = max(1, min(200, lines))
+        return self._execute("adminui-squid.sh", ["logs", str(safe_lines)], timeout=15)
+
+    def get_squid_config_check(self) -> Dict[str, Any]:
+        """Squid 設定ファイル構文チェック (squid -k check)
+
+        Returns:
+            構文チェック結果の辞書（syntax_ok: bool）
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-squid.sh", ["config-check"], timeout=15)
+
     def get_hardware_disks(self) -> Dict[str, Any]:
         """
         ブロックデバイス一覧を取得 (lsblk -J)

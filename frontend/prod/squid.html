@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squid Proxy - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .badge-active { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-inactive { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-unavail { background: #f3f4f6; color: #6b7280; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-ok { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-error { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .raw-output { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; font-family: monospace; white-space: pre-wrap; max-height: 320px; overflow-y: auto; }
+        .metric-val { font-size: 22px; font-weight: bold; color: #1e293b; }
+        .metric-label { font-size: 12px; color: #6b7280; }
+        .unavail-notice { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px; color: #713f12; font-size: 13px; }
+        .nav-tabs .nav-link.active { color: #2563eb; font-weight: 600; border-bottom: 2px solid #2563eb; background: none; }
+        .nav-tabs .nav-link { color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+    <div class="main-content">
+        <div class="container-fluid py-4">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h1 class="h4 mb-0">🦑 Squid Proxy Server</h1>
+                    <p class="text-muted small mb-0">Squid プロキシサーバーの状態・キャッシュ統計・ログ・設定確認</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadAll()">🔄 更新</button>
+                </div>
+            </div>
+
+            <!-- ステータスカード -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <div class="status-card text-center">
+                        <div class="metric-label mb-1">サービス状態</div>
+                        <div id="svcActive" class="metric-val mb-1">-</div>
+                        <span id="badgeActive" class="badge-unavail">-</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="status-card text-center">
+                        <div class="metric-label mb-1">自動起動</div>
+                        <div id="svcEnabled" class="metric-val mb-1">-</div>
+                        <span id="badgeEnabled" class="badge-unavail">-</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="status-card text-center">
+                        <div class="metric-label mb-1">設定構文チェック</div>
+                        <div id="syntaxOk" class="metric-val mb-1">-</div>
+                        <span id="badgeSyntax" class="badge-unavail">-</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="status-card text-center">
+                        <div class="metric-label mb-1">バージョン</div>
+                        <div id="squidVersion" class="metric-val" style="font-size:12px;">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- タブ -->
+            <ul class="nav nav-tabs mb-3" id="squidTabs">
+                <li class="nav-item"><a class="nav-link active" href="#" onclick="return switchTab('cache', this)">📊 キャッシュ統計</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="return switchTab('logs', this)">📋 ログ</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="return switchTab('configcheck', this)">✅ 設定確認</a></li>
+            </ul>
+
+            <!-- キャッシュ統計 -->
+            <div id="tabCache">
+                <div class="status-card">
+                    <div class="status-title">📊 キャッシュ統計 (squidclient mgr:info)</div>
+                    <div id="cacheContent"><div class="text-center text-muted py-3">読み込み中...</div></div>
+                </div>
+            </div>
+
+            <!-- ログ -->
+            <div id="tabLogs" style="display:none;">
+                <div class="status-card">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div class="status-title mb-0">📋 アクセスログ</div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="small text-muted mb-0">行数:</label>
+                            <select id="logLines" class="form-select form-select-sm" style="width:80px;" onchange="loadLogs()">
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                                <option value="200">200</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="logsContent"><div class="text-center text-muted py-3">読み込み中...</div></div>
+                </div>
+            </div>
+
+            <!-- 設定確認 -->
+            <div id="tabConfigcheck" style="display:none;">
+                <div class="status-card">
+                    <div class="status-title">✅ 設定ファイル構文チェック (squid -k check)</div>
+                    <div id="configcheckContent"><div class="text-center text-muted py-3">読み込み中...</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('squid')):renderSidebar('squid');</script>
+<script>
+const API_BASE = '/api';
+let authToken = localStorage.getItem('access_token') || '';
+
+function getHeaders() { return { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' }; }
+
+async function apiFetch(path) {
+    const r = await fetch(API_BASE + path, { headers: getHeaders() });
+    if (r.status === 401 || r.status === 403) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return null; }
+    return r.ok ? r.json() : null;
+}
+
+function switchTab(name, el) {
+    document.querySelectorAll('#squidTabs .nav-link').forEach(a => a.classList.remove('active'));
+    el.classList.add('active');
+    ['cache', 'logs', 'configcheck'].forEach(t => {
+        document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = (t === name) ? '' : 'none';
+    });
+    if (name === 'cache') loadCache();
+    else if (name === 'logs') loadLogs();
+    else if (name === 'configcheck') loadConfigCheck();
+    return false;
+}
+
+function renderUnavail(msg) { return `<div class="unavail-notice">⚠️ ${escHtml(msg || 'Squid がインストールされていないか、利用できません。')}</div>`; }
+function renderRaw(text) { return text ? `<div class="raw-output">${escHtml(text)}</div>` : '<div class="text-muted small">データなし</div>'; }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadStatus() {
+    const d = await apiFetch('/squid/status');
+    if (!d) return;
+    if (d.status === 'unavailable') {
+        document.getElementById('svcActive').textContent = '-';
+        document.getElementById('svcEnabled').textContent = '-';
+        document.getElementById('squidVersion').textContent = '-';
+        document.getElementById('badgeActive').className = 'badge-unavail';
+        document.getElementById('badgeActive').textContent = '未インストール';
+        document.getElementById('badgeEnabled').className = 'badge-unavail';
+        document.getElementById('badgeEnabled').textContent = '-';
+        return;
+    }
+    const active = d.active || 'unknown';
+    const enabled = d.enabled || 'unknown';
+    document.getElementById('svcActive').textContent = active;
+    document.getElementById('svcEnabled').textContent = enabled;
+    document.getElementById('squidVersion').textContent = d.version || '-';
+    document.getElementById('badgeActive').className = active === 'active' ? 'badge-active' : 'badge-inactive';
+    document.getElementById('badgeActive').textContent = active;
+    document.getElementById('badgeEnabled').className = enabled === 'enabled' ? 'badge-active' : 'badge-inactive';
+    document.getElementById('badgeEnabled').textContent = enabled;
+}
+
+async function loadCache() {
+    const el = document.getElementById('cacheContent');
+    el.innerHTML = '<div class="text-center text-muted py-3">読み込み中...</div>';
+    const d = await apiFetch('/squid/cache');
+    if (!d) return;
+    if (d.status === 'unavailable') { el.innerHTML = renderUnavail(d.message); return; }
+    el.innerHTML = renderRaw(d.cache_raw);
+}
+
+async function loadLogs() {
+    const el = document.getElementById('logsContent');
+    el.innerHTML = '<div class="text-center text-muted py-3">読み込み中...</div>';
+    const lines = document.getElementById('logLines').value;
+    const d = await apiFetch(`/squid/logs?lines=${lines}`);
+    if (!d) return;
+    if (d.status === 'unavailable') { el.innerHTML = renderUnavail(d.message); return; }
+    el.innerHTML = renderRaw(d.logs_raw);
+}
+
+async function loadConfigCheck() {
+    const el = document.getElementById('configcheckContent');
+    el.innerHTML = '<div class="text-center text-muted py-3">読み込み中...</div>';
+    const d = await apiFetch('/squid/config-check');
+    if (!d) return;
+    if (d.status === 'unavailable') { el.innerHTML = renderUnavail(d.message); return; }
+
+    const ok = d.syntax_ok;
+    const badge = ok ? '<span class="badge-ok">✅ Syntax OK</span>' : '<span class="badge-error">❌ Config Error</span>';
+
+    document.getElementById('syntaxOk').textContent = ok ? 'OK' : 'ERROR';
+    document.getElementById('badgeSyntax').className = ok ? 'badge-ok' : 'badge-error';
+    document.getElementById('badgeSyntax').textContent = ok ? 'Syntax OK' : 'Config Error';
+
+    el.innerHTML = `<div class="mb-2">${badge}</div>` + renderRaw(d.output);
+}
+
+async function loadAll() {
+    await loadStatus();
+    loadCache();
+    loadConfigCheck();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (!localStorage.getItem('access_token')) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
+    loadAll();
+});
+</script>
+</body>
+</html>

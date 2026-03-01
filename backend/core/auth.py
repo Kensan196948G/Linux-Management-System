@@ -93,6 +93,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # FTP Server
+            "read:ftp",
+            # Squid Proxy
+            "read:squid",
         ],
     ),
     "Operator": UserRole(
@@ -134,6 +138,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # FTP Server
+            "read:ftp",
+            # Squid Proxy
+            "read:squid",
         ],
     ),
     "Approver": UserRole(
@@ -182,6 +190,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # FTP Server
+            "read:ftp",
+            # Squid Proxy
+            "read:squid",
         ],
     ),
     "Admin": UserRole(
@@ -243,6 +255,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # FTP Server
+            "read:ftp",
+            # Squid Proxy
+            "read:squid",
         ],
     ),
 }
