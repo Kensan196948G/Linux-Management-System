@@ -1403,6 +1403,58 @@ class SudoWrapper:
         safe_lines = max(1, min(200, lines))
         return self._execute("adminui-postfix.sh", ["logs", str(safe_lines)])
 
+    def get_postgresql_status(self) -> Dict[str, Any]:
+        """PostgreSQL サービス状態を取得
+
+        Returns:
+            PostgreSQL サービス状態の辞書（active/enabled/version/ready）
+        """
+        return self._execute("adminui-postgresql.sh", ["status"], timeout=15)
+
+    def get_postgresql_databases(self) -> Dict[str, Any]:
+        """PostgreSQL データベース一覧を取得
+
+        Returns:
+            データベース一覧の辞書
+        """
+        return self._execute("adminui-postgresql.sh", ["databases"], timeout=15)
+
+    def get_postgresql_users(self) -> Dict[str, Any]:
+        """PostgreSQL ユーザー/ロール一覧を取得
+
+        Returns:
+            ユーザー/ロール一覧の辞書
+        """
+        return self._execute("adminui-postgresql.sh", ["users"], timeout=15)
+
+    def get_postgresql_activity(self) -> Dict[str, Any]:
+        """PostgreSQL 接続・クエリ状況を取得
+
+        Returns:
+            pg_stat_activity の辞書
+        """
+        return self._execute("adminui-postgresql.sh", ["activity"], timeout=15)
+
+    def get_postgresql_config(self) -> Dict[str, Any]:
+        """PostgreSQL 設定パラメータを取得
+
+        Returns:
+            pg_settings 主要項目の辞書
+        """
+        return self._execute("adminui-postgresql.sh", ["config"], timeout=15)
+
+    def get_postgresql_logs(self, lines: int = 50) -> Dict[str, Any]:
+        """PostgreSQL ログを取得
+
+        Args:
+            lines: 取得行数 (1-200)
+
+        Returns:
+            実行結果の辞書
+        """
+        safe_lines = max(1, min(200, lines))
+        return self._execute("adminui-postgresql.sh", ["logs", str(safe_lines)], timeout=15)
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()

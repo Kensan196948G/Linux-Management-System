@@ -81,6 +81,8 @@ ROLES = {
             # クォータ管理
             "read:quotas",
             # DB監視（read:servers 再利用）
+            # PostgreSQL 管理
+            "read:postgresql",
         ],
     ),
     "Operator": UserRole(
@@ -110,6 +112,8 @@ ROLES = {
             "read:time",
             # クォータ管理
             "read:quotas",
+            # PostgreSQL 管理
+            "read:postgresql",
         ],
     ),
     "Approver": UserRole(
@@ -146,6 +150,8 @@ ROLES = {
             "write:quotas",
             # パッケージ管理（個別アップグレード）
             "write:packages",
+            # PostgreSQL 管理
+            "read:postgresql",
         ],
     ),
     "Admin": UserRole(
@@ -195,6 +201,8 @@ ROLES = {
             # パッケージ管理（個別/全体アップグレード）
             "write:packages",
             "execute:upgrade_all",
+            # PostgreSQL 管理
+            "read:postgresql",
         ],
     ),
 }
