@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Configuration - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .config-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .dark-mode .config-card {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        .dark-mode body, .dark-mode .main-content {
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .dark-mode .config-row {
+            border-bottom-color: #334155;
+        }
+        .dark-mode .config-label {
+            color: #94a3b8;
+        }
+        .config-card-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dark-mode .config-card-title { color: #f1f5f9; }
+        .config-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 7px 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 14px;
+        }
+        .config-row:last-child { border-bottom: none; }
+        .config-label { color: #6b7280; min-width: 160px; }
+        .config-value { font-weight: 500; text-align: right; word-break: break-all; }
+        .module-table { font-size: 13px; }
+        .loading-placeholder { color: #9ca3af; font-size: 13px; }
+        #theme-toggle-btn {
+            position: fixed;
+            top: 16px;
+            right: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2>⚙️ System Configuration</h2>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">🔄 更新</button>
+                <button class="btn btn-sm btn-outline-secondary" id="theme-toggle-btn" onclick="toggleTheme()">🌙 ダーク</button>
+            </div>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <div class="row g-3">
+                <!-- ホスト名 -->
+                <div class="col-md-6">
+                    <div class="config-card">
+                        <div class="config-card-title">🖥️ ホスト名</div>
+                        <div id="hostname-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- タイムゾーン -->
+                <div class="col-md-6">
+                    <div class="config-card">
+                        <div class="config-card-title">🕐 タイムゾーン</div>
+                        <div id="timezone-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- ロケール -->
+                <div class="col-md-6">
+                    <div class="config-card">
+                        <div class="config-card-title">🌐 ロケール</div>
+                        <div id="locale-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- カーネル -->
+                <div class="col-md-6">
+                    <div class="config-card">
+                        <div class="config-card-title">🐧 カーネル</div>
+                        <div id="kernel-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- 稼働時間 -->
+                <div class="col-md-6">
+                    <div class="config-card">
+                        <div class="config-card-title">⏱️ 稼働時間</div>
+                        <div id="uptime-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- カーネルモジュール -->
+                <div class="col-12">
+                    <div class="config-card">
+                        <div class="config-card-title">📦 カーネルモジュール (lsmod)</div>
+                        <div id="modules-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function row(label, value) {
+    return `<div class="config-row"><span class="config-label">${escapeHtml(label)}</span><span class="config-value">${value !== undefined && value !== null ? escapeHtml(String(value)) : '—'}</span></div>`;
+}
+
+async function loadHostname() {
+    const el = document.getElementById('hostname-content');
+    try {
+        const d = await api.get('/api/sysconfig/hostname');
+        el.innerHTML = row('ホスト名', d.hostname) + row('FQDN', d.fqdn) + row('短縮名', d.short);
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadTimezone() {
+    const el = document.getElementById('timezone-content');
+    try {
+        const d = await api.get('/api/sysconfig/timezone');
+        el.innerHTML = row('タイムゾーン', d.timezone) + row('/etc/timezone', d.timezone_file) + row('NTP 有効', d.ntp_enabled) + row('ローカル RTC', d.local_rtc);
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadLocale() {
+    const el = document.getElementById('locale-content');
+    try {
+        const d = await api.get('/api/sysconfig/locale');
+        el.innerHTML = row('LANG', d.lang) + row('LC_CTYPE', d.lc_ctype) + row('LC_MESSAGES', d.lc_messages) + row('文字コード', d.charmap);
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadKernel() {
+    const el = document.getElementById('kernel-content');
+    try {
+        const d = await api.get('/api/sysconfig/kernel');
+        el.innerHTML = row('カーネル名', d.kernel_name) + row('リリース', d.kernel_release) + row('アーキテクチャ', d.machine) + row('uname -a', d.uname);
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadUptime() {
+    const el = document.getElementById('uptime-content');
+    try {
+        const d = await api.get('/api/sysconfig/uptime');
+        const secNum = parseFloat(d.uptime_seconds);
+        let uptimeHuman = d.uptime_seconds;
+        if (!isNaN(secNum)) {
+            const days = Math.floor(secNum / 86400);
+            const hrs = Math.floor((secNum % 86400) / 3600);
+            const mins = Math.floor((secNum % 3600) / 60);
+            uptimeHuman = `${days}日 ${hrs}時間 ${mins}分`;
+        }
+        el.innerHTML = row('稼働時間', uptimeHuman) + row('Load 1分', d.load_1min) + row('Load 5分', d.load_5min) + row('Load 15分', d.load_15min);
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadModules() {
+    const el = document.getElementById('modules-content');
+    try {
+        const d = await api.get('/api/sysconfig/modules');
+        const mods = d.modules || [];
+        if (mods.length === 0) {
+            el.innerHTML = '<div class="text-muted">モジュールが見つかりません</div>';
+            return;
+        }
+        const rows = mods.map(m =>
+            `<tr><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.size)}</td><td>${escapeHtml(m.used)}</td></tr>`
+        ).join('');
+        el.innerHTML = `<div class="table-responsive"><table class="table table-sm module-table mb-0">
+            <thead><tr><th>モジュール名</th><th>サイズ</th><th>使用数</th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table></div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function refreshAll() {
+    loadHostname(); loadTimezone(); loadLocale(); loadKernel(); loadUptime(); loadModules();
+}
+
+function toggleTheme() {
+    const isDark = document.body.classList.toggle('dark-mode');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    document.getElementById('theme-toggle-btn').textContent = isDark ? '☀️ ライト' : '🌙 ダーク';
+}
+
+function applyTheme() {
+    const theme = localStorage.getItem('theme');
+    if (theme === 'dark') {
+        document.body.classList.add('dark-mode');
+        document.getElementById('theme-toggle-btn').textContent = '☀️ ライト';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
+    api.setToken(token);
+    if (typeof initSidebar === 'function') initSidebar('sysconfig');
+    applyTheme();
+    refreshAll();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>

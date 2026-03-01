@@ -95,6 +95,8 @@ ROLES = {
             "read:partitions",
             # Sensors (lm-sensors)
             "read:sensors",
+            # System Configuration
+            "read:sysconfig",
             # Routing & Gateways
             "read:routing",
             # DHCP Server
@@ -146,6 +148,8 @@ ROLES = {
             "read:partitions",
             # Sensors (lm-sensors)
             "read:sensors",
+            # System Configuration
+            "read:sysconfig",
             # Routing & Gateways
             "read:routing",
             # DHCP Server
@@ -204,6 +208,8 @@ ROLES = {
             "read:partitions",
             # Sensors (lm-sensors)
             "read:sensors",
+            # System Configuration
+            "read:sysconfig",
             # Routing & Gateways
             "read:routing",
             # DHCP Server
@@ -275,6 +281,8 @@ ROLES = {
             "read:partitions",
             # Sensors (lm-sensors)
             "read:sensors",
+            # System Configuration
+            "read:sysconfig",
             # Routing & Gateways
             "read:routing",
             # DHCP Server

@@ -1938,6 +1938,82 @@ class SudoWrapper:
         """
         return self._execute("adminui-routing.sh", ["interfaces"], timeout=15)
 
+    # ------------------------------------------------------------------
+    # システム設定
+    # ------------------------------------------------------------------
+
+    def get_sysconfig_hostname(self) -> Dict[str, Any]:
+        """
+        ホスト名情報を取得 (hostname)
+
+        Returns:
+            ホスト名情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sysconfig.sh", ["hostname"], timeout=10)
+
+    def get_sysconfig_timezone(self) -> Dict[str, Any]:
+        """
+        タイムゾーン情報を取得 (timedatectl show / /etc/timezone)
+
+        Returns:
+            タイムゾーン情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sysconfig.sh", ["timezone"], timeout=10)
+
+    def get_sysconfig_locale(self) -> Dict[str, Any]:
+        """
+        ロケール情報を取得 (localectl status)
+
+        Returns:
+            ロケール情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sysconfig.sh", ["locale"], timeout=10)
+
+    def get_sysconfig_kernel(self) -> Dict[str, Any]:
+        """
+        カーネル情報を取得 (uname -a / /proc/version)
+
+        Returns:
+            カーネル情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sysconfig.sh", ["kernel"], timeout=10)
+
+    def get_sysconfig_uptime(self) -> Dict[str, Any]:
+        """
+        システム稼働時間を取得 (uptime / /proc/uptime)
+
+        Returns:
+            稼働時間情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sysconfig.sh", ["uptime"], timeout=10)
+
+    def get_sysconfig_modules(self) -> Dict[str, Any]:
+        """
+        カーネルモジュール一覧を取得 (lsmod)
+
+        Returns:
+            カーネルモジュール一覧の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sysconfig.sh", ["modules"], timeout=15)
+
 
 # グローバルインスタンス
 
