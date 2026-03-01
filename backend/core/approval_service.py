@@ -1440,7 +1440,246 @@ class ApprovalService:
             }
 
     # ===============================================================
-    # 10. ポリシー取得
+    # 10. 承認履歴取得
+    # ===============================================================
+
+    async def get_approval_history(
+        self,
+        request_id: Optional[str] = None,
+        action: Optional[str] = None,
+        actor_id: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        request_type: Optional[str] = None,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> dict:
+        """
+        承認履歴を取得（HMAC署名検証付き）
+
+        Args:
+            request_id: リクエストIDフィルタ（任意）
+            action: アクション種別フィルタ（任意）
+            actor_id: 実行者IDフィルタ（任意）
+            start_date: 開始日フィルタ（ISO 8601、任意）
+            end_date: 終了日フィルタ（ISO 8601、任意）
+            request_type: リクエスト種別フィルタ（任意）
+            page: ページ番号（1以上）
+            per_page: 1ページあたり件数（1-100）
+
+        Returns:
+            承認履歴一覧（ページネーション・署名検証結果付き）
+        """
+        # バリデーション
+        if page < 1:
+            page = 1
+        if per_page < 1:
+            per_page = 1
+        if per_page > 100:
+            per_page = 100
+
+        if action and action not in ALLOWED_ACTIONS:
+            raise ValueError(f"Invalid action filter: {action}")
+
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            where_clauses: list[str] = []
+            params: list[Any] = []
+
+            if request_id:
+                where_clauses.append("h.approval_request_id = ?")
+                params.append(request_id)
+
+            if action:
+                where_clauses.append("h.action = ?")
+                params.append(action)
+
+            if actor_id:
+                where_clauses.append("h.actor_id = ?")
+                params.append(actor_id)
+
+            if start_date:
+                where_clauses.append("h.timestamp >= ?")
+                params.append(start_date)
+
+            if end_date:
+                where_clauses.append("h.timestamp <= ?")
+                params.append(end_date)
+
+            if request_type:
+                where_clauses.append("r.request_type = ?")
+                params.append(request_type)
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+            # 総件数取得
+            count_query = (  # nosec B608
+                "SELECT COUNT(*) as total"
+                " FROM approval_history h"
+                " LEFT JOIN approval_requests r ON h.approval_request_id = r.id"
+                f" WHERE {where_sql}"
+            )
+            async with db.execute(count_query, params) as cursor:
+                total = (await cursor.fetchone())["total"]
+
+            # 履歴取得（ページネーション）
+            offset = (page - 1) * per_page
+            query = (  # nosec B608
+                "SELECT h.*, r.request_type, r.requester_name"
+                " FROM approval_history h"
+                " LEFT JOIN approval_requests r ON h.approval_request_id = r.id"
+                f" WHERE {where_sql}"
+                " ORDER BY h.timestamp DESC"
+                " LIMIT ? OFFSET ?"
+            )
+
+            async with db.execute(query, params + [per_page, offset]) as cursor:
+                rows = await cursor.fetchall()
+
+            items: list[dict] = []
+            for row in rows:
+                # JSON の details をパース
+                details = None
+                if row["details"]:
+                    try:
+                        details = json.loads(row["details"])
+                    except (json.JSONDecodeError, TypeError):
+                        details = row["details"]
+
+                record = {
+                    "id": row["id"],
+                    "approval_request_id": row["approval_request_id"],
+                    "action": row["action"],
+                    "actor_id": row["actor_id"],
+                    "actor_name": row["actor_name"],
+                    "actor_role": row["actor_role"],
+                    "timestamp": row["timestamp"],
+                    "details": details,
+                    "previous_status": row["previous_status"],
+                    "new_status": row["new_status"],
+                    "signature": row["signature"],
+                    "request_type": row["request_type"],
+                    "requester_name": row["requester_name"],
+                }
+
+                # HMAC 署名検証
+                try:
+                    record["signature_valid"] = verify_history_signature(
+                        {
+                            "approval_request_id": row["approval_request_id"],
+                            "action": row["action"],
+                            "actor_id": row["actor_id"],
+                            "timestamp": row["timestamp"],
+                            "details": details,
+                            "signature": row["signature"],
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"HMAC verification failed for history record {row['id']}: {e}"
+                    )
+                    record["signature_valid"] = False
+
+                items.append(record)
+
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+            }
+
+    # ===============================================================
+    # 11. 承認統計情報
+    # ===============================================================
+
+    async def get_approval_stats(self, period: str = "30d") -> dict:
+        """
+        承認リクエストの統計情報を返す
+
+        Args:
+            period: 集計期間（7d, 30d, 90d, all）
+
+        Returns:
+            統計情報（ステータス別件数、種別別件数、今日/今週の件数等）
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            # ステータス別件数（v_approval_stats ビュー使用）
+            async with db.execute("SELECT * FROM v_approval_stats") as cursor:
+                stats_row = await cursor.fetchone()
+
+            status_counts = {}
+            if stats_row:
+                status_counts = {
+                    "total": stats_row["total_requests"] or 0,
+                    "pending": stats_row["pending_count"] or 0,
+                    "approved": stats_row["approved_count"] or 0,
+                    "rejected": stats_row["rejected_count"] or 0,
+                    "expired": stats_row["expired_count"] or 0,
+                    "executed": stats_row["executed_count"] or 0,
+                    "execution_failed": stats_row["execution_failed_count"] or 0,
+                    "cancelled": stats_row["cancelled_count"] or 0,
+                    "approval_rate_pct": stats_row["approval_rate_pct"],
+                }
+
+            # 種別別件数（v_approval_stats_by_type ビュー使用）
+            async with db.execute(
+                "SELECT * FROM v_approval_stats_by_type"
+            ) as cursor:
+                type_rows = await cursor.fetchall()
+
+            type_counts: list[dict] = []
+            for row in type_rows:
+                type_counts.append(
+                    {
+                        "request_type": row["request_type"],
+                        "total": row["total"],
+                        "approved": row["approved"],
+                        "rejected": row["rejected"],
+                        "expired": row["expired"],
+                    }
+                )
+
+            # 今日の件数
+            async with db.execute(
+                "SELECT COUNT(*) as cnt FROM approval_requests"
+                " WHERE DATE(created_at) = DATE('now')"
+            ) as cursor:
+                today_count = (await cursor.fetchone())["cnt"]
+
+            # 今週の件数（月曜始まり）
+            async with db.execute(
+                "SELECT COUNT(*) as cnt FROM approval_requests"
+                " WHERE created_at >= DATE('now', 'weekday 1', '-7 days')"
+            ) as cursor:
+                this_week_count = (await cursor.fetchone())["cnt"]
+
+            # 期間フィルタ付き件数
+            period_days = {"7d": 7, "30d": 30, "90d": 90}
+            period_count = status_counts.get("total", 0)
+            if period in period_days:
+                days = period_days[period]
+                async with db.execute(
+                    "SELECT COUNT(*) as cnt FROM approval_requests"
+                    f" WHERE created_at >= DATE('now', '-{days} days')"  # nosec B608
+                ) as cursor:
+                    period_count = (await cursor.fetchone())["cnt"]
+
+            return {
+                "status_counts": status_counts,
+                "type_counts": type_counts,
+                "today": today_count,
+                "this_week": this_week_count,
+                "period": period,
+                "period_count": period_count,
+                "total": status_counts.get("total", 0),
+            }
+
+    # ===============================================================
+    # 12. ポリシー取得
     # ===============================================================
 
     async def get_policy(self, operation_type: str) -> dict:

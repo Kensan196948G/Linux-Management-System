@@ -509,34 +509,34 @@ class UserManager {
 
         // Validation
         if (!username) {
-            alert('Username is required');
+            this.showToast('warning', 'Username is required');
             return;
         }
 
         if (!/^[a-z_][a-z0-9_-]{0,31}$/.test(username)) {
-            alert('Invalid username format. Must start with lowercase letter or underscore, max 32 characters.');
+            this.showToast('warning', 'Invalid username format. Must start with lowercase letter or underscore, max 32 characters.');
             return;
         }
 
         if (/[;|&$()`><*?{}\[\]]/.test(username)) {
-            alert('Username contains forbidden characters');
+            this.showToast('error', 'Username contains forbidden characters');
             return;
         }
 
         if (!password || password.length < 8) {
-            alert('Password must be at least 8 characters');
+            this.showToast('warning', 'Password must be at least 8 characters');
             return;
         }
 
         if (password !== confirmPassword) {
-            alert('Passwords do not match');
+            this.showToast('warning', 'Passwords do not match');
             return;
         }
 
         // Non-admin: submit as approval request
         if (!this.isAdmin()) {
             if (!reason) {
-                alert('Reason is required for approval request');
+                this.showToast('warning', 'Reason is required for approval request');
                 return;
             }
 
@@ -548,12 +548,12 @@ class UserManager {
                 });
 
                 if (response.status === 'success') {
-                    alert('Approval request submitted. An administrator will review your request.');
+                    this.showToast('success', 'Approval request submitted. An administrator will review your request.');
                     bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide();
                 }
             } catch (error) {
                 console.error('Failed to submit approval request:', error);
-                alert('Failed to submit approval request: ' + (error.message || 'Unknown error'));
+                this.showToast('error', 'Failed to submit approval request: ' + (error.message || 'Unknown error'));
             }
             return;
         }
@@ -568,13 +568,13 @@ class UserManager {
             });
 
             if (response.status === 'success') {
-                alert('User created successfully: ' + this.escapeHtml(username));
+                this.showToast('success', 'User created successfully: ' + username);
                 bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide();
                 await this.loadUsers();
             }
         } catch (error) {
             console.error('Failed to create user:', error);
-            alert('Failed to create user: ' + (error.message || 'Unknown error'));
+            this.showToast('error', 'Failed to create user: ' + (error.message || 'Unknown error'));
         }
     }
 
@@ -587,13 +587,15 @@ class UserManager {
      */
     async handleDeleteUser(username) {
         if (!this.isAdmin()) {
-            alert('Only administrators can delete users.');
+            this.showToast('error', 'Only administrators can delete users.');
             return;
         }
 
-        if (!confirm(`Are you sure you want to delete user "${this.escapeHtml(username)}"?\nThis action cannot be undone.`)) {
-            return;
-        }
+        const confirmed = await this.showConfirm(
+            'ユーザー削除の確認',
+            `ユーザー "${username}" を削除しますか？この操作は取り消せません。`
+        );
+        if (!confirmed) return;
 
         try {
             const response = await api.request('POST', '/api/users/delete', {
@@ -601,12 +603,12 @@ class UserManager {
             });
 
             if (response.status === 'success') {
-                alert('User deleted: ' + this.escapeHtml(username));
+                this.showToast('success', 'User deleted: ' + username);
                 await this.loadUsers();
             }
         } catch (error) {
             console.error('Failed to delete user:', error);
-            alert('Failed to delete user: ' + (error.message || 'Unknown error'));
+            this.showToast('error', 'Failed to delete user: ' + (error.message || 'Unknown error'));
         }
     }
 
@@ -636,12 +638,12 @@ class UserManager {
         const confirmPassword = document.getElementById('new-password-confirm')?.value;
 
         if (!newPassword || newPassword.length < 8) {
-            alert('Password must be at least 8 characters');
+            this.showToast('warning', 'Password must be at least 8 characters');
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            alert('Passwords do not match');
+            this.showToast('warning', 'Passwords do not match');
             return;
         }
 
@@ -652,12 +654,12 @@ class UserManager {
             });
 
             if (response.status === 'success') {
-                alert('Password changed successfully for: ' + this.escapeHtml(username));
+                this.showToast('success', 'Password changed successfully for: ' + username);
                 bootstrap.Modal.getInstance(document.getElementById('passwordModal'))?.hide();
             }
         } catch (error) {
             console.error('Failed to change password:', error);
-            alert('Failed to change password: ' + (error.message || 'Unknown error'));
+            this.showToast('error', 'Failed to change password: ' + (error.message || 'Unknown error'));
         }
     }
 
@@ -820,6 +822,96 @@ class UserManager {
         } catch (e) {
             return isoString;
         }
+    }
+
+    /**
+     * Show Bootstrap toast notification
+     * @param {string} type - 'success', 'error', 'warning', 'info'
+     * @param {string} message - Message to display
+     */
+    showToast(type, message) {
+        // Remove existing toast if present
+        const existing = document.getElementById('userManagerToast');
+        if (existing) existing.remove();
+
+        const bgClass = {
+            success: 'bg-success',
+            error: 'bg-danger',
+            warning: 'bg-warning text-dark',
+            info: 'bg-info text-dark'
+        }[type] || 'bg-secondary';
+
+        const toastHtml = document.createElement('div');
+        toastHtml.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastHtml.style.zIndex = '1090';
+        toastHtml.innerHTML = `
+            <div id="userManagerToast" class="toast align-items-center ${bgClass} text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">${this.escapeHtml(message)}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(toastHtml);
+
+        const toastEl = document.getElementById('userManagerToast');
+        const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+        toast.show();
+
+        toastEl.addEventListener('hidden.bs.toast', () => {
+            toastHtml.remove();
+        });
+    }
+
+    /**
+     * Show Bootstrap confirm modal and return a Promise<boolean>
+     * @param {string} title - Modal title
+     * @param {string} message - Confirm message
+     * @returns {Promise<boolean>}
+     */
+    showConfirm(title, message) {
+        return new Promise((resolve) => {
+            // Remove existing confirm modal if present
+            const existing = document.getElementById('userManagerConfirmModal');
+            if (existing) existing.remove();
+
+            const modalDiv = document.createElement('div');
+            modalDiv.innerHTML = `
+                <div class="modal fade" id="userManagerConfirmModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content bg-dark text-white">
+                            <div class="modal-header border-secondary">
+                                <h5 class="modal-title">${this.escapeHtml(title)}</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">${this.escapeHtml(message)}</div>
+                            <div class="modal-footer border-secondary">
+                                <button type="button" class="btn btn-secondary" id="confirmCancelBtn" data-bs-dismiss="modal">キャンセル</button>
+                                <button type="button" class="btn btn-danger" id="confirmOkBtn">実行</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalDiv);
+
+            const modalEl = document.getElementById('userManagerConfirmModal');
+            const modal = new bootstrap.Modal(modalEl);
+
+            let resolved = false;
+            document.getElementById('confirmOkBtn').addEventListener('click', () => {
+                resolved = true;
+                modal.hide();
+            });
+
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                if (!resolved) resolve(false);
+                else resolve(true);
+                modalDiv.remove();
+            });
+
+            modal.show();
+        });
     }
 
     /**

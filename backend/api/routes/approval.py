@@ -4,10 +4,14 @@
 承認リクエストの作成・承認・拒否・一覧取得等のエンドポイント
 """
 
+import csv
+import io
+import json
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.core.approval_service import ApprovalService
@@ -392,6 +396,7 @@ async def get_approval_policies(
 
 @router.get("/history", status_code=status.HTTP_200_OK)
 async def get_approval_history(
+    request_id: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     request_type: Optional[str] = None,
@@ -402,17 +407,55 @@ async def get_approval_history(
     current_user: TokenData = Depends(require_permission("view:approval_history")),
 ):
     """
-    承認履歴を取得（監査証跡）（v0.4 実装予定）
+    承認履歴を取得（監査証跡・HMAC署名検証付き）
 
-    - **必要権限**: `view:approval_history` (Admin)
+    - **必要権限**: `view:approval_history` (Admin, Approver)
+    - **クエリパラメータ**:
+      - `request_id`: リクエストIDフィルタ（任意）
+      - `start_date`: 開始日フィルタ ISO 8601（任意）
+      - `end_date`: 終了日フィルタ ISO 8601（任意）
+      - `request_type`: リクエスト種別フィルタ（任意）
+      - `action`: アクション種別フィルタ（任意）
+      - `actor_id`: 実行者IDフィルタ（任意）
+      - `page`: ページ番号（デフォルト: 1）
+      - `per_page`: 1ページあたり件数（デフォルト: 50、最大100）
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Approval history viewing will be implemented in v0.4",
-    )
+    try:
+        if per_page > 100:
+            per_page = 100
+
+        result = await approval_service.get_approval_history(
+            request_id=request_id,
+            action=action,
+            actor_id=actor_id,
+            start_date=start_date,
+            end_date=end_date,
+            request_type=request_type,
+            page=page,
+            per_page=per_page,
+        )
+
+        return {
+            "status": "success",
+            **result,
+        }
+
+    except ValueError as e:
+        logger.warning(f"Invalid history filter: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to get approval history: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get approval history",
+        )
 
 
-@router.get("/history/export", status_code=status.HTTP_200_OK)
+@router.get("/history/export")
 async def export_approval_history(
     format: str = "json",
     start_date: Optional[str] = None,
@@ -421,14 +464,102 @@ async def export_approval_history(
     current_user: TokenData = Depends(require_permission("export:approval_history")),
 ):
     """
-    承認履歴をエクスポート（CSV/JSON）（v0.4 実装予定）
+    承認履歴をエクスポート（CSV/JSON）
 
-    - **必要権限**: `export:approval_history` (Admin)
+    - **必要権限**: `export:approval_history` (Admin のみ)
+    - **クエリパラメータ**:
+      - `format`: 出力形式 "csv" または "json"（デフォルト: json）
+      - `start_date`: 開始日フィルタ ISO 8601（任意）
+      - `end_date`: 終了日フィルタ ISO 8601（任意）
+      - `request_type`: リクエスト種別フィルタ（任意）
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Approval history export will be implemented in v0.4",
-    )
+    try:
+        if format not in ("csv", "json"):
+            raise ValueError(f"Invalid format: {format}. Use 'csv' or 'json'.")
+
+        # 全件取得（エクスポート用、per_page を大きく設定）
+        result = await approval_service.get_approval_history(
+            start_date=start_date,
+            end_date=end_date,
+            request_type=request_type,
+            page=1,
+            per_page=100,
+        )
+
+        items = result["items"]
+
+        if format == "csv":
+            # CSV エクスポート
+            output = io.StringIO()
+            csv_fields = [
+                "id",
+                "approval_request_id",
+                "request_type",
+                "action",
+                "actor_id",
+                "actor_name",
+                "actor_role",
+                "timestamp",
+                "previous_status",
+                "new_status",
+                "details",
+                "signature_valid",
+            ]
+            writer = csv.DictWriter(output, fieldnames=csv_fields, extrasaction="ignore")
+            writer.writeheader()
+
+            for item in items:
+                row = dict(item)
+                # details を JSON 文字列に変換
+                if row.get("details") and not isinstance(row["details"], str):
+                    row["details"] = json.dumps(row["details"], ensure_ascii=False)
+                writer.writerow(row)
+
+            output.seek(0)
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv; charset=utf-8",
+                headers={
+                    "Content-Disposition": "attachment; filename=approval_history.csv",
+                },
+            )
+
+        else:
+            # JSON エクスポート
+            export_data = {
+                "export_info": {
+                    "format": "json",
+                    "total": result["total"],
+                    "filters": {
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "request_type": request_type,
+                    },
+                },
+                "items": items,
+            }
+            json_output = json.dumps(export_data, ensure_ascii=False, indent=2)
+            return StreamingResponse(
+                iter([json_output]),
+                media_type="application/json; charset=utf-8",
+                headers={
+                    "Content-Disposition": "attachment; filename=approval_history.json",
+                },
+            )
+
+    except ValueError as e:
+        logger.warning(f"Invalid export parameter: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to export approval history: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to export approval history",
+        )
 
 
 @router.get("/stats", status_code=status.HTTP_200_OK)
@@ -437,14 +568,30 @@ async def get_approval_stats(
     current_user: TokenData = Depends(require_permission("view:approval_stats")),
 ):
     """
-    承認ワークフローの統計情報を取得（v0.4 実装予定）
+    承認ワークフローの統計情報を取得
 
-    - **必要権限**: `view:approval_stats` (Admin)
+    - **必要権限**: `view:approval_stats` (Admin, Approver)
+    - **クエリパラメータ**:
+      - `period`: 集計期間（7d, 30d, 90d, all）（デフォルト: 30d）
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Approval statistics will be implemented in v0.4",
-    )
+    try:
+        allowed_periods = {"7d", "30d", "90d", "all"}
+        if period not in allowed_periods:
+            period = "30d"
+
+        result = await approval_service.get_approval_stats(period=period)
+
+        return {
+            "status": "success",
+            **result,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get approval stats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get approval stats",
+        )
 
 
 # ===================================================================

@@ -365,22 +365,7 @@ async function fetchLogs(resetDisplay) {
     document.getElementById('empty-state').style.display       = 'none';
 
     try {
-        const response = await fetch(
-            `${window.location.origin}/api/logs/${encodeURIComponent(serviceName)}?lines=${lines}`,
-            { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }
-        );
-
-        if (response.status === 401) {
-            localStorage.removeItem('access_token');
-            window.location.href = 'dashboard.html';
-            return;
-        }
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.detail || `HTTPエラー ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await api.getLogs(serviceName, lines);
         const rawLines = data.logs || [];
 
         allParsedLogs = rawLines.map(line => parseLogLine(line, serviceName));

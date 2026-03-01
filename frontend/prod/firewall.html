@@ -159,6 +159,38 @@
     </main>
 </div>
 
+<!-- 削除確認 Modal -->
+<div class="modal fade" id="deleteRuleModal" tabindex="-1" aria-labelledby="deleteRuleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteRuleModalLabel">ルール削除確認</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <p>以下のファイアウォールルールを削除しますか？</p>
+                <div id="deleteRuleDetail" class="p-2 bg-light rounded" style="font-size:13px;"></div>
+                <div class="mt-2 text-danger" style="font-size:12px;">この操作は承認フローを経て適用されます。</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirmDeleteBtn" onclick="executeDeleteRule()">削除する</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast 通知 -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index:1080;">
+    <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header" id="toastHeader">
+            <strong class="me-auto" id="toastTitle">通知</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="閉じる"></button>
+        </div>
+        <div class="toast-body" id="toastBody"></div>
+    </div>
+</div>
+
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
@@ -177,11 +209,27 @@ function showTab(tab) {
 }
 
 function showAlert(msg, type = 'danger') {
-    document.getElementById('alert-area').innerHTML =
-        `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
-            ${msg}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>`;
+    const toastEl = document.getElementById('liveToast');
+    const toastHeader = document.getElementById('toastHeader');
+    const toastTitle = document.getElementById('toastTitle');
+    const toastBody = document.getElementById('toastBody');
+    toastHeader.className = 'toast-header';
+    if (type === 'success') {
+        toastHeader.classList.add('text-bg-success');
+        toastTitle.textContent = '成功';
+    } else if (type === 'danger') {
+        toastHeader.classList.add('text-bg-danger');
+        toastTitle.textContent = 'エラー';
+    } else if (type === 'warning') {
+        toastHeader.classList.add('text-bg-warning');
+        toastTitle.textContent = '警告';
+    } else {
+        toastHeader.classList.add('text-bg-info');
+        toastTitle.textContent = '情報';
+    }
+    toastBody.innerHTML = msg;
+    const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+    toast.show();
 }
 
 // バックエンドステータス
@@ -249,21 +297,33 @@ function buildUfwRulesTable(ruleset, backend) {
         return '<div class="text-muted">ルールが設定されていません</div>';
     }
     const rows = ruleset.map((rule, i) => {
+        const ruleNum = rule.number || (i + 1);
         const action = (rule.action || '').toLowerCase();
         const actionClass = action === 'allow' ? 'status-active' : (action === 'deny' || action === 'reject' ? 'status-inactive' : '');
+        const dest = escapeHtml(rule.to || rule.dst || '-');
+        const src = escapeHtml(rule.from || rule.src || '-');
+        const actionText = escapeHtml(rule.action || '-');
+        const comment = escapeHtml(rule.comment || '');
         return `<tr>
-            <td>${i + 1}</td>
-            <td>${escapeHtml(rule.to || rule.dst || '-')}</td>
-            <td>${escapeHtml(rule.from || rule.src || '-')}</td>
-            <td><span class="status-badge ${actionClass}">${escapeHtml(rule.action || '-')}</span></td>
-            <td style="font-size:11px; color:#6b7280">${escapeHtml(rule.comment || '')}</td>
+            <td>${ruleNum}</td>
+            <td>${dest}</td>
+            <td>${src}</td>
+            <td><span class="status-badge ${actionClass}">${actionText}</span></td>
+            <td style="font-size:11px; color:#6b7280">${comment}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-danger" style="font-size:11px; padding:1px 6px;"
+                    data-rule-num="${ruleNum}" data-dest="${dest}" data-src="${src}" data-action="${actionText}"
+                    onclick="confirmDeleteRule(Number(this.dataset.ruleNum), this.dataset.dest, this.dataset.src, this.dataset.action)">
+                    削除
+                </button>
+            </td>
         </tr>`;
     }).join('');
     return `
         <div class="mb-2 text-muted" style="font-size:12px">バックエンド: <strong>${escapeHtml(backend || '-')}</strong> / 合計: ${ruleset.length} 件</div>
         <table class="table table-sm table-hover table-compact">
             <thead class="table-dark">
-                <tr><th>#</th><th>宛先</th><th>送信元</th><th>アクション</th><th>コメント</th></tr>
+                <tr><th>#</th><th>宛先</th><th>送信元</th><th>アクション</th><th>コメント</th><th>操作</th></tr>
             </thead>
             <tbody>${rows}</tbody>
         </table>`;
@@ -358,6 +418,40 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
+// ルール削除
+let pendingDeleteRuleNum = null;
+
+function confirmDeleteRule(ruleNum, dest, src, action) {
+    pendingDeleteRuleNum = ruleNum;
+    document.getElementById('deleteRuleDetail').innerHTML =
+        `<strong>ルール #${ruleNum}</strong>: 宛先=${dest}, 送信元=${src}, アクション=${action}`;
+    const modal = new bootstrap.Modal(document.getElementById('deleteRuleModal'));
+    modal.show();
+}
+
+async function executeDeleteRule() {
+    if (pendingDeleteRuleNum === null) return;
+    const ruleNum = pendingDeleteRuleNum;
+    pendingDeleteRuleNum = null;
+
+    const modalEl = document.getElementById('deleteRuleModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+
+    try {
+        await api.deleteFirewallRule(ruleNum);
+        showAlert(`ルール #${ruleNum} の削除申請を送信しました。`, 'success');
+        loadRules();
+    } catch (e) {
+        showAlert(`ルール #${ruleNum} の削除に失敗しました: ${escapeHtml(e.message)}`, 'danger');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
 function refreshAll() {
     loadStatus();
     showTab(currentTab);
@@ -367,7 +461,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const token = localStorage.getItem('access_token');
     if (!token) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
     api.setToken(token);
-    if (typeof initSidebar === 'function') initSidebar('firewall');
     loadStatus();
     loadRules();
 });
