@@ -83,6 +83,43 @@
 
         <div class="main-body">
 
+            <!-- 検索バー (Step 25) -->
+            <div class="search-bar">
+                <div class="row g-2 align-items-end">
+                    <div class="col-sm-4">
+                        <label class="form-label form-label-sm mb-1">🔍 キーワード検索</label>
+                        <input type="text" class="form-control form-control-sm" id="search-input" placeholder="例: error, nginx, failed..." maxlength="100">
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label form-label-sm mb-1">対象ファイル</label>
+                        <select class="form-select form-select-sm" id="search-file-select">
+                            <option value="syslog">syslog</option>
+                            <option value="auth.log">auth.log</option>
+                            <option value="kern.log">kern.log</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">件数</label>
+                        <select class="form-select form-select-sm" id="search-lines-select">
+                            <option value="20">20件</option>
+                            <option value="50" selected>50件</option>
+                            <option value="100">100件</option>
+                            <option value="200">200件</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-3">
+                        <button class="btn btn-sm btn-info w-100" onclick="searchLogs()">🔍 ログ検索</button>
+                    </div>
+                </div>
+                <div id="search-result-container" class="mt-2" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small text-muted" id="search-result-label"></span>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0 px-2" onclick="clearSearch()">✕ クリア</button>
+                    </div>
+                    <div id="search-result-box" class="font-monospace small" style="max-height:200px;overflow-y:auto;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px;"></div>
+                </div>
+            </div>
+
             <!-- フィルターバー -->
             <div class="filter-bar">
                 <div class="row g-2 align-items-end">
@@ -177,6 +214,12 @@
             <div id="empty-state" class="text-center py-5 text-muted" style="display:none;">
                 <p>📜 表示するログがありません</p>
                 <p class="small">サービスを選択して「ログ取得」を押してください</p>
+            </div>
+
+            <!-- 最近のエラーパネル (Step 25) -->
+            <div id="recent-errors-panel" class="recent-errors-panel" style="display:none;">
+                <h6>🚨 直近のエラー</h6>
+                <div id="recent-errors-body"></div>
             </div>
 
         </div>

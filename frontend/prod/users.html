@@ -228,10 +228,10 @@
 
                 <!-- タブヘッダー -->
                 <div class="tab-header">
-                    <button class="tab-btn active" data-tab="users" id="tabBtnUsers">
+                    <button class="tab-btn active" data-tab="users" id="users-tab">
                         <i class="bi bi-people"></i> ユーザー
                     </button>
-                    <button class="tab-btn" data-tab="groups" id="tabBtnGroups">
+                    <button class="tab-btn" data-tab="groups" id="groups-tab">
                         <i class="bi bi-diagram-3"></i> グループ
                     </button>
                 </div>
@@ -271,7 +271,7 @@
                         <div class="control-group" style="margin-left: auto;">
                             <label>&nbsp;</label>
                             <div style="display: flex; gap: 10px;">
-                                <button class="btn btn-sm btn-primary" id="addUserBtn" style="display: none;">
+                                <button class="btn btn-sm btn-primary" id="addUserBtn">
                                     <i class="bi bi-person-plus"></i> ユーザー追加
                                 </button>
                                 <button class="btn btn-sm btn-outline-secondary" id="refreshBtn">
@@ -339,7 +339,7 @@
                                     <th>メンバー</th>
                                 </tr>
                             </thead>
-                            <tbody id="groupsTableBody">
+                            <tbody id="groupTableBody">
                                 <tr>
                                     <td colspan="3" class="text-center text-muted py-4">読み込み中...</td>
                                 </tr>
@@ -364,44 +364,54 @@
                         <div id="addUserModalAlert"></div>
 
                         <div class="mb-3">
-                            <label for="newUsername" class="form-label">ユーザー名</label>
-                            <input type="text" class="form-control" id="newUsername" required
+                            <label for="add-username" class="form-label">ユーザー名</label>
+                            <input type="text" class="form-control" id="add-username" required
                                 pattern="^[a-z_][a-z0-9_-]{0,31}$" maxlength="32"
                                 placeholder="例: new-user">
+                            <div class="invalid-feedback" id="username-feedback" style="display:none;"></div>
                             <div class="form-text">小文字英字, 数字, ハイフン, アンダースコアのみ（32文字以内）</div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="newPassword" class="form-label">パスワード</label>
-                            <input type="password" class="form-control" id="newPassword" required minlength="8">
-                            <div class="password-strength" id="passwordStrengthBar"></div>
-                            <div class="form-text" id="passwordStrengthText"></div>
+                            <label for="add-password" class="form-label">パスワード</label>
+                            <input type="password" class="form-control" id="add-password" required minlength="8">
+                            <div class="progress mt-1" style="height:4px;">
+                                <div class="progress-bar" id="password-strength-bar" style="width:0%;"></div>
+                            </div>
+                            <div class="form-text" id="password-strength-text"></div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="newPasswordConfirm" class="form-label">パスワード（確認）</label>
-                            <input type="password" class="form-control" id="newPasswordConfirm" required minlength="8">
+                            <label for="add-password-confirm" class="form-label">パスワード（確認）</label>
+                            <input type="password" class="form-control" id="add-password-confirm" required minlength="8">
                         </div>
 
                         <div class="mb-3">
-                            <label for="newUserGecos" class="form-label">説明（GECOS）</label>
-                            <input type="text" class="form-control" id="newUserGecos" maxlength="100"
+                            <label for="add-gecos" class="form-label">説明（GECOS）</label>
+                            <input type="text" class="form-control" id="add-gecos" maxlength="100"
                                 placeholder="例: Taro Yamada">
                         </div>
 
                         <div class="mb-3">
-                            <label for="newUserShell" class="form-label">シェル</label>
-                            <select class="form-select" id="newUserShell">
+                            <label for="add-shell" class="form-label">シェル</label>
+                            <select class="form-select" id="add-shell">
                                 <option value="/bin/bash">/bin/bash</option>
                                 <option value="/bin/sh">/bin/sh</option>
                                 <option value="/usr/sbin/nologin">/usr/sbin/nologin</option>
                                 <option value="/bin/false">/bin/false</option>
                             </select>
                         </div>
+
+                        <div class="mb-3" id="add-reason-group" style="display:none;">
+                            <label for="add-reason" class="form-label">申請理由 <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="add-reason" rows="2"
+                                placeholder="管理者への承認申請理由を入力してください"></textarea>
+                            <div class="form-text text-warning">Admin以外は承認フロー経由で申請されます。</div>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-primary" id="submitAddUser">追加</button>
+                        <button type="button" class="btn btn-primary" id="confirmAddUserBtn">追加</button>
                     </div>
                 </form>
             </div>
@@ -426,32 +436,32 @@
         </div>
     </div>
 
-    <!-- パスワード変更モーダル -->
-    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+    <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="changePasswordModalLabel">パスワード変更</h5>
+                    <h5 class="modal-title" id="passwordModalLabel">パスワード変更</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form id="changePasswordForm">
                     <div class="modal-body">
                         <div id="changePasswordModalAlert"></div>
-                        <p>対象ユーザー: <strong id="changePasswordUsername">-</strong></p>
+                        <p>対象ユーザー: <strong id="passwd-username">-</strong></p>
+                        <input type="hidden" id="passwd-target">
 
                         <div class="mb-3">
-                            <label for="chgNewPassword" class="form-label">新しいパスワード</label>
-                            <input type="password" class="form-control" id="chgNewPassword" required minlength="8">
+                            <label for="new-password" class="form-label">新しいパスワード</label>
+                            <input type="password" class="form-control" id="new-password" required minlength="8">
                         </div>
 
                         <div class="mb-3">
-                            <label for="chgNewPasswordConfirm" class="form-label">新しいパスワード（確認）</label>
-                            <input type="password" class="form-control" id="chgNewPasswordConfirm" required minlength="8">
+                            <label for="new-password-confirm" class="form-label">新しいパスワード（確認）</label>
+                            <input type="password" class="form-control" id="new-password-confirm" required minlength="8">
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-warning" id="submitChangePassword">変更</button>
+                        <button type="button" class="btn btn-warning" id="confirmPasswordBtn">変更</button>
                     </div>
                 </form>
             </div>
@@ -489,6 +499,18 @@
                 row.style.display = (!q || name.includes(q)) ? '' : 'none';
             });
         }
+
+        // タブ切替（Bootstrap tabs との橋渡し）
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                const tabId = 'tab' + btn.dataset.tab.charAt(0).toUpperCase() + btn.dataset.tab.slice(1);
+                const tabEl = document.getElementById(tabId);
+                if (tabEl) tabEl.classList.add('active');
+            });
+        });
     </script>
 </body>
 </html>
