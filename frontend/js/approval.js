@@ -22,11 +22,15 @@ class ApprovalManager {
         this.stats = null;
         this.autoRefreshInterval = null;
         this.currentRequestId = null; // 詳細表示中のリクエストID
+        this.emergencyRejectRequestId = null; // 緊急拒否対象のリクエストID
 
         // モーダルインスタンス
         this.detailModal = null;
         this.approveModal = null;
         this.rejectModal = null;
+        this.emergencyRejectModal = null;
+        this.cancelModal = null;
+        this.notificationToast = null;
     }
 
     /**
@@ -171,10 +175,16 @@ class ApprovalManager {
         const detailModalEl = document.getElementById('detailModal');
         const approveModalEl = document.getElementById('approveModal');
         const rejectModalEl = document.getElementById('rejectModal');
+        const emergencyRejectModalEl = document.getElementById('emergencyRejectModal');
+        const cancelModalEl = document.getElementById('cancelModal');
+        const toastEl = document.getElementById('notificationToast');
 
         if (detailModalEl) this.detailModal = new bootstrap.Modal(detailModalEl);
         if (approveModalEl) this.approveModal = new bootstrap.Modal(approveModalEl);
         if (rejectModalEl) this.rejectModal = new bootstrap.Modal(rejectModalEl);
+        if (emergencyRejectModalEl) this.emergencyRejectModal = new bootstrap.Modal(emergencyRejectModalEl);
+        if (cancelModalEl) this.cancelModal = new bootstrap.Modal(cancelModalEl);
+        if (toastEl) this.notificationToast = new bootstrap.Toast(toastEl, { delay: 3000 });
     }
 
     /**
@@ -191,6 +201,51 @@ class ApprovalManager {
         const confirmRejectBtn = document.getElementById('confirm-reject-btn');
         if (confirmRejectBtn) {
             confirmRejectBtn.addEventListener('click', () => this.handleReject());
+        }
+
+        // 緊急拒否ボタン
+        const confirmEmergencyRejectBtn = document.getElementById('confirm-emergency-reject-btn');
+        if (confirmEmergencyRejectBtn) {
+            confirmEmergencyRejectBtn.addEventListener('click', () => this.handleEmergencyReject());
+        }
+
+        // キャンセル確認ボタン
+        const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+        if (confirmCancelBtn) {
+            confirmCancelBtn.addEventListener('click', () => this.handleCancelConfirmed());
+        }
+
+        // 承認理由テキストエリア - 入力時にボタン有効/無効切り替え + 文字数カウント
+        const approveReason = document.getElementById('approve-reason');
+        if (approveReason) {
+            approveReason.addEventListener('input', () => {
+                const btn = document.getElementById('confirm-approve-btn');
+                const count = document.getElementById('approve-reason-count');
+                if (btn) btn.disabled = !approveReason.value.trim();
+                if (count) count.textContent = approveReason.value.length;
+            });
+        }
+
+        // 拒否理由テキストエリア - 入力時にボタン有効/無効切り替え + 文字数カウント
+        const rejectReason = document.getElementById('reject-reason');
+        if (rejectReason) {
+            rejectReason.addEventListener('input', () => {
+                const btn = document.getElementById('confirm-reject-btn');
+                const count = document.getElementById('reject-reason-count');
+                if (btn) btn.disabled = !rejectReason.value.trim();
+                if (count) count.textContent = rejectReason.value.length;
+            });
+        }
+
+        // 緊急拒否理由テキストエリア - 入力時にボタン有効/無効切り替え + 文字数カウント
+        const emergencyRejectReason = document.getElementById('emergency-reject-reason');
+        if (emergencyRejectReason) {
+            emergencyRejectReason.addEventListener('input', () => {
+                const btn = document.getElementById('confirm-emergency-reject-btn');
+                const count = document.getElementById('emergency-reject-reason-count');
+                if (btn) btn.disabled = !emergencyRejectReason.value.trim();
+                if (count) count.textContent = emergencyRejectReason.value.length;
+            });
         }
 
         // フィルタ変更時の再読み込み
@@ -438,6 +493,13 @@ class ApprovalManager {
                         ${this.escapeHtml(request.reason)}
                     </div>
                     ${isSelfRequest ? '<div class="self-approval-warning" style="margin-top: 10px;"><span class="self-approval-warning-icon">⚠️</span><span class="self-approval-warning-text">自分の申請です（自己承認は禁止）</span></div>' : ''}
+                    ${!isSelfRequest && this.currentUser && (this.currentUser.role === 'Approver' || this.currentUser.role === 'Admin') ? `
+                    <div style="margin-top: 10px; text-align: right;">
+                        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); approvalManager.openEmergencyRejectModal('${this.escapeHtml(request.id)}', '${this.escapeHtml(request.request_type_description)}', '${this.escapeHtml(request.requester_name)}')">
+                            緊急拒否
+                        </button>
+                    </div>
+                    ` : ''}
                 </div>
             `;
         });
@@ -541,9 +603,13 @@ class ApprovalManager {
                             <strong>${this.escapeHtml(entry.action)}</strong>:
                             ${this.escapeHtml(entry.request_type)}
                             <span class="badge bg-secondary">${this.escapeHtml(entry.approval_request_id.substring(0, 8))}</span>
+                            <button class="btn btn-outline-primary btn-sm ms-2" onclick="approvalManager.showRequestDetail('${this.escapeHtml(entry.approval_request_id)}')">
+                                詳細
+                            </button>
                         </div>
                         ${entry.previous_status ? `<div style="font-size: 12px; color: #6c757d; margin-top: 4px;">${this.escapeHtml(entry.previous_status)} → ${this.escapeHtml(entry.new_status)}</div>` : ''}
-                        ${entry.signature_valid === false ? '<div style="color: #dc3545; font-weight: bold; margin-top: 4px;">⚠️ 署名検証失敗</div>' : ''}
+                        ${entry.reason ? `<div style="font-size: 13px; color: #495057; margin-top: 4px; padding: 6px; background-color: #f0f0f0; border-radius: 4px;">${this.escapeHtml(entry.reason)}</div>` : ''}
+                        ${entry.signature_valid === false ? '<div style="color: #dc3545; font-weight: bold; margin-top: 4px;">署名検証失敗</div>' : ''}
                     </div>
                 </div>
             `;
@@ -671,6 +737,16 @@ class ApprovalManager {
 
                         <div style="font-weight: bold;">承認日時:</div>
                         <div>${this.formatDateTime(request.approved_at)}</div>
+
+                        ${request.approval_reason ? `
+                        <div style="font-weight: bold;">承認理由:</div>
+                        <div>${this.escapeHtml(request.approval_reason)}</div>
+                        ` : ''}
+
+                        ${request.approval_comment ? `
+                        <div style="font-weight: bold;">承認コメント:</div>
+                        <div>${this.escapeHtml(request.approval_comment)}</div>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -746,12 +822,36 @@ class ApprovalManager {
     }
 
     /**
-     * 承認モーダル表示
+     * 承認モーダル表示（操作サマリー付き）
      */
     openApproveModal() {
         if (this.approveModal) {
-            // コメントクリア
-            document.getElementById('approve-comment').value = '';
+            // 理由クリア
+            const reasonEl = document.getElementById('approve-reason');
+            if (reasonEl) reasonEl.value = '';
+            const countEl = document.getElementById('approve-reason-count');
+            if (countEl) countEl.textContent = '0';
+            const btn = document.getElementById('confirm-approve-btn');
+            if (btn) btn.disabled = true;
+
+            // 操作内容サマリーを表示
+            const summaryEl = document.getElementById('approve-request-summary');
+            if (summaryEl) {
+                const request = this.findRequestById(this.currentRequestId);
+                if (request) {
+                    summaryEl.innerHTML = `
+                        <div style="font-size: 13px;">
+                            <div><strong>操作種別:</strong> ${this.escapeHtml(request.request_type_description || request.request_type)}</div>
+                            <div><strong>申請者:</strong> ${this.escapeHtml(request.requester_name)}</div>
+                            <div><strong>リスクレベル:</strong> <span class="risk-badge risk-${this.escapeHtml(request.risk_level)}">${this.escapeHtml(request.risk_level)}</span></div>
+                            <div><strong>申請理由:</strong> ${this.escapeHtml(request.reason)}</div>
+                        </div>
+                    `;
+                } else {
+                    summaryEl.innerHTML = '<div style="font-size: 13px; color: #6c757d;">リクエスト情報を取得中...</div>';
+                }
+            }
+
             this.approveModal.show();
         }
     }
@@ -762,26 +862,77 @@ class ApprovalManager {
     openRejectModal() {
         if (this.rejectModal) {
             // 理由クリア
-            document.getElementById('reject-reason').value = '';
+            const reasonEl = document.getElementById('reject-reason');
+            if (reasonEl) reasonEl.value = '';
+            const countEl = document.getElementById('reject-reason-count');
+            if (countEl) countEl.textContent = '0';
+            const btn = document.getElementById('confirm-reject-btn');
+            if (btn) btn.disabled = true;
             this.rejectModal.show();
         }
     }
 
     /**
-     * 承認実行
+     * 緊急拒否モーダル表示
+     */
+    openEmergencyRejectModal(requestId, typeDescription, requesterName) {
+        this.emergencyRejectRequestId = requestId;
+
+        if (this.emergencyRejectModal) {
+            // 理由クリア
+            const reasonEl = document.getElementById('emergency-reject-reason');
+            if (reasonEl) reasonEl.value = '';
+            const countEl = document.getElementById('emergency-reject-reason-count');
+            if (countEl) countEl.textContent = '0';
+            const btn = document.getElementById('confirm-emergency-reject-btn');
+            if (btn) btn.disabled = true;
+
+            // サマリー表示
+            const summaryEl = document.getElementById('emergency-reject-summary');
+            if (summaryEl) {
+                summaryEl.innerHTML = `
+                    <div style="font-size: 13px;">
+                        <div><strong>操作種別:</strong> ${this.escapeHtml(typeDescription)}</div>
+                        <div><strong>申請者:</strong> ${this.escapeHtml(requesterName)}</div>
+                        <div><strong>リクエストID:</strong> <span style="font-family: monospace;">${this.escapeHtml(requestId)}</span></div>
+                    </div>
+                `;
+            }
+
+            this.emergencyRejectModal.show();
+        }
+    }
+
+    /**
+     * リクエストIDでpendingRequests/myRequestsから検索
+     */
+    findRequestById(requestId) {
+        return this.pendingRequests.find(r => r.id === requestId) ||
+               this.myRequests.find(r => r.id === requestId) ||
+               null;
+    }
+
+    /**
+     * 承認実行（理由必須）
      */
     async handleApprove() {
         if (!this.currentRequestId) return;
 
-        const comment = document.getElementById('approve-comment')?.value || '';
+        const reason = document.getElementById('approve-reason')?.value || '';
+
+        if (!reason.trim()) {
+            this.showNotification('承認理由を入力してください', 'warning');
+            return;
+        }
 
         try {
             const response = await api.request('POST', `/api/approval/${this.currentRequestId}/approve`, {
-                comment: comment
+                comment: reason,
+                reason: reason
             });
 
             if (response.status === 'success') {
-                alert('承認しました');
+                this.showNotification('承認しました', 'success');
 
                 // モーダルを閉じる
                 if (this.approveModal) this.approveModal.hide();
@@ -793,7 +944,7 @@ class ApprovalManager {
             }
         } catch (error) {
             console.error('Failed to approve request:', error);
-            alert('承認に失敗しました: ' + (error.message || '不明なエラー'));
+            this.showNotification('承認に失敗しました: ' + this.escapeHtml(error.message || '不明なエラー'), 'danger');
         }
     }
 
@@ -806,7 +957,7 @@ class ApprovalManager {
         const reason = document.getElementById('reject-reason')?.value || '';
 
         if (!reason.trim()) {
-            alert('拒否理由を入力してください');
+            this.showNotification('拒否理由を入力してください', 'warning');
             return;
         }
 
@@ -816,7 +967,7 @@ class ApprovalManager {
             });
 
             if (response.status === 'success') {
-                alert('拒否しました');
+                this.showNotification('拒否しました', 'success');
 
                 // モーダルを閉じる
                 if (this.rejectModal) this.rejectModal.hide();
@@ -828,17 +979,61 @@ class ApprovalManager {
             }
         } catch (error) {
             console.error('Failed to reject request:', error);
-            alert('拒否に失敗しました: ' + (error.message || '不明なエラー'));
+            this.showNotification('拒否に失敗しました: ' + this.escapeHtml(error.message || '不明なエラー'), 'danger');
         }
     }
 
     /**
-     * キャンセル実行
+     * 緊急拒否実行
      */
-    async handleCancel() {
+    async handleEmergencyReject() {
+        if (!this.emergencyRejectRequestId) return;
+
+        const reason = document.getElementById('emergency-reject-reason')?.value || '';
+
+        if (!reason.trim()) {
+            this.showNotification('緊急拒否理由を入力してください', 'warning');
+            return;
+        }
+
+        try {
+            const response = await api.request('POST', `/api/approval/${this.emergencyRejectRequestId}/reject`, {
+                reason: reason,
+                emergency: true
+            });
+
+            if (response.status === 'success') {
+                this.showNotification('緊急拒否しました', 'success');
+
+                // モーダルを閉じる
+                if (this.emergencyRejectModal) this.emergencyRejectModal.hide();
+
+                // リスト更新
+                await this.refreshPendingRequests();
+                await this.refreshMyRequests();
+            }
+        } catch (error) {
+            console.error('Failed to emergency reject request:', error);
+            this.showNotification('緊急拒否に失敗しました: ' + this.escapeHtml(error.message || '不明なエラー'), 'danger');
+        }
+    }
+
+    /**
+     * キャンセルモーダル表示（confirm() の代替）
+     */
+    handleCancel() {
         if (!this.currentRequestId) return;
 
-        if (!confirm('この申請をキャンセルしますか?')) return;
+        if (this.cancelModal) {
+            this.cancelModal.show();
+        }
+    }
+
+    /**
+     * キャンセル確認後の実行
+     */
+    async handleCancelConfirmed() {
+        if (!this.currentRequestId) return;
 
         try {
             const response = await api.request('POST', `/api/approval/${this.currentRequestId}/cancel`, {
@@ -846,9 +1041,10 @@ class ApprovalManager {
             });
 
             if (response.status === 'success') {
-                alert('キャンセルしました');
+                this.showNotification('キャンセルしました', 'success');
 
                 // モーダルを閉じる
+                if (this.cancelModal) this.cancelModal.hide();
                 if (this.detailModal) this.detailModal.hide();
 
                 // リスト更新
@@ -857,7 +1053,34 @@ class ApprovalManager {
             }
         } catch (error) {
             console.error('Failed to cancel request:', error);
-            alert('キャンセルに失敗しました: ' + (error.message || '不明なエラー'));
+            this.showNotification('キャンセルに失敗しました: ' + this.escapeHtml(error.message || '不明なエラー'), 'danger');
+        }
+    }
+
+    /**
+     * 通知トースト表示（alert() の代替）
+     * @param {string} message - 表示メッセージ
+     * @param {string} type - 'success', 'danger', 'warning', 'info'
+     */
+    showNotification(message, type) {
+        const toastHeader = document.getElementById('toastHeader');
+        const toastTitle = document.getElementById('toastTitle');
+        const toastBody = document.getElementById('toastBody');
+
+        if (!toastHeader || !toastTitle || !toastBody) {
+            console.log(`Notification (${type}): ${message}`);
+            return;
+        }
+
+        const titles = { success: '成功', danger: 'エラー', warning: '警告', info: '情報' };
+        const bgColors = { success: '#d4edda', danger: '#f8d7da', warning: '#fff3cd', info: '#d1ecf1' };
+
+        toastTitle.textContent = titles[type] || '通知';
+        toastHeader.style.backgroundColor = bgColors[type] || '#f8f9fa';
+        toastBody.textContent = message;
+
+        if (this.notificationToast) {
+            this.notificationToast.show();
         }
     }
 

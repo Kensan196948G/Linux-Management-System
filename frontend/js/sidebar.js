@@ -353,7 +353,7 @@ function renderSidebar(activePage) {
             </div>
 
             <!-- ネットワーク カテゴリ -->
-            <div class="accordion-item ${['network','bandwidth'].includes(activePage) ? 'open' : ''}">
+            <div class="accordion-item ${['network','bandwidth','firewall'].includes(activePage) ? 'open' : ''}">
                 <div class="accordion-header" onclick="toggleAccordion(this)">
                     <div class="accordion-title"><span>🌐</span><span>ネットワーク</span></div>
                     <span class="accordion-icon">▼</span>
@@ -362,6 +362,10 @@ function renderSidebar(activePage) {
                     <div class="accordion-submenu">
                         <div class="submenu-item${a('network')}" onclick="location.href='network.html'">
                             <div class="submenu-item-name">ネットワーク情報</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('firewall')}" onclick="location.href='firewall.html'">
+                            <div class="submenu-item-name">ファイアウォール</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
                         <div class="submenu-item${a('bandwidth')}" onclick="location.href='bandwidth.html'">

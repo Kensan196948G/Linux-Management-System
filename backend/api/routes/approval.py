@@ -55,6 +55,11 @@ class ApproveAction(BaseModel):
         max_length=500,
         description="承認コメント",
     )
+    reason: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="承認理由",
+    )
 
 
 class RejectAction(BaseModel):
@@ -65,6 +70,10 @@ class RejectAction(BaseModel):
         min_length=1,
         max_length=1000,
         description="拒否理由",
+    )
+    emergency: bool = Field(
+        False,
+        description="緊急拒否フラグ",
     )
 
 
@@ -157,12 +166,14 @@ async def approve_request(
       - `comment`: 承認コメント（任意、0-500文字）
     """
     try:
+        # reason が指定されていれば comment として統合
+        effective_comment = action.reason or action.comment
         result = await approval_service.approve_request(
             request_id=request_id,
             approver_id=current_user.user_id,
             approver_name=current_user.username,
             approver_role=current_user.role,
-            comment=action.comment,
+            comment=effective_comment,
         )
 
         return {
@@ -217,6 +228,12 @@ async def reject_request(
       - `reason`: 拒否理由（必須、1-1000文字）
     """
     try:
+        if action.emergency:
+            logger.warning(
+                f"Emergency rejection by {current_user.username} "
+                f"for request {request_id}: {action.reason}"
+            )
+
         result = await approval_service.reject_request(
             request_id=request_id,
             approver_id=current_user.user_id,
@@ -227,7 +244,8 @@ async def reject_request(
 
         return {
             "status": "success",
-            "message": "リクエストを拒否しました。",
+            "message": "リクエストを拒否しました。" if not action.emergency else "緊急拒否しました。",
+            "emergency": action.emergency,
             **result,
         }
 

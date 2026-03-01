@@ -603,7 +603,7 @@
         </div>
     </div>
 
-    <!-- 承認モーダル -->
+    <!-- 承認モーダル（理由必須） -->
     <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -612,15 +612,18 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>このリクエストを承認しますか?</p>
+                    <div id="approve-request-summary" class="mb-3 p-3 bg-light rounded border">
+                        <!-- 操作内容サマリーが動的に挿入される -->
+                    </div>
                     <div class="mb-3">
-                        <label for="approve-comment" class="form-label">コメント（任意）</label>
-                        <textarea class="form-control" id="approve-comment" rows="3" maxlength="500"></textarea>
+                        <label for="approve-reason" class="form-label">承認理由（必須）<span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="approve-reason" rows="3" required maxlength="500" placeholder="承認理由を入力してください"></textarea>
+                        <div class="form-text"><span id="approve-reason-count">0</span>/500 文字</div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="button" class="btn btn-success" id="confirm-approve-btn">承認する</button>
+                    <button type="button" class="btn btn-success" id="confirm-approve-btn" disabled>承認する</button>
                 </div>
             </div>
         </div>
@@ -638,13 +641,74 @@
                     <p>このリクエストを拒否しますか?</p>
                     <div class="mb-3">
                         <label for="reject-reason" class="form-label">拒否理由（必須）<span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="reject-reason" rows="3" required maxlength="1000"></textarea>
+                        <textarea class="form-control" id="reject-reason" rows="3" required maxlength="1000" placeholder="拒否理由を入力してください"></textarea>
+                        <div class="form-text"><span id="reject-reason-count">0</span>/1000 文字</div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="button" class="btn btn-danger" id="confirm-reject-btn">拒否する</button>
+                    <button type="button" class="btn btn-danger" id="confirm-reject-btn" disabled>拒否する</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 緊急拒否モーダル -->
+    <div class="modal fade" id="emergencyRejectModal" tabindex="-1" aria-labelledby="emergencyRejectModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="emergencyRejectModalLabel">緊急拒否</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <strong>緊急拒否</strong>: この操作は即座にリクエストを拒否します。
+                    </div>
+                    <div id="emergency-reject-summary" class="mb-3 p-3 bg-light rounded border">
+                        <!-- 操作内容サマリーが動的に挿入される -->
+                    </div>
+                    <div class="mb-3">
+                        <label for="emergency-reject-reason" class="form-label">緊急拒否理由（必須）<span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="emergency-reject-reason" rows="3" required maxlength="1000" placeholder="緊急拒否の理由を入力してください"></textarea>
+                        <div class="form-text"><span id="emergency-reject-reason-count">0</span>/1000 文字</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-danger" id="confirm-emergency-reject-btn" disabled>緊急拒否する</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- キャンセル確認モーダル -->
+    <div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title" id="cancelModalLabel">キャンセル確認</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>この申請をキャンセルしますか?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">戻る</button>
+                    <button type="button" class="btn btn-warning" id="confirm-cancel-btn">キャンセルする</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知トースト -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+        <div id="notificationToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header" id="toastHeader">
+                <strong class="me-auto" id="toastTitle">通知</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="toastBody">
             </div>
         </div>
     </div>
