@@ -322,6 +322,63 @@
             localStorage.removeItem('access_token');
             window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
         }
+
+        // cron式バリデーター（リアルタイム）
+        (function () {
+            const input = document.getElementById('cronValidatorInput');
+            const result = document.getElementById('cronValidatorResult');
+            let debounceTimer = null;
+
+            if (!input || !result) return;
+
+            input.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                const expr = input.value.trim();
+                if (!expr) {
+                    result.className = 'schedule-preview text-muted';
+                    result.textContent = 'cron式を入力してください';
+                    return;
+                }
+                result.className = 'schedule-preview text-muted';
+                result.textContent = '検証中...';
+                debounceTimer = setTimeout(() => validateExpression(expr), 400);
+            });
+
+            async function validateExpression(expr) {
+                const token = localStorage.getItem('access_token');
+                const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+                const BASE_URL = (window.ENV_CONFIG && window.ENV_CONFIG.API_BASE_URL) || '';
+                try {
+                    const url = BASE_URL + '/api/cron/validate?expression=' + encodeURIComponent(expr);
+                    const res = await fetch(url, { headers });
+                    if (res.status === 400) {
+                        result.className = 'schedule-preview text-danger border-danger bg-danger bg-opacity-10';
+                        result.innerHTML = '<i class="bi bi-x-circle"></i> 禁止文字が含まれています';
+                        return;
+                    }
+                    if (res.status === 401 || res.status === 403) {
+                        result.className = 'schedule-preview text-warning';
+                        result.innerHTML = '<i class="bi bi-lock"></i> 認証が必要です';
+                        return;
+                    }
+                    const data = await res.json();
+                    if (data.valid) {
+                        result.className = 'schedule-preview text-success border-success bg-success bg-opacity-10';
+                        result.innerHTML = '<i class="bi bi-check-circle"></i> <strong>' + escapeHtmlLocal(data.description) + '</strong>';
+                    } else {
+                        result.className = 'schedule-preview text-danger border-danger bg-danger bg-opacity-10';
+                        result.innerHTML = '<i class="bi bi-x-circle"></i> ' + escapeHtmlLocal(data.description);
+                    }
+                } catch (e) {
+                    result.className = 'schedule-preview text-muted';
+                    result.textContent = 'エラー: ' + (e.message || '通信失敗');
+                }
+            }
+
+            function escapeHtmlLocal(str) {
+                return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+        })();
     </script>
 </body>
 </html>
