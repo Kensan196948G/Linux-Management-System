@@ -2495,6 +2495,125 @@ class SudoWrapper:
         """利用可能なタイムゾーン一覧を取得 (timezones サブコマンド)"""
         return self._execute("adminui-time.sh", ["timezones"])
 
+    def get_journal_list(self, lines: int = 100) -> dict:
+        """systemdジャーナルログ一覧を取得"""
+        if lines < 1 or lines > 1000:
+            raise ValueError("lines must be between 1 and 1000")
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "list", str(lines)],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_journal_units(self) -> dict:
+        """systemdユニット一覧を取得"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "units"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_journal_unit_logs(self, unit: str) -> dict:
+        """特定ユニットのログを取得"""
+        import re
+        if not re.match(r'^[a-zA-Z0-9._@:-]+$', unit):
+            raise ValueError(f"Invalid unit name: {unit}")
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "unit-logs", unit],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_journal_boot_logs(self) -> dict:
+        """ブートログを取得"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "boot-logs"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_journal_kernel_logs(self) -> dict:
+        """カーネルログを取得"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "kernel-logs"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_journal_priority_logs(self, priority: str = "err") -> dict:
+        """優先度別ログを取得"""
+        ALLOWED = ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"]
+        if priority not in ALLOWED:
+            raise ValueError(f"Invalid priority: {priority}")
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "priority-logs", priority],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_backup_list(self) -> dict:
+        """バックアップファイル一覧を取得"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "list"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_backup_status(self) -> dict:
+        """バックアップステータスを取得 (systemd timer)"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "status"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_backup_disk_usage(self) -> dict:
+        """バックアップディスク使用量を取得"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "disk-usage"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_backup_recent_logs(self) -> dict:
+        """バックアップ関連ログを取得"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "recent-logs"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+    def get_active_sessions(self) -> dict:
+        """アクティブなユーザーセッション一覧 (who -u)"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "active"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_session_history(self) -> dict:
+        """ログイン履歴 (last)"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "history"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_failed_sessions(self) -> dict:
+        """ログイン失敗一覧 (faillog)"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "failed"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_wtmp_summary(self) -> dict:
+        """ログイン統計サマリー"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "wtmp-summary"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
 
 # グローバルインスタンス
 

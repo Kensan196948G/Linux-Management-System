@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>バックアップ管理 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .backup-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .dark-mode .backup-card {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        .dark-mode body, .dark-mode .main-content { background: #0f172a; color: #e2e8f0; }
+        .backup-card-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dark-mode .backup-card-title { color: #f1f5f9; }
+        .usage-value { font-size: 28px; font-weight: bold; color: #2563eb; }
+        .dark-mode .usage-value { color: #60a5fa; }
+        .log-pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 6px;
+            padding: 14px;
+            font-size: 12px;
+            max-height: 320px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .approval-badge {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .dark-mode .approval-badge { background: #451a03; color: #fde68a; }
+        .loading-placeholder { color: #9ca3af; font-size: 13px; }
+        #theme-toggle-btn { position: fixed; top: 16px; right: 20px; z-index: 1000; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2>💾 バックアップ管理</h2>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">🔄 更新</button>
+                <button class="btn btn-sm btn-outline-secondary" id="theme-toggle-btn" onclick="toggleTheme()">🌙 ダーク</button>
+            </div>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <div class="row g-3">
+                <!-- ディスク使用量 -->
+                <div class="col-md-4">
+                    <div class="backup-card">
+                        <div class="backup-card-title">📊 ディスク使用量</div>
+                        <div id="disk-usage-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- バックアップステータス -->
+                <div class="col-md-8">
+                    <div class="backup-card">
+                        <div class="backup-card-title">⏱️ バックアップステータス</div>
+                        <div id="status-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- バックアップ一覧 -->
+                <div class="col-12">
+                    <div class="backup-card">
+                        <div class="backup-card-title">📁 バックアップファイル一覧</div>
+                        <div id="backup-list-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- ログビューア -->
+                <div class="col-12">
+                    <div class="backup-card">
+                        <div class="backup-card-title">📋 バックアップログ</div>
+                        <div id="log-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- 操作パネル（承認フロー経由） -->
+                <div class="col-12">
+                    <div class="backup-card">
+                        <div class="backup-card-title">
+                            ⚙️ バックアップ操作
+                            <span class="approval-badge">要承認</span>
+                        </div>
+                        <p class="text-muted" style="font-size:13px;">
+                            バックアップの実行・リストアは承認フロー経由でのみ実行できます。
+                            申請後、承認者の承認が必要です。
+                        </p>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-sm btn-outline-primary" onclick="requestApproval('backup-run')">
+                                ▶️ バックアップ実行を申請
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="requestApproval('backup-restore')">
+                                ♻️ リストアを申請
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/sidebar.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+    function escapeHtml(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function showAlert(msg, type) {
+        const area = document.getElementById('alert-area');
+        area.innerHTML = `<div class="alert alert-${escapeHtml(type)} alert-dismissible fade show" role="alert">
+            ${escapeHtml(msg)}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+    }
+
+    async function apiFetch(path) {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(path, {
+            headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    }
+
+    async function loadDiskUsage() {
+        const el = document.getElementById('disk-usage-content');
+        try {
+            const data = await apiFetch('/api/backup/disk-usage');
+            el.innerHTML = `<div class="usage-value">${escapeHtml(data.usage || '---')}</div>
+                <div style="font-size:12px;color:#6b7280;margin-top:6px;">${escapeHtml(data.timestamp || '')}</div>`;
+        } catch(e) {
+            el.innerHTML = `<span class="text-danger">取得エラー: ${escapeHtml(e.message)}</span>`;
+        }
+    }
+
+    async function loadStatus() {
+        const el = document.getElementById('status-content');
+        try {
+            const data = await apiFetch('/api/backup/status');
+            const lines = (data.status || 'No backup timers found').trim().split('\n');
+            if (lines.length === 0 || (lines.length === 1 && lines[0] === '')) {
+                el.innerHTML = '<span class="text-muted">バックアップタイマーなし</span>';
+            } else {
+                const rows = lines.map(l =>
+                    `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid #f3f4f6;">${escapeHtml(l)}</div>`
+                ).join('');
+                el.innerHTML = rows;
+            }
+        } catch(e) {
+            el.innerHTML = `<span class="text-danger">取得エラー: ${escapeHtml(e.message)}</span>`;
+        }
+    }
+
+    async function loadBackupList() {
+        const el = document.getElementById('backup-list-content');
+        try {
+            const data = await apiFetch('/api/backup/list');
+            if (!data.backups || data.backups.length === 0) {
+                el.innerHTML = '<span class="text-muted">バックアップファイルなし</span>';
+                return;
+            }
+            let html = `<p class="mb-2" style="font-size:12px;color:#6b7280;">合計: ${escapeHtml(String(data.count))} 件</p>`;
+            html += '<table class="table table-sm table-hover" style="font-size:13px;"><tbody>';
+            for (const line of data.backups) {
+                html += `<tr><td><code>${escapeHtml(line)}</code></td></tr>`;
+            }
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        } catch(e) {
+            el.innerHTML = `<span class="text-danger">取得エラー: ${escapeHtml(e.message)}</span>`;
+        }
+    }
+
+    async function loadRecentLogs() {
+        const el = document.getElementById('log-content');
+        try {
+            const data = await apiFetch('/api/backup/recent-logs');
+            if (!data.logs || data.logs.length === 0) {
+                el.innerHTML = '<span class="text-muted">ログなし</span>';
+                return;
+            }
+            const text = data.logs.map(l => escapeHtml(l)).join('\n');
+            el.innerHTML = `<pre class="log-pre">${text}</pre>`;
+        } catch(e) {
+            el.innerHTML = `<span class="text-danger">取得エラー: ${escapeHtml(e.message)}</span>`;
+        }
+    }
+
+    function requestApproval(action) {
+        showAlert(`承認申請: ${escapeHtml(action)} — 承認フローページから申請してください。`, 'info');
+    }
+
+    function toggleTheme() {
+        document.body.classList.toggle('dark-mode');
+        const btn = document.getElementById('theme-toggle-btn');
+        btn.textContent = document.body.classList.contains('dark-mode') ? '☀️ ライト' : '🌙 ダーク';
+    }
+
+    async function refreshAll() {
+        const btn = document.getElementById('refresh-btn');
+        btn.disabled = true;
+        btn.textContent = '⏳ 更新中...';
+        await Promise.allSettled([loadDiskUsage(), loadStatus(), loadBackupList(), loadRecentLogs()]);
+        btn.disabled = false;
+        btn.textContent = '🔄 更新';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        refreshAll();
+    });
+</script>
+</body>
+</html>

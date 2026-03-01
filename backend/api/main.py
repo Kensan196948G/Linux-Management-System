@@ -21,7 +21,7 @@ from .routes import approval, audit, auth, bandwidth, bind, bootup, cron, dbmoni
 from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, dhcp, filesystem, firewall, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, ssh, stream, system, system_time, users, apache
 from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filesystem, firewall, ftp, hardware, logs, mysql, network, nginx, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, squid, ssh, stream, system, system_time, users, apache
 from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filemanager, filesystem, firewall, ftp, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, squid, ssh, stream, system, system_time, users, apache
-from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filesystem, firewall, ftp, hardware, logs, modules, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, security, servers, services, smart, squid, ssh, sshkeys, stream, system, system_time, users, apache
+from .routes import alerts, approval, audit, auth, backup, bandwidth, bootup, cron, dbmonitor, filesystem, firewall, ftp, hardware, journal, logs, modules, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, security, servers, services, sessions, smart, squid, ssh, sshkeys, stream, system, system_time, users, apache
 
 # ログ設定
 logging.basicConfig(
@@ -110,6 +110,10 @@ app.include_router(filemanager.router, prefix="/api")
 app.include_router(sshkeys.router, prefix="/api")
 app.include_router(modules.router, prefix="/api")
 app.include_router(security.router, prefix="/api")
+app.include_router(backup.router, prefix="/api/backup", tags=["backup"])
+app.include_router(journal.router, prefix="/api/journal", tags=["journal"])
+app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
+app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 
 # ===================================================================
 # 静的ファイル配信

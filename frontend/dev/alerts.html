@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Resource Alerts - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .alert-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .dark-mode .alert-card {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        .dark-mode body, .dark-mode .main-content { background: #0f172a; color: #e2e8f0; }
+        .alert-card-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dark-mode .alert-card-title { color: #f1f5f9; }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 7px 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 14px;
+        }
+        .stat-row:last-child { border-bottom: none; }
+        .dark-mode .stat-row { border-bottom-color: #334155; }
+        .stat-label { color: #6b7280; }
+        .dark-mode .stat-label { color: #94a3b8; }
+        .stat-value { font-weight: 600; }
+        .summary-cards { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+        .summary-card {
+            flex: 1; min-width: 140px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+        .dark-mode .summary-card { background: #1e293b; border-color: #334155; }
+        .summary-card .val { font-size: 28px; font-weight: bold; color: #2563eb; }
+        .summary-card .lbl { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .dark-mode .summary-card .lbl { color: #94a3b8; }
+        .badge-danger { background: #ef4444; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        .badge-warning { background: #f59e0b; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        .badge-ok { background: #22c55e; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        .alert-row-triggered { background: #fef2f2; border-left: 4px solid #ef4444; }
+        .dark-mode .alert-row-triggered { background: #450a0a; border-left-color: #ef4444; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: #f3f4f6; padding: 8px 12px; text-align: left; font-weight: 600; }
+        .dark-mode th { background: #0f172a; color: #e2e8f0; }
+        td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
+        .dark-mode td { border-bottom-color: #334155; }
+        .refresh-info { font-size: 12px; color: #6b7280; }
+        .dark-mode .refresh-info { color: #94a3b8; }
+    </style>
+</head>
+<body>
+<div id="sidebar-container"></div>
+<div class="main-content">
+    <div class="container-fluid py-4">
+        <div class="d-flex align-items-center mb-4 gap-2 justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-bell-fill fs-4 text-warning"></i>
+                <h2 class="mb-0">System Resource Alerts</h2>
+            </div>
+            <div class="refresh-info" id="refresh-info">自動更新: 30秒ごと</div>
+        </div>
+
+        <!-- サマリーカード -->
+        <div class="summary-cards" id="summary-cards">
+            <div class="summary-card">
+                <div class="val" id="sum-cpu">--</div>
+                <div class="lbl">CPU使用率 (%)</div>
+            </div>
+            <div class="summary-card">
+                <div class="val" id="sum-mem">--</div>
+                <div class="lbl">メモリ使用率 (%)</div>
+            </div>
+            <div class="summary-card">
+                <div class="val" id="sum-load">--</div>
+                <div class="lbl">ロードアベレージ</div>
+            </div>
+            <div class="summary-card">
+                <div class="val" id="sum-active">--</div>
+                <div class="lbl">アクティブアラート</div>
+            </div>
+        </div>
+
+        <!-- アクティブアラート -->
+        <div class="alert-card">
+            <div class="alert-card-title">
+                <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                アクティブアラート (Active Alerts)
+                <span id="active-badge"></span>
+            </div>
+            <div id="active-alerts-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- アラートルール一覧 -->
+        <div class="alert-card">
+            <div class="alert-card-title">
+                <i class="bi bi-list-check text-primary"></i>
+                アラートルール一覧 (Alert Rules)
+            </div>
+            <div id="rules-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <div class="refresh-info" id="last-updated"></div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+(async function () {
+    const token = localStorage.getItem('token');
+    if (!token) { window.location.href = '/dev/index.html'; return; }
+    const headers = { 'Authorization': 'Bearer ' + token };
+
+    function escapeHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function apiFetch(url) {
+        const r = await fetch(url, { headers });
+        if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+        return r.json();
+    }
+
+    async function loadSummary() {
+        try {
+            const d = await apiFetch('/api/alerts/summary');
+            document.getElementById('sum-cpu').textContent = d.current_cpu;
+            document.getElementById('sum-mem').textContent = d.current_memory;
+            document.getElementById('sum-load').textContent = d.current_load;
+        } catch (e) {
+            document.getElementById('sum-cpu').textContent = 'ERR';
+        }
+    }
+
+    async function loadActiveAlerts() {
+        try {
+            const d = await apiFetch('/api/alerts/active');
+            document.getElementById('sum-active').textContent = d.count;
+            const badge = d.count > 0
+                ? `<span class="badge-danger">${d.count}件</span>`
+                : `<span class="badge-ok">なし</span>`;
+            document.getElementById('active-badge').innerHTML = badge;
+
+            if (d.count === 0) {
+                document.getElementById('active-alerts-content').innerHTML =
+                    '<div class="text-success"><i class="bi bi-check-circle-fill"></i> 現在アクティブなアラートはありません</div>';
+                return;
+            }
+            let html = '<table><thead><tr><th>ID</th><th>リソース</th><th>説明</th><th>閾値</th><th>現在値</th><th>発火時刻</th></tr></thead><tbody>';
+            for (const a of d.active_alerts) {
+                html += `<tr class="alert-row-triggered">
+                    <td>${escapeHtml(a.id)}</td>
+                    <td>${escapeHtml(a.resource)}</td>
+                    <td>${escapeHtml(a.description)}</td>
+                    <td>${escapeHtml(a.threshold)}</td>
+                    <td><strong>${escapeHtml(a.current_value)}</strong></td>
+                    <td style="font-size:12px">${escapeHtml(a.triggered_at)}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            document.getElementById('active-alerts-content').innerHTML = html;
+            document.getElementById('last-updated').textContent = '最終更新: ' + d.timestamp;
+        } catch (e) {
+            document.getElementById('active-alerts-content').innerHTML =
+                `<div class="text-danger">エラー: ${escapeHtml(e.message)}</div>`;
+        }
+    }
+
+    async function loadRules() {
+        try {
+            const d = await apiFetch('/api/alerts/rules');
+            let html = '<table><thead><tr><th>ID</th><th>リソース</th><th>説明</th><th>閾値</th><th>比較</th><th>状態</th></tr></thead><tbody>';
+            for (const r of d.rules) {
+                const status = r.enabled
+                    ? '<span class="badge-ok">有効</span>'
+                    : '<span class="badge-warning">無効</span>';
+                html += `<tr>
+                    <td>${escapeHtml(r.id)}</td>
+                    <td>${escapeHtml(r.resource)}</td>
+                    <td>${escapeHtml(r.description)}</td>
+                    <td>${escapeHtml(r.threshold)}</td>
+                    <td>${escapeHtml(r.comparison)}</td>
+                    <td>${status}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            document.getElementById('rules-content').innerHTML = html;
+        } catch (e) {
+            document.getElementById('rules-content').innerHTML =
+                `<div class="text-danger">エラー: ${escapeHtml(e.message)}</div>`;
+        }
+    }
+
+    async function refresh() {
+        await Promise.all([loadSummary(), loadActiveAlerts(), loadRules()]);
+    }
+
+    await refresh();
+    setInterval(refresh, 30000);
+})();
+</script>
+</body>
+</html>

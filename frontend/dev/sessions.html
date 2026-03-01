@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ユーザーセッション管理 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .session-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .dark-mode .session-card {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        .dark-mode body, .dark-mode .main-content { background: #0f172a; color: #e2e8f0; }
+        .session-card-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dark-mode .session-card-title { color: #f1f5f9; }
+        .badge-count {
+            background: #3b82f6;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: normal;
+        }
+        .failed-row { color: #dc2626; font-weight: 500; }
+        .dark-mode .failed-row { color: #f87171; }
+        .session-table { font-size: 13px; }
+        .session-table td, .session-table th { padding: 6px 10px; }
+        .auto-refresh-indicator {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .dark-mode .auto-refresh-indicator { color: #94a3b8; }
+    </style>
+</head>
+<body>
+<div id="sidebar-placeholder"></div>
+<div class="main-content">
+    <div class="top-bar">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>👤 ユーザーセッション管理</h2>
+            <div class="d-flex align-items-center gap-3">
+                <span class="auto-refresh-indicator" id="refresh-status">🔄 30秒ごと自動更新</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadAll()">今すぐ更新</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- アクティブセッション -->
+    <div class="session-card">
+        <div class="session-card-title">
+            🟢 アクティブセッション
+            <span class="badge-count" id="active-count">-</span>
+        </div>
+        <div id="active-error" class="alert alert-warning d-none"></div>
+        <div class="table-responsive">
+            <table class="table table-sm session-table" id="active-table">
+                <thead><tr>
+                    <th>ユーザー</th><th>端末</th><th>IPアドレス</th><th>ログイン時刻</th><th>アイドル時間</th>
+                </tr></thead>
+                <tbody id="active-tbody"><tr><td colspan="5" class="text-center text-muted">読み込み中...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ログイン履歴 -->
+    <div class="session-card">
+        <div class="session-card-title">
+            📋 ログイン履歴（最近50件）
+            <span class="badge-count" id="history-count">-</span>
+        </div>
+        <div id="history-error" class="alert alert-warning d-none"></div>
+        <div class="table-responsive">
+            <table class="table table-sm session-table" id="history-table">
+                <thead><tr>
+                    <th>ユーザー</th><th>端末</th><th>ホスト</th><th>ログイン</th><th>ログアウト</th>
+                </tr></thead>
+                <tbody id="history-tbody"><tr><td colspan="5" class="text-center text-muted">読み込み中...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ログイン失敗 -->
+    <div class="session-card">
+        <div class="session-card-title">
+            🔴 ログイン失敗一覧
+            <span class="badge-count" id="failed-count">-</span>
+        </div>
+        <div id="failed-error" class="alert alert-warning d-none"></div>
+        <div class="table-responsive">
+            <table class="table table-sm session-table" id="failed-table">
+                <thead><tr><th>詳細</th></tr></thead>
+                <tbody id="failed-tbody"><tr><td class="text-center text-muted">読み込み中...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- wtmpサマリー -->
+    <div class="session-card">
+        <div class="session-card-title">
+            📊 ログイン統計サマリー
+            <span class="badge-count" id="wtmp-count">-</span>
+        </div>
+        <div id="wtmp-error" class="alert alert-warning d-none"></div>
+        <pre id="wtmp-pre" class="bg-light p-3 rounded" style="font-size:12px;max-height:300px;overflow-y:auto;">読み込み中...</pre>
+    </div>
+</div>
+
+<script src="../js/auth.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function getHeaders() {
+        const token = localStorage.getItem("access_token");
+        return token ? { "Authorization": "Bearer " + token } : {};
+    }
+
+    function parseWhoLine(line) {
+        const parts = line.trim().split(/\s+/);
+        return {
+            user: parts[0] || "",
+            tty: parts[1] || "",
+            ip: parts[2] || "",
+            loginTime: parts.slice(3, 5).join(" ") || "",
+            idle: parts[5] || ""
+        };
+    }
+
+    function parseLastLine(line) {
+        const parts = line.trim().split(/\s+/);
+        return {
+            user: parts[0] || "",
+            tty: parts[1] || "",
+            host: parts[2] || "",
+            login: parts.slice(3, 7).join(" ") || "",
+            logout: parts.slice(7).join(" ") || ""
+        };
+    }
+
+    async function loadActiveSessions() {
+        try {
+            const resp = await fetch("/api/sessions/active", { headers: getHeaders() });
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const data = await resp.json();
+            document.getElementById("active-count").textContent = data.count;
+            const tbody = document.getElementById("active-tbody");
+            if (!data.sessions || data.sessions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">アクティブセッションなし</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.sessions.map(line => {
+                const p = parseWhoLine(line);
+                return `<tr>
+                    <td>${escapeHtml(p.user)}</td>
+                    <td>${escapeHtml(p.tty)}</td>
+                    <td>${escapeHtml(p.ip)}</td>
+                    <td>${escapeHtml(p.loginTime)}</td>
+                    <td>${escapeHtml(p.idle)}</td>
+                </tr>`;
+            }).join("");
+        } catch (e) {
+            const el = document.getElementById("active-error");
+            el.textContent = "取得エラー: " + escapeHtml(e.message);
+            el.classList.remove("d-none");
+        }
+    }
+
+    async function loadHistory() {
+        try {
+            const resp = await fetch("/api/sessions/history", { headers: getHeaders() });
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const data = await resp.json();
+            document.getElementById("history-count").textContent = data.count;
+            const tbody = document.getElementById("history-tbody");
+            if (!data.history || data.history.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">履歴なし</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.history.map(line => {
+                const p = parseLastLine(line);
+                return `<tr>
+                    <td>${escapeHtml(p.user)}</td>
+                    <td>${escapeHtml(p.tty)}</td>
+                    <td>${escapeHtml(p.host)}</td>
+                    <td>${escapeHtml(p.login)}</td>
+                    <td>${escapeHtml(p.logout)}</td>
+                </tr>`;
+            }).join("");
+        } catch (e) {
+            const el = document.getElementById("history-error");
+            el.textContent = "取得エラー: " + escapeHtml(e.message);
+            el.classList.remove("d-none");
+        }
+    }
+
+    async function loadFailed() {
+        try {
+            const resp = await fetch("/api/sessions/failed", { headers: getHeaders() });
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const data = await resp.json();
+            document.getElementById("failed-count").textContent = data.count;
+            const tbody = document.getElementById("failed-tbody");
+            if (!data.failed_logins || data.failed_logins.length === 0) {
+                tbody.innerHTML = '<tr><td class="text-center text-muted">ログイン失敗なし</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.failed_logins.map(line =>
+                `<tr class="failed-row"><td>${escapeHtml(line)}</td></tr>`
+            ).join("");
+        } catch (e) {
+            const el = document.getElementById("failed-error");
+            el.textContent = "取得エラー: " + escapeHtml(e.message);
+            el.classList.remove("d-none");
+        }
+    }
+
+    async function loadWtmp() {
+        try {
+            const resp = await fetch("/api/sessions/wtmp-summary", { headers: getHeaders() });
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const data = await resp.json();
+            document.getElementById("wtmp-count").textContent = data.count;
+            const pre = document.getElementById("wtmp-pre");
+            pre.textContent = data.summary && data.summary.length > 0
+                ? data.summary.join("\n")
+                : "データなし";
+        } catch (e) {
+            document.getElementById("wtmp-pre").textContent = "取得エラー: " + e.message;
+        }
+    }
+
+    function loadAll() {
+        loadActiveSessions();
+        loadHistory();
+        loadFailed();
+        loadWtmp();
+        const now = new Date().toLocaleTimeString("ja-JP");
+        document.getElementById("refresh-status").textContent = "🔄 最終更新: " + now;
+    }
+
+    loadAll();
+    setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

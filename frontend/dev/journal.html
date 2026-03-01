@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Journal - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .log-area {
+            background: #1e1e2e;
+            color: #cdd6f4;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 14px;
+            border-radius: 8px;
+            height: 480px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log-line { line-height: 1.6; }
+        .log-line.err   { color: #f38ba8; }
+        .log-line.warn  { color: #fab387; }
+        .log-line.info  { color: #a6e3a1; }
+        .tab-btn {
+            padding: 6px 18px; border-radius: 20px;
+            border: 1.5px solid #d1d5db; background: #fff;
+            color: #374151; font-size: 13px; cursor: pointer;
+            transition: all 0.15s; margin-right: 6px; margin-bottom: 6px;
+        }
+        .tab-btn.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .tab-btn:hover:not(.active) { background: #f3f4f6; border-color: #9ca3af; }
+        .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+        .unit-select { max-width: 320px; }
+        .stat-badge { background:#e0e7ff; color:#3730a3; border-radius:12px; padding:2px 10px; font-size:12px; font-weight:600; margin-left:8px; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">📋 System Journal</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="reloadCurrent()" id="refresh-btn">🔄 更新</button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- タブ -->
+            <div class="mb-3">
+                <button class="tab-btn active" onclick="showTab('all')" id="tab-all">📄 全ログ</button>
+                <button class="tab-btn" onclick="showTab('units')" id="tab-units">🔧 ユニット</button>
+                <button class="tab-btn" onclick="showTab('boot')" id="tab-boot">🚀 ブートログ</button>
+                <button class="tab-btn" onclick="showTab('kernel')" id="tab-kernel">🐧 カーネル</button>
+                <button class="tab-btn" onclick="showTab('errors')" id="tab-errors">🔴 エラー</button>
+            </div>
+
+            <!-- 全ログタブ -->
+            <div id="pane-all">
+                <div class="controls">
+                    <label for="lines-select" class="form-label mb-0 me-1">表示行数:</label>
+                    <select id="lines-select" class="form-select form-select-sm" style="width:120px" onchange="loadAllLogs()">
+                        <option value="50">50行</option>
+                        <option value="100" selected>100行</option>
+                        <option value="200">200行</option>
+                        <option value="500">500行</option>
+                    </select>
+                    <span id="all-count" class="stat-badge">-</span>
+                </div>
+                <div class="log-area" id="log-all">ログを読み込み中...</div>
+            </div>
+
+            <!-- ユニットタブ -->
+            <div id="pane-units" style="display:none">
+                <div class="controls">
+                    <select id="unit-select" class="form-select form-select-sm unit-select" onchange="loadUnitLogs()">
+                        <option value="">-- ユニットを選択 --</option>
+                    </select>
+                    <span id="unit-count" class="stat-badge">-</span>
+                </div>
+                <div class="log-area" id="log-units">ユニットを選択してください</div>
+            </div>
+
+            <!-- ブートログタブ -->
+            <div id="pane-boot" style="display:none">
+                <div class="controls"><span id="boot-count" class="stat-badge">-</span></div>
+                <div class="log-area" id="log-boot">ログを読み込み中...</div>
+            </div>
+
+            <!-- カーネルタブ -->
+            <div id="pane-kernel" style="display:none">
+                <div class="controls"><span id="kernel-count" class="stat-badge">-</span></div>
+                <div class="log-area" id="log-kernel">ログを読み込み中...</div>
+            </div>
+
+            <!-- エラータブ -->
+            <div id="pane-errors" style="display:none">
+                <div class="controls">
+                    <label for="priority-select" class="form-label mb-0 me-1">優先度:</label>
+                    <select id="priority-select" class="form-select form-select-sm" style="width:140px" onchange="loadPriorityLogs()">
+                        <option value="emerg">emerg</option>
+                        <option value="alert">alert</option>
+                        <option value="crit">crit</option>
+                        <option value="err" selected>err</option>
+                        <option value="warning">warning</option>
+                        <option value="notice">notice</option>
+                        <option value="info">info</option>
+                        <option value="debug">debug</option>
+                    </select>
+                    <span id="errors-count" class="stat-badge">-</span>
+                </div>
+                <div class="log-area" id="log-errors">ログを読み込み中...</div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/sidebar.js"></script>
+<script>
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function colorLine(line) {
+        const l = line.toLowerCase();
+        let cls = 'log-line';
+        if (/\berr\b|error|crit|emerg|alert/.test(l)) cls += ' err';
+        else if (/warn/.test(l)) cls += ' warn';
+        else if (/info|notice/.test(l)) cls += ' info';
+        return `<div class="${cls}">${escapeHtml(line)}</div>`;
+    }
+
+    function renderLogs(areaId, lines) {
+        const area = document.getElementById(areaId);
+        if (!lines || lines.length === 0) {
+            area.textContent = '(ログなし)';
+            return;
+        }
+        area.innerHTML = lines.map(colorLine).join('');
+        area.scrollTop = area.scrollHeight;
+    }
+
+    function showAlert(msg, type = 'danger') {
+        document.getElementById('alert-area').innerHTML =
+            `<div class="alert alert-${type} alert-dismissible fade show">${escapeHtml(msg)}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+    }
+
+    let currentTab = 'all';
+
+    function showTab(tab) {
+        ['all', 'units', 'boot', 'kernel', 'errors'].forEach(t => {
+            document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
+            document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+        });
+        currentTab = tab;
+        if (tab === 'all') loadAllLogs();
+        else if (tab === 'units') loadUnits();
+        else if (tab === 'boot') loadBootLogs();
+        else if (tab === 'kernel') loadKernelLogs();
+        else if (tab === 'errors') loadPriorityLogs();
+    }
+
+    function reloadCurrent() { showTab(currentTab); }
+
+    async function apiGet(url) {
+        const token = localStorage.getItem('access_token');
+        const resp = await fetch(url, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+            throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+        return resp.json();
+    }
+
+    async function loadAllLogs() {
+        const lines = document.getElementById('lines-select').value;
+        document.getElementById('log-all').textContent = '読み込み中...';
+        try {
+            const data = await apiGet(`/api/journal/list?lines=${lines}`);
+            renderLogs('log-all', data.logs);
+            document.getElementById('all-count').textContent = `${data.count} 行`;
+        } catch (e) {
+            document.getElementById('log-all').textContent = 'エラー: ' + e.message;
+            showAlert(e.message);
+        }
+    }
+
+    async function loadUnits() {
+        try {
+            const data = await apiGet('/api/journal/units');
+            const sel = document.getElementById('unit-select');
+            sel.innerHTML = '<option value="">-- ユニットを選択 --</option>';
+            data.units.forEach(u => {
+                const name = u.split(/\s+/)[0];
+                if (name) {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    sel.appendChild(opt);
+                }
+            });
+        } catch (e) {
+            showAlert(e.message);
+        }
+    }
+
+    async function loadUnitLogs() {
+        const unit = document.getElementById('unit-select').value;
+        if (!unit) return;
+        document.getElementById('log-units').textContent = '読み込み中...';
+        try {
+            const data = await apiGet(`/api/journal/unit-logs/${encodeURIComponent(unit)}`);
+            renderLogs('log-units', data.logs);
+            document.getElementById('unit-count').textContent = `${data.count} 行`;
+        } catch (e) {
+            document.getElementById('log-units').textContent = 'エラー: ' + e.message;
+            showAlert(e.message);
+        }
+    }
+
+    async function loadBootLogs() {
+        document.getElementById('log-boot').textContent = '読み込み中...';
+        try {
+            const data = await apiGet('/api/journal/boot-logs');
+            renderLogs('log-boot', data.logs);
+            document.getElementById('boot-count').textContent = `${data.count} 行`;
+        } catch (e) {
+            document.getElementById('log-boot').textContent = 'エラー: ' + e.message;
+            showAlert(e.message);
+        }
+    }
+
+    async function loadKernelLogs() {
+        document.getElementById('log-kernel').textContent = '読み込み中...';
+        try {
+            const data = await apiGet('/api/journal/kernel-logs');
+            renderLogs('log-kernel', data.logs);
+            document.getElementById('kernel-count').textContent = `${data.count} 行`;
+        } catch (e) {
+            document.getElementById('log-kernel').textContent = 'エラー: ' + e.message;
+            showAlert(e.message);
+        }
+    }
+
+    async function loadPriorityLogs() {
+        const priority = document.getElementById('priority-select').value;
+        document.getElementById('log-errors').textContent = '読み込み中...';
+        try {
+            const data = await apiGet(`/api/journal/priority-logs?priority=${priority}`);
+            renderLogs('log-errors', data.logs);
+            document.getElementById('errors-count').textContent = `${data.count} 行`;
+        } catch (e) {
+            document.getElementById('log-errors').textContent = 'エラー: ' + e.message;
+            showAlert(e.message);
+        }
+    }
+
+    // 初期ロード
+    loadAllLogs();
+</script>
+</body>
+</html>

@@ -67,6 +67,7 @@ ROLES = {
         permissions=[
             "read:status",
             "read:logs",
+            "read:journal",
             "read:processes",
             "read:network",
             "read:servers",
@@ -121,6 +122,11 @@ ROLES = {
             "read:security",
             # 帯域幅監視
             "read:bandwidth",
+            "read:sessions",
+            # アラート管理
+            "read:alerts",
+            # バックアップ管理
+            "read:backup",
         ],
     ),
     "Operator": UserRole(
@@ -128,6 +134,7 @@ ROLES = {
         permissions=[
             "read:status",
             "read:logs",
+            "read:journal",
             "read:processes",
             "read:network",
             "read:servers",
@@ -190,6 +197,11 @@ ROLES = {
             "read:security",
             # 帯域幅監視
             "read:bandwidth",
+            "read:sessions",
+            # アラート管理
+            "read:alerts",
+            # バックアップ管理
+            "read:backup",
         ],
     ),
     "Approver": UserRole(
@@ -197,6 +209,7 @@ ROLES = {
         permissions=[
             "read:status",
             "read:logs",
+            "read:journal",
             "read:processes",
             "read:network",
             "read:servers",
@@ -266,6 +279,11 @@ ROLES = {
             "read:security",
             # 帯域幅監視
             "read:bandwidth",
+            "read:sessions",
+            # アラート管理
+            "read:alerts",
+            # バックアップ管理
+            "read:backup",
         ],
     ),
     "Admin": UserRole(
@@ -273,6 +291,7 @@ ROLES = {
         permissions=[
             "read:status",
             "read:logs",
+            "read:journal",
             "read:processes",
             "read:network",
             "read:servers",
@@ -355,6 +374,11 @@ ROLES = {
             "read:security",
             # 帯域幅監視
             "read:bandwidth",
+            "read:sessions",
+            # アラート管理
+            "read:alerts",
+            # バックアップ管理
+            "read:backup",
         ],
     ),
 }
