@@ -109,6 +109,8 @@ ROLES = {
             "read:nginx",
             # Apache 管理
             "read:apache",
+            # Postfix
+            "read:postfix",
             # File Manager
             "read:filemanager",
             # SSH Keys 管理
@@ -172,6 +174,8 @@ ROLES = {
             "read:nginx",
             # Apache 管理
             "read:apache",
+            # Postfix
+            "read:postfix",
             # File Manager
             "read:filemanager",
             # SSH Keys 管理
@@ -242,6 +246,8 @@ ROLES = {
             "read:nginx",
             # Apache 管理
             "read:apache",
+            # Postfix
+            "read:postfix",
             # File Manager
             "read:filemanager",
             # SSH Keys 管理
@@ -325,6 +331,8 @@ ROLES = {
             "read:nginx",
             # Apache 管理
             "read:apache",
+            # Postfix
+            "read:postfix",
             # File Manager
             "read:filemanager",
             # SSH Keys 管理

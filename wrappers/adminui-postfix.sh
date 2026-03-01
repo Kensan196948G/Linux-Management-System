@@ -3,7 +3,7 @@
 # セキュリティ: shell=False, allowlist による制御
 set -euo pipefail
 
-readonly ALLOWED_COMMANDS=("status" "queue" "logs" "mailq")
+readonly ALLOWED_COMMANDS=("status" "queue" "logs" "mailq" "queue-detail" "config" "stats")
 
 SUBCOMMAND="${1:-}"
 
@@ -102,5 +102,43 @@ case "${SUBCOMMAND}" in
         OUTPUT=$(mailq 2>/dev/null || echo "Mail queue is empty")
         ESCAPED=$(echo "${OUTPUT}" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
         echo "{\"output\":${ESCAPED}}"
+        ;;
+    queue-detail)
+        # Postfix キュー詳細 (postqueue -p)
+        if command -v postqueue >/dev/null 2>&1; then
+            OUTPUT=$(postqueue -p 2>&1 | head -100 || echo "")
+        else
+            OUTPUT=""
+        fi
+        ESCAPED=$(echo "${OUTPUT}" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+        echo "{\"queue_detail\":${ESCAPED}}"
+        ;;
+    config)
+        # Postfix 本番設定 (postconf -n)
+        if command -v postconf >/dev/null 2>&1; then
+            OUTPUT=$(postconf -n 2>&1 || echo "")
+        else
+            OUTPUT=""
+        fi
+        ESCAPED=$(echo "${OUTPUT}" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+        echo "{\"config\":${ESCAPED}}"
+        ;;
+    stats)
+        # Postfix 送受信統計 (mail.log から集計)
+        SENT=0
+        RECEIVED=0
+        DEFERRED=0
+        LOG_FILE=""
+        if [[ -f "/var/log/mail.log" ]]; then
+            LOG_FILE="/var/log/mail.log"
+        elif [[ -f "/var/log/maillog" ]]; then
+            LOG_FILE="/var/log/maillog"
+        fi
+        if [[ -n "${LOG_FILE}" ]]; then
+            SENT=$(grep -c " status=sent " "${LOG_FILE}" 2>/dev/null || true)
+            RECEIVED=$(grep -c " message-id=" "${LOG_FILE}" 2>/dev/null || true)
+            DEFERRED=$(grep -c " status=deferred " "${LOG_FILE}" 2>/dev/null || true)
+        fi
+        echo "{\"sent\":${SENT},\"received\":${RECEIVED},\"deferred\":${DEFERRED}}"
         ;;
 esac

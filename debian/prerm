@@ -1,0 +1,40 @@
+#!/bin/sh
+# debian/prerm - 削除前スクリプト
+
+set -e
+
+case "$1" in
+    remove|upgrade|deconfigure)
+        # systemd サービスを停止・無効化
+        if command -v systemctl > /dev/null 2>&1; then
+            for svc in linux-management-prod linux-management-dev; do
+                if systemctl is-active --quiet "${svc}" 2>/dev/null; then
+                    echo "Stopping ${svc}..."
+                    systemctl stop "${svc}" || true
+                fi
+                if systemctl is-enabled --quiet "${svc}" 2>/dev/null; then
+                    echo "Disabling ${svc}..."
+                    systemctl disable "${svc}" || true
+                fi
+            done
+            systemctl daemon-reload
+        fi
+
+        # nginx 設定リンクを削除
+        rm -f /etc/nginx/sites-enabled/adminui.conf || true
+
+        if command -v nginx > /dev/null 2>&1; then
+            nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || true
+        fi
+        ;;
+
+    failed-upgrade)
+        ;;
+
+    *)
+        echo "prerm: 不明な引数: $1" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

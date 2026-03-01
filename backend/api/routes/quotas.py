@@ -10,11 +10,13 @@
   POST /api/quotas/set              - クォータ設定（承認フロー経由）
 """
 
+import csv
+import io
 import logging
 import re
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field, field_validator
 
 from ...core import require_permission, sudo_wrapper
@@ -290,6 +292,125 @@ async def get_quota_report(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"クォータレポート取得エラー: {e}",
         )
+
+
+@router.get(
+    "/export/csv",
+    summary="クォータ CSV エクスポート",
+    description="全ユーザークォータを CSV 形式でエクスポートします",
+)
+async def export_quotas_csv(
+    filesystem: str = Query(default="", description="ファイルシステム"),
+    current_user: TokenData = Depends(require_permission("read:quotas")),
+) -> Response:
+    """全ユーザークォータを CSV 形式でエクスポートする"""
+    fs = _validate_filesystem(filesystem)
+    try:
+        result = sudo_wrapper.get_all_user_quotas(fs)
+        parsed = parse_wrapper_result(result)
+    except SudoWrapperError as e:
+        logger.error("Quota CSV export error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"クォータ CSV エクスポートエラー: {e}",
+        )
+
+    users: List[Dict[str, Any]] = []
+    data = parsed.get("data") or parsed
+    if isinstance(data, dict):
+        users = data.get("users", [])
+    elif isinstance(data, list):
+        users = data
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["username", "filesystem", "used_kb", "soft_limit_kb", "hard_limit_kb", "grace_period", "inodes_used", "inode_soft", "inode_hard"])
+    for u in users:
+        writer.writerow([
+            u.get("username", ""),
+            u.get("filesystem", ""),
+            u.get("used_kb", 0),
+            u.get("soft_limit_kb", 0),
+            u.get("hard_limit_kb", 0),
+            u.get("grace_period", "-"),
+            u.get("inodes_used", 0),
+            u.get("inode_soft", 0),
+            u.get("inode_hard", 0),
+        ])
+
+    audit_log.record(
+        operation="quota_csv_export",
+        user_id=current_user.user_id,
+        target=fs or "all",
+        status="success",
+        details={"row_count": len(users)},
+    )
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=quota_report.csv"},
+    )
+
+
+@router.get(
+    "/alerts",
+    summary="クォータアラート",
+    description="指定閾値を超えたクォータを持つユーザーを返します",
+)
+async def get_quota_alerts(
+    threshold: int = Query(default=80, ge=1, le=100, description="警告閾値 (%)"),
+    filesystem: str = Query(default="", description="ファイルシステム"),
+    current_user: TokenData = Depends(require_permission("read:quotas")),
+) -> Dict[str, Any]:
+    """使用率が threshold % を超えるユーザーを返す"""
+    fs = _validate_filesystem(filesystem)
+    try:
+        result = sudo_wrapper.get_all_user_quotas(fs)
+        parsed = parse_wrapper_result(result)
+    except SudoWrapperError as e:
+        logger.error("Quota alerts error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"クォータアラート取得エラー: {e}",
+        )
+
+    users: List[Dict[str, Any]] = []
+    data = parsed.get("data") or parsed
+    if isinstance(data, dict):
+        users = data.get("users", [])
+    elif isinstance(data, list):
+        users = data
+
+    alerts: List[Dict[str, Any]] = []
+    for u in users:
+        used = u.get("used_kb", 0)
+        soft = u.get("soft_limit_kb", 0)
+        hard = u.get("hard_limit_kb", 0)
+        limit = hard if hard > 0 else soft
+        if limit > 0:
+            usage_pct = (used / limit) * 100
+            if usage_pct > threshold:
+                alerts.append({
+                    "username": u.get("username", ""),
+                    "filesystem": u.get("filesystem", ""),
+                    "used_kb": used,
+                    "limit_kb": limit,
+                    "usage_percent": round(usage_pct, 1),
+                })
+
+    audit_log.record(
+        operation="quota_alerts_read",
+        user_id=current_user.user_id,
+        target=fs or "all",
+        status="success",
+        details={"threshold": threshold, "alert_count": len(alerts)},
+    )
+    return {
+        "status": "success",
+        "threshold": threshold,
+        "alert_count": len(alerts),
+        "alerts": alerts,
+    }
 
 
 @router.post(

@@ -8,363 +8,277 @@
     <link rel="stylesheet" href="../css/sidebar.css">
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <style>
-        .status-card {
-            background: white;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-            padding: 20px;
-            margin-bottom: 16px;
-        }
-        .status-title {
-            font-size: 16px;
-            font-weight: bold;
-            color: #111827;
-            margin-bottom: 14px;
-        }
-        .badge-running {
-            background: #d1fae5;
-            color: #065f46;
-            border-radius: 20px;
-            padding: 4px 10px;
-            font-size: 12px;
-            font-weight: 600;
-            display: inline-block;
-        }
-        .badge-stopped {
-            background: #fee2e2;
-            color: #991b1b;
-            border-radius: 20px;
-            padding: 4px 10px;
-            font-size: 12px;
-            font-weight: 600;
-            display: inline-block;
-        }
-        .badge-unavail {
-            background: #f3f4f6;
-            color: #6b7280;
-            border-radius: 20px;
-            padding: 4px 10px;
-            font-size: 12px;
-            font-weight: 600;
-            display: inline-block;
-        }
-        .metric-val {
-            font-size: 22px;
-            font-weight: bold;
-            color: #1e293b;
-        }
-        .metric-label {
-            font-size: 12px;
-            color: #6b7280;
-        }
-        .unavail-notice {
-            background: #fefce8;
-            border: 1px solid #fde047;
-            border-radius: 8px;
-            padding: 12px;
-            color: #713f12;
-            font-size: 13px;
-        }
-        .nav-tabs .nav-link.active {
-            color: #2563eb;
-            font-weight: 600;
-            border-bottom: 2px solid #2563eb;
-            background: none;
-        }
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .badge-running { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-stopped { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-unavail { background: #f3f4f6; color: #6b7280; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .raw-output { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        .metric-val { font-size: 22px; font-weight: bold; color: #1e293b; }
+        .metric-label { font-size: 12px; color: #6b7280; }
+        .unavail-notice { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px; color: #713f12; font-size: 13px; }
+        .nav-tabs .nav-link.active { color: #2563eb; font-weight: 600; border-bottom: 2px solid #2563eb; background: none; }
         .nav-tabs .nav-link { color: #6b7280; }
-        .field-row {
-            display: flex;
-            align-items: baseline;
-            gap: 8px;
-            padding: 6px 0;
-            border-bottom: 1px solid #f3f4f6;
-        }
-        .field-row:last-child { border-bottom: none; }
-        .field-key {
-            font-size: 12px;
-            color: #6b7280;
-            min-width: 140px;
-            font-weight: 500;
-        }
-        .field-val {
-            font-size: 13px;
-            color: #1e293b;
-            font-family: monospace;
-        }
     </style>
 </head>
 <body>
 <div class="app-layout">
     <aside class="sidebar" id="sidebar-container"></aside>
-
-    <main class="main-content">
-        <div class="main-header">
-            <h2 id="page-title">📧 Postfix メール管理</h2>
+    <div class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">📧 Postfix メール管理</h1>
             <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">🔄 更新</button>
         </div>
 
-        <div class="main-body">
-            <div id="alert-area"></div>
+        <!-- ステータスカード -->
+        <div class="status-card">
+            <div class="status-title">📊 Postfix ステータス</div>
+            <div id="status-content"><span class="text-muted">読み込み中...</span></div>
+        </div>
 
-            <!-- タブナビゲーション -->
-            <ul class="nav nav-tabs mb-3" id="mainTab">
-                <li class="nav-item">
-                    <a class="nav-link active" data-bs-toggle="tab" href="#tab-status">📊 ステータス</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="tab" href="#tab-queue">📬 メールキュー</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="tab" href="#tab-logs">📋 ログ</a>
-                </li>
-            </ul>
+        <!-- タブ -->
+        <ul class="nav nav-tabs mb-3" id="mainTab">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-queue">📬 キュー</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-queue-detail">🔍 キュー詳細</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-config">⚙️ 設定</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-stats">📈 統計</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs">📜 ログ</a></li>
+        </ul>
 
-            <div class="tab-content">
-                <!-- ステータスタブ -->
-                <div class="tab-pane fade show active" id="tab-status">
-                    <div class="status-card">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <div class="status-title">📊 Postfix ステータス</div>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="loadStatus()">🔄 更新</button>
-                        </div>
-                        <div id="status-content">
-                            <div class="text-center text-muted py-4">読み込み中...</div>
-                        </div>
+        <div class="tab-content">
+            <!-- メールキュータブ -->
+            <div class="tab-pane fade show active" id="tab-queue">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">📬 メールキュー</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadQueue()">🔄 更新</button>
                     </div>
+                    <div id="queue-content"><span class="text-muted">読み込み中...</span></div>
                 </div>
+            </div>
 
-                <!-- メールキュータブ -->
-                <div class="tab-pane fade" id="tab-queue">
-                    <div class="status-card">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <div class="status-title">📬 メールキュー</div>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="loadQueue()">🔄 更新</button>
-                        </div>
-                        <div id="queue-content">
-                            <div class="text-center text-muted py-4">読み込み中...</div>
-                        </div>
+            <!-- キュー詳細タブ -->
+            <div class="tab-pane fade" id="tab-queue-detail">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">🔍 キュー詳細 (postqueue -p)</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadQueueDetail()">🔄 更新</button>
                     </div>
+                    <div id="queue-detail-content"><span class="text-muted">タブを開くと読み込みます...</span></div>
                 </div>
+            </div>
 
-                <!-- ログタブ -->
-                <div class="tab-pane fade" id="tab-logs">
-                    <div class="status-card">
-                        <div class="status-title">📋 Postfix ログ</div>
-                        <div class="mb-2 d-flex align-items-center gap-2">
-                            <select class="form-select form-select-sm" id="log-lines" style="width:auto">
+            <!-- 設定タブ -->
+            <div class="tab-pane fade" id="tab-config">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">⚙️ 本番設定 (postconf -n)</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadConfig()">🔄 更新</button>
+                    </div>
+                    <div id="config-content"><span class="text-muted">タブを開くと読み込みます...</span></div>
+                </div>
+            </div>
+
+            <!-- 統計タブ -->
+            <div class="tab-pane fade" id="tab-stats">
+                <div class="status-card">
+                    <div class="status-title">📈 送受信統計</div>
+                    <div id="stats-content"><span class="text-muted">タブを開くと読み込みます...</span></div>
+                </div>
+            </div>
+
+            <!-- ログタブ -->
+            <div class="tab-pane fade" id="tab-logs">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">📜 Postfix ログ</div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <select id="log-lines" class="form-select form-select-sm" style="width:100px">
                                 <option value="50">50行</option>
                                 <option value="100">100行</option>
                                 <option value="200">200行</option>
                             </select>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="loadLogs()">🔄 更新</button>
+                            <button class="btn btn-sm btn-primary" onclick="loadLogs()">🔄 更新</button>
                         </div>
-                        <pre id="log-content" style="background:#1a1a2e;color:#00ff88;padding:16px;border-radius:8px;max-height:500px;overflow-y:auto;font-size:12px;white-space:pre-wrap">読み込み中...</pre>
                     </div>
+                    <div id="logs-content"><span class="text-muted">読み込み中...</span></div>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 </div>
 
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
 <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('postfix')):renderSidebar('postfix');</script>
 <script>
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const API_BASE = '/api';
+
+function getToken() {
+    return localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
 }
 
-function statusBadge(running) {
-    if (running === true || running === 'running') {
-        return '<span class="badge-running">&#10003; 稼働中</span>';
-    }
-    if (running === false || running === 'stopped') {
-        return '<span class="badge-stopped">&#10007; 停止中</span>';
-    }
-    return '<span class="badge-unavail">不明</span>';
+function authHeaders() {
+    return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
+}
+
+async function apiFetch(path) {
+    const resp = await fetch(API_BASE + path, { headers: authHeaders() });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+}
+
+function statusBadge(status) {
+    if (status === 'running') return '<span class="badge-running">稼働中</span>';
+    if (status === 'stopped') return '<span class="badge-stopped">停止中</span>';
+    if (status === 'unavailable') return '<span class="badge-unavail">未インストール</span>';
+    return `<span class="badge-unavail">${status || '不明'}</span>`;
 }
 
 async function loadStatus() {
     const el = document.getElementById('status-content');
-    el.innerHTML = '<div class="text-center text-muted py-4">読み込み中...</div>';
     try {
-        const response = await api.getPostfixStatus();
-        const data = response.data || response;
-
-        if (data.status === 'unavailable') {
-            el.innerHTML = '<div class="unavail-notice">&#9888; Postfix はインストールされていないか、利用できません。</div>';
+        const res = await apiFetch('/postfix/status');
+        const d = res.data;
+        if (d.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">⚠️ Postfix はインストールされていません。</div>';
             return;
         }
-
-        // running フィールド処理
-        const running = (data.running !== undefined) ? data.running : (data.status === 'running');
-
-        // メトリクス行（上部カード）
-        let html = '<div class="row g-3 mb-4">';
-        html += `<div class="col-md-3 text-center">
-                    <div class="metric-label mb-1">サービス状態</div>
-                    <div class="metric-val mb-1">${statusBadge(running)}</div>
-                 </div>`;
-        if (data.queue_count !== undefined && data.queue_count !== null) {
-            html += `<div class="col-md-3 text-center">
-                        <div class="metric-label mb-1">キュー件数</div>
-                        <div class="metric-val">${escapeHtml(String(data.queue_count))}</div>
-                     </div>`;
-        }
-        if (data.version) {
-            html += `<div class="col-md-6 text-center">
-                        <div class="metric-label mb-1">バージョン</div>
-                        <div class="metric-val" style="font-size:14px">${escapeHtml(String(data.version))}</div>
-                     </div>`;
-        }
-        html += '</div>';
-
-        // 全フィールド一覧
-        const skipKeys = ['running', 'status', 'queue_count', 'version'];
-        const extraKeys = Object.keys(data).filter(k => !skipKeys.includes(k));
-
-        if (extraKeys.length > 0) {
-            html += '<div class="status-title" style="font-size:14px;margin-bottom:10px;">詳細情報</div>';
-            extraKeys.forEach(key => {
-                const val = data[key];
-                if (val === null || val === undefined) return;
-                html += `<div class="field-row">
-                            <span class="field-key">${escapeHtml(key)}</span>
-                            <span class="field-val">${escapeHtml(String(val))}</span>
-                         </div>`;
-            });
-        }
-
-        el.innerHTML = html;
+        el.innerHTML = `
+        <div class="row g-3">
+          <div class="col-md-3 text-center">
+            <div class="metric-val">${statusBadge(d.status)}</div>
+            <div class="metric-label">ステータス</div>
+          </div>
+          <div class="col-md-3 text-center">
+            <div class="metric-val">${d.queue_count ?? '—'}</div>
+            <div class="metric-label">キュー件数</div>
+          </div>
+          <div class="col-md-6">
+            <div class="metric-label">バージョン</div>
+            <div class="metric-val" style="font-size:14px">${d.version || '—'}</div>
+          </div>
+        </div>`;
     } catch (e) {
-        el.innerHTML = `<div class="alert alert-warning">ステータスの取得に失敗しました: ${escapeHtml(e.message)}</div>`;
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
     }
 }
 
 async function loadQueue() {
     const el = document.getElementById('queue-content');
-    el.innerHTML = '<div class="text-center text-muted py-4">読み込み中...</div>';
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
     try {
-        const response = await api.getPostfixQueue();
-        const data = response.data || response;
-
-        if (data.status === 'unavailable') {
-            el.innerHTML = '<div class="unavail-notice">&#9888; Postfix はインストールされていないか、利用できません。</div>';
+        const res = await apiFetch('/postfix/queue');
+        const d = res.data;
+        if (d.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">⚠️ Postfix はインストールされていません。</div>';
             return;
         }
-
-        const queue = data.queue || [];
-        const count = data.count !== undefined ? data.count : queue.length;
-
-        if (count === 0 || queue.length === 0) {
-            el.innerHTML = '<div class="alert alert-success">&#10003; キューは空です</div>';
-            return;
-        }
-
-        let html = `<p class="text-muted small mb-2">キュー件数: ${escapeHtml(String(count))} 件</p>`;
-        html += `<div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>ID</th>
-                                <th>送信者</th>
-                                <th>受信者</th>
-                                <th>サイズ</th>
-                                <th>到着時刻</th>
-                                <th>理由</th>
-                            </tr>
-                        </thead>
-                        <tbody id="queue-tbody">`;
-
-        queue.forEach(item => {
-            const id = escapeHtml(String(item.id || '-'));
-            const sender = escapeHtml(String(item.sender || '-'));
-            const recipients = Array.isArray(item.recipients)
-                ? item.recipients.map(r => escapeHtml(String(r))).join('<br>')
-                : escapeHtml(String(item.recipients || '-'));
-            const size = escapeHtml(String(item.size || '-'));
-            const arrival = escapeHtml(String(item.arrival_time || '-'));
-            const reason = escapeHtml(String(item.reason || '-'));
-            html += `<tr>
-                        <td><code>${id}</code></td>
-                        <td>${sender}</td>
-                        <td>${recipients}</td>
-                        <td>${size}</td>
-                        <td>${arrival}</td>
-                        <td><small class="text-muted">${reason}</small></td>
-                     </tr>`;
-        });
-
-        html += '</tbody></table></div>';
-        el.innerHTML = html;
+        const queueText = d.queue || 'キューは空です';
+        el.innerHTML = `<div class="raw-output">${escapeHtml(queueText)}</div>`;
     } catch (e) {
-        el.innerHTML = `<div class="alert alert-warning">キューの取得に失敗しました: ${escapeHtml(e.message)}</div>`;
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadQueueDetail() {
+    const el = document.getElementById('queue-detail-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/postfix/queue-detail');
+        const d = res.data;
+        if (d.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">⚠️ Postfix はインストールされていません。</div>';
+            return;
+        }
+        const text = d.queue_detail || '(キュー詳細なし)';
+        el.innerHTML = `<div class="raw-output">${escapeHtml(text)}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadConfig() {
+    const el = document.getElementById('config-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/postfix/config');
+        const d = res.data;
+        if (d.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">⚠️ Postfix はインストールされていません。</div>';
+            return;
+        }
+        const text = d.config || '(設定なし)';
+        el.innerHTML = `<div class="raw-output">${escapeHtml(text)}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadStats() {
+    const el = document.getElementById('stats-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/postfix/stats');
+        const d = res.data;
+        if (d.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">⚠️ Postfix はインストールされていません。</div>';
+            return;
+        }
+        el.innerHTML = `
+        <div class="row g-3 text-center">
+          <div class="col-md-4">
+            <div class="metric-val text-success">${d.sent ?? '—'}</div>
+            <div class="metric-label">送信完了</div>
+          </div>
+          <div class="col-md-4">
+            <div class="metric-val text-primary">${d.received ?? '—'}</div>
+            <div class="metric-label">受信</div>
+          </div>
+          <div class="col-md-4">
+            <div class="metric-val text-warning">${d.deferred ?? '—'}</div>
+            <div class="metric-label">遅延</div>
+          </div>
+        </div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
     }
 }
 
 async function loadLogs() {
-    const logEl = document.getElementById('log-content');
+    const el = document.getElementById('logs-content');
     const lines = document.getElementById('log-lines').value;
-    logEl.textContent = '読み込み中...';
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
     try {
-        const response = await api.getPostfixLogs(parseInt(lines, 10));
-        const data = response.data || response;
-
-        if (data.status === 'unavailable') {
-            logEl.textContent = '(Postfix がインストールされていないか、ログを取得できません)';
-            return;
-        }
-
-        const logs = data.logs;
-        if (!logs) {
-            logEl.textContent = '(ログなし)';
-            return;
-        }
-
-        // logs が配列の場合は結合、文字列の場合はそのまま
-        const logText = Array.isArray(logs) ? logs.join('\n') : String(logs);
-        // <pre> 内に表示するため escapeHtml 適用
-        logEl.textContent = logText || '(ログなし)';
+        const res = await apiFetch(`/postfix/logs?lines=${lines}`);
+        const d = res.data;
+        const logText = d.logs || '(ログなし)';
+        el.innerHTML = `<div class="raw-output">${escapeHtml(logText)}</div>`;
     } catch (e) {
-        logEl.textContent = 'ログの取得に失敗しました: ' + e.message;
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
     }
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function refreshAll() {
     loadStatus();
     loadQueue();
-    // ログタブが表示中なら再読込
-    const logPane = document.getElementById('tab-logs');
-    if (logPane && logPane.classList.contains('active')) {
-        loadLogs();
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
-        return;
-    }
-    api.setToken(token);
-
-    // 初期ロード
+    if (!getToken()) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
     loadStatus();
     loadQueue();
-
-    // ログタブ表示時に自動読込
-    document.querySelectorAll('#mainTab .nav-link').forEach(tab => {
-        tab.addEventListener('shown.bs.tab', function(e) {
-            const target = e.target.getAttribute('href');
-            if (target === '#tab-logs') loadLogs();
-            else if (target === '#tab-queue') loadQueue();
-            else if (target === '#tab-status') loadStatus();
-        });
-    });
+    document.querySelector('[href="#tab-queue-detail"]').addEventListener('shown.bs.tab', loadQueueDetail);
+    document.querySelector('[href="#tab-config"]').addEventListener('shown.bs.tab', loadConfig);
+    document.querySelector('[href="#tab-stats"]').addEventListener('shown.bs.tab', loadStats);
+    document.querySelector('[href="#tab-logs"]').addEventListener('shown.bs.tab', loadLogs);
 });
 </script>
-<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
 </html>

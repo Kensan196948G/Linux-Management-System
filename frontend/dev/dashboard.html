@@ -3,34 +3,229 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>【開発】Linux Management System</title>
+    <title>【開発】ダッシュボード - Linux Management System</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .db-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+        .db-header-right { display:flex; align-items:center; gap:10px; }
+        .sse-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600; }
+        .sse-badge-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+        .sse-connected { background:#d1fae5; color:#065f46; }
+        .sse-connected .sse-badge-dot { background:#059669; }
+        .sse-disconnected { background:#fee2e2; color:#991b1b; }
+        .sse-disconnected .sse-badge-dot { background:#dc2626; }
+        .sse-connecting { background:#fef3c7; color:#92400e; }
+        .sse-connecting .sse-badge-dot { background:#f59e0b; }
+        .last-updated { font-size:12px; color:#6b7280; }
+        .charts-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-top:16px; }
+        .chart-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:16px; }
+        .chart-card h3 { font-size:13px; font-weight:600; color:#374151; margin:0 0 8px; }
+        .chart-canvas-wrap { position:relative; height:200px; }
+        .chart-canvas-wrap canvas { width:100% !important; height:100% !important; }
+        .metric-value { font-size:28px; font-weight:bold; color:#111827; text-align:center; margin-bottom:4px; }
+        .metric-label { font-size:11px; color:#6b7280; text-align:center; }
+        .ring-wrap { display:flex; flex-direction:column; align-items:center; }
+        .ring-canvas-wrap { position:relative; width:140px; height:140px; }
+        .ring-canvas-wrap canvas { width:100% !important; height:100% !important; }
+    </style>
 </head>
 <body>
-    <div class="app-layout">
-        <!-- 左側サイドバー -->
-        <aside class="sidebar" id="sidebar-container"></aside>
-
-        <!-- メインコンテンツ -->
-        <main class="main-content">
-            <div class="main-header">
-                <h2 id="page-title">ダッシュボード</h2>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+    <main class="main-content">
+        <div class="main-header">
+            <div class="db-header">
+                <h2 id="page-title">ダッシュボード（リアルタイム）</h2>
+                <div class="db-header-right">
+                    <span id="sse-status" class="sse-badge sse-disconnected">
+                        <span class="sse-badge-dot"></span>
+                        <span id="sse-status-text">未接続</span>
+                    </span>
+                    <span class="last-updated">最終更新: <span id="last-updated">--:--:--</span></span>
+                </div>
             </div>
-
-            <div class="main-body" id="main-body">
-                <!-- ページコンテンツがここに表示される -->
+        </div>
+        <div class="main-body">
+            <div class="charts-grid">
+                <!-- CPU リングチャート -->
+                <div class="chart-card">
+                    <h3>CPU 使用率</h3>
+                    <div class="ring-wrap">
+                        <div class="ring-canvas-wrap"><canvas id="cpuRing"></canvas></div>
+                        <div class="metric-value" id="cpuValue">--%</div>
+                        <div class="metric-label">現在値</div>
+                    </div>
+                </div>
+                <!-- CPU 折れ線グラフ (過去60秒) -->
+                <div class="chart-card">
+                    <h3>CPU 推移（過去60秒）</h3>
+                    <div class="chart-canvas-wrap"><canvas id="cpuLine"></canvas></div>
+                </div>
+                <!-- メモリ バーチャート -->
+                <div class="chart-card">
+                    <h3>メモリ使用率</h3>
+                    <div class="chart-canvas-wrap"><canvas id="memBar"></canvas></div>
+                </div>
+                <!-- ネットワーク IN/OUT 折れ線グラフ -->
+                <div class="chart-card" style="grid-column:1/-1">
+                    <h3>ネットワーク IN/OUT（過去60秒, bytes/s）</h3>
+                    <div class="chart-canvas-wrap"><canvas id="netLine"></canvas></div>
+                </div>
             </div>
-        </main>
-    </div>
+        </div>
+    </main>
+</div>
 
-    <!-- JavaScript -->
-    <script src="../js/env-config.js"></script>
-    <script src="../js/api.js"></script>
-    <script src="../js/components.js"></script>
-    <script src="../js/sidebar.js"></script>
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
 <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('dashboard')):renderSidebar('dashboard');</script>
-    <script src="../js/pages.js"></script>
-    <script src="../js/app-dashboard.js"></script>
+<script>
+// ── 定数 ────────────────────────────────────────────────
+var MAX_POINTS = 60;
+
+// ── ラベル生成ヘルパー ───────────────────────────────────
+function makeLabels() {
+    var labels = [];
+    for (var i = MAX_POINTS; i >= 1; i--) { labels.push('-' + i + 's'); }
+    return labels;
+}
+function makeZeros() {
+    var a = [];
+    for (var i = 0; i < MAX_POINTS; i++) a.push(0);
+    return a;
+}
+function pushPoint(arr, val) {
+    arr.push(val);
+    if (arr.length > MAX_POINTS) arr.shift();
+}
+
+// ── Chart.js インスタンス ────────────────────────────────
+var cpuRingChart, cpuLineChart, memBarChart, netLineChart;
+var cpuHistory = makeZeros();
+var netInHistory = makeZeros();
+var netOutHistory = makeZeros();
+
+function initCharts() {
+    // CPU リング
+    cpuRingChart = new Chart(document.getElementById('cpuRing'), {
+        type: 'doughnut',
+        data: {
+            datasets: [{ data: [0, 100], backgroundColor: ['#3b82f6', '#e5e7eb'], borderWidth: 0 }]
+        },
+        options: { cutout: '75%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 300 } }
+    });
+
+    // CPU 折れ線
+    cpuLineChart = new Chart(document.getElementById('cpuLine'), {
+        type: 'line',
+        data: {
+            labels: makeLabels(),
+            datasets: [{ label: 'CPU%', data: cpuHistory.slice(), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: 0 }]
+        },
+        options: { scales: { y: { min: 0, max: 100 } }, plugins: { legend: { display: false } }, animation: { duration: 200 } }
+    });
+
+    // メモリ バー
+    memBarChart = new Chart(document.getElementById('memBar'), {
+        type: 'bar',
+        data: {
+            labels: ['使用中', '空き'],
+            datasets: [{ data: [0, 100], backgroundColor: ['#f59e0b', '#e5e7eb'] }]
+        },
+        options: { indexAxis: 'y', scales: { x: { min: 0, max: 100 } }, plugins: { legend: { display: false } }, animation: { duration: 300 } }
+    });
+
+    // ネットワーク 折れ線
+    netLineChart = new Chart(document.getElementById('netLine'), {
+        type: 'line',
+        data: {
+            labels: makeLabels(),
+            datasets: [
+                { label: 'IN', data: netInHistory.slice(), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3, pointRadius: 0 },
+                { label: 'OUT', data: netOutHistory.slice(), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3, pointRadius: 0 }
+            ]
+        },
+        options: { scales: { y: { min: 0 } }, plugins: { legend: { display: true } }, animation: { duration: 200 } }
+    });
+}
+
+// ── チャート更新 ─────────────────────────────────────────
+function updateCharts(cpu, mem, netIn, netOut) {
+    // CPU リング
+    cpuRingChart.data.datasets[0].data = [cpu, Math.max(0, 100 - cpu)];
+    cpuRingChart.update();
+    document.getElementById('cpuValue').textContent = cpu.toFixed(1) + '%';
+
+    // CPU 折れ線
+    pushPoint(cpuHistory, cpu);
+    cpuLineChart.data.datasets[0].data = cpuHistory.slice();
+    cpuLineChart.update();
+
+    // メモリ バー
+    memBarChart.data.datasets[0].data = [mem, Math.max(0, 100 - mem)];
+    memBarChart.update();
+
+    // ネットワーク
+    pushPoint(netInHistory, netIn);
+    pushPoint(netOutHistory, netOut);
+    netLineChart.data.datasets[0].data = netInHistory.slice();
+    netLineChart.data.datasets[1].data = netOutHistory.slice();
+    netLineChart.update();
+}
+
+// ── SSE ─────────────────────────────────────────────────
+var sseConn = null;
+var sseRetryTimer = null;
+
+function setSseBadge(state) {
+    var badge = document.getElementById('sse-status');
+    var text = document.getElementById('sse-status-text');
+    badge.className = 'sse-badge sse-' + state;
+    text.textContent = state === 'connected' ? 'Live' : state === 'connecting' ? '接続中...' : '未接続';
+}
+
+function connectSSE() {
+    var token = localStorage.getItem('access_token');
+    if (!token) return;
+    if (sseConn) { sseConn.close(); sseConn = null; }
+    if (sseRetryTimer) { clearTimeout(sseRetryTimer); sseRetryTimer = null; }
+    setSseBadge('connecting');
+
+    var url = window.location.origin + '/api/stream/dashboard?token=' + encodeURIComponent(token);
+    sseConn = new EventSource(url);
+
+    sseConn.onopen = function() { setSseBadge('connected'); };
+
+    sseConn.onmessage = function(e) {
+        try {
+            var d = JSON.parse(e.data);
+            updateCharts(d.cpu || 0, d.mem || 0, d.net_in || 0, d.net_out || 0);
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('ja-JP');
+            setSseBadge('connected');
+        } catch(err) { console.error('SSE parse error', err); }
+    };
+
+    sseConn.onerror = function() {
+        setSseBadge('disconnected');
+        if (sseConn) { sseConn.close(); sseConn = null; }
+        sseRetryTimer = setTimeout(connectSSE, 5000);
+    };
+}
+
+window.addEventListener('beforeunload', function() { if (sseConn) sseConn.close(); });
+
+// ── 起動 ─────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    var token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = 'index.html'; return; }
+    if (typeof api !== 'undefined') api.setToken(token);
+    initCharts();
+    connectSSE();
+});
+</script>
 </body>
 </html>

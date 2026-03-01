@@ -1,0 +1,70 @@
+#!/bin/sh
+# debian/postinst - インストール後スクリプト
+# debhelper による自動生成部分を含む
+
+set -e
+
+INSTALL_DIR="/opt/linux-management-system"
+SERVICE_USER="svc-adminui"
+VENV_DIR="${INSTALL_DIR}/venv"
+
+case "$1" in
+    configure)
+        # 1. サービスユーザー作成
+        if ! id "${SERVICE_USER}" > /dev/null 2>&1; then
+            adduser \
+                --system \
+                --no-create-home \
+                --shell /usr/sbin/nologin \
+                --disabled-password \
+                --gecos "Linux Management System service account" \
+                "${SERVICE_USER}"
+            echo "✅ サービスユーザー ${SERVICE_USER} を作成しました"
+        else
+            echo "ℹ️  サービスユーザー ${SERVICE_USER} は既に存在します"
+        fi
+
+        # 2. ディレクトリ権限設定
+        mkdir -p "${INSTALL_DIR}/logs" "${INSTALL_DIR}/data"
+        chown -R root:root "${INSTALL_DIR}"
+        chown "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}/logs" "${INSTALL_DIR}/data"
+
+        # 3. Python 仮想環境作成・依存関係インストール
+        if [ ! -d "${VENV_DIR}" ]; then
+            python3 -m venv "${VENV_DIR}"
+            echo "✅ Python 仮想環境を作成しました"
+        fi
+        "${VENV_DIR}/bin/pip" install --upgrade pip --quiet
+        "${VENV_DIR}/bin/pip" install \
+            -r "${INSTALL_DIR}/backend/requirements.txt" --quiet
+        echo "✅ Python 依存関係をインストールしました"
+
+        # 4. nginx sites-enabled シンボリックリンク作成
+        if [ -f "/etc/nginx/sites-available/adminui.conf" ]; then
+            ln -sf /etc/nginx/sites-available/adminui.conf \
+                /etc/nginx/sites-enabled/adminui.conf 2>/dev/null || true
+            # デフォルト設定を無効化
+            rm -f /etc/nginx/sites-enabled/default
+        fi
+
+        # 5. systemd 登録・有効化
+        if command -v systemctl > /dev/null 2>&1; then
+            systemctl daemon-reload
+            systemctl enable linux-management-prod.service 2>/dev/null || true
+            echo "✅ systemd サービスを登録しました"
+            echo ""
+            echo "サービスを起動するには:"
+            echo "  sudo systemctl start linux-management-prod"
+        fi
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst: 不明な引数: $1" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

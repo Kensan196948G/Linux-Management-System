@@ -1,0 +1,32 @@
+Source: linux-management-system
+Section: admin
+Priority: optional
+Maintainer: Linux Management System <admin@example.com>
+Build-Depends: debhelper-compat (= 13), python3, python3-venv, python3-pip
+Standards-Version: 4.6.0
+Homepage: https://github.com/Kensan196948G/Linux-Management-System
+Rules-Requires-Root: no
+
+Package: linux-management-system
+Architecture: all
+Depends: python3 (>= 3.11), python3-venv, python3-pip, nginx, adduser
+Recommends: curl, ca-certificates, git
+Description: Webmin-compatible Linux Server Management WebUI
+ Security-first Linux server management system with JWT authentication,
+ RBAC (Role-Based Access Control), sudo allowlist, and audit logging.
+ .
+ Features:
+  - System status monitoring and service management
+  - User and group management via approval workflow
+  - Log viewer with real-time streaming
+  - Network configuration and firewall management
+  - Hardware monitoring (CPU, memory, disk, SMART)
+  - Cron job management
+  - Package management with diff preview
+  - Audit trail for all operations
+ .
+ Security model:
+  - All privileged operations via sudo wrapper scripts (allowlist only)
+  - JWT-based authentication with configurable expiry
+  - Input validation with forbidden character detection
+  - Full audit logging of all operations

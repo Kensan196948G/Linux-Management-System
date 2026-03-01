@@ -1,0 +1,41 @@
+#!/usr/bin/make -f
+# debian/rules - Debianパッケージビルドルール
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Python パッケージはインストール時に pip で処理するため、ここではビルド不要
+
+override_dh_auto_test:
+	# テストはパッケージビルド時にはスキップ（CI で個別実行）
+
+override_dh_auto_install:
+	install -d $(CURDIR)/debian/linux-management-system/opt/linux-management-system
+	cp -r $(CURDIR)/backend \
+	      $(CURDIR)/frontend \
+	      $(CURDIR)/wrappers \
+	      $(CURDIR)/config \
+	      $(CURDIR)/systemd \
+	      $(CURDIR)/scripts \
+	      $(CURDIR)/docs \
+	      $(CURDIR)/debian/linux-management-system/opt/linux-management-system/
+	# wrappers は /usr/local/sbin/ にもインストール
+	install -d $(CURDIR)/debian/linux-management-system/usr/local/sbin
+	install -m 755 $(CURDIR)/wrappers/adminui-*.sh \
+	    $(CURDIR)/debian/linux-management-system/usr/local/sbin/
+	# sudoers スニペット
+	install -d $(CURDIR)/debian/linux-management-system/etc/sudoers.d
+	install -m 440 $(CURDIR)/config/sudoers.d/adminui \
+	    $(CURDIR)/debian/linux-management-system/etc/sudoers.d/adminui
+	# nginx 設定
+	install -d $(CURDIR)/debian/linux-management-system/etc/nginx/sites-available
+	install -m 644 $(CURDIR)/config/nginx/adminui.conf \
+	    $(CURDIR)/debian/linux-management-system/etc/nginx/sites-available/adminui.conf
+
+override_dh_fixperms:
+	dh_fixperms
+	# sudo ラッパーは root:root / 755 を維持
+	chmod 755 $(CURDIR)/debian/linux-management-system/usr/local/sbin/adminui-*.sh || true
+	# sudoers は 440 を維持
+	chmod 440 $(CURDIR)/debian/linux-management-system/etc/sudoers.d/adminui || true

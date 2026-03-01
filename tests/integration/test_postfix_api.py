@@ -220,3 +220,169 @@ class TestPostfixLogs:
             )
         assert resp.status_code == 200
         mock.assert_called_once_with(lines=200)
+
+
+class TestPostfixQueueDetail:
+    """Postfix キュー詳細取得テスト"""
+
+    def test_TC_PTF_021_queue_detail_success(self, test_client, admin_token):
+        """TC_PTF_021: キュー詳細取得成功"""
+        mock_data = {"queue_detail": "-Queue ID- --Size-- ----Arrival Time---- -Sender/Recipient-------\n"}
+        with patch("backend.api.routes.postfix.sudo_wrapper.get_postfix_queue_detail", return_value=mock_data):
+            resp = test_client.get(
+                "/api/postfix/queue-detail",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert "queue_detail" in body["data"]
+
+    def test_TC_PTF_022_queue_detail_viewer(self, test_client, viewer_token):
+        """TC_PTF_022: viewer でもキュー詳細取得可能"""
+        mock_data = {"queue_detail": ""}
+        with patch("backend.api.routes.postfix.sudo_wrapper.get_postfix_queue_detail", return_value=mock_data):
+            resp = test_client.get(
+                "/api/postfix/queue-detail",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 200
+
+    def test_TC_PTF_023_queue_detail_unauthenticated(self, test_client):
+        """TC_PTF_023: 未認証は拒否"""
+        resp = test_client.get("/api/postfix/queue-detail")
+        assert resp.status_code in (401, 403)
+
+    def test_TC_PTF_024_queue_detail_wrapper_error(self, test_client, admin_token):
+        """TC_PTF_024: SudoWrapperError → 503"""
+        with patch(
+            "backend.api.routes.postfix.sudo_wrapper.get_postfix_queue_detail",
+            side_effect=SudoWrapperError("queue-detail error"),
+        ):
+            resp = test_client.get(
+                "/api/postfix/queue-detail",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_TC_PTF_025_queue_detail_unavailable(self, test_client, admin_token):
+        """TC_PTF_025: postfix 未インストール時"""
+        mock_data = {"status": "unavailable", "message": "postfix is not installed"}
+        with patch("backend.api.routes.postfix.sudo_wrapper.get_postfix_queue_detail", return_value=mock_data):
+            resp = test_client.get(
+                "/api/postfix/queue-detail",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 200
+
+
+class TestPostfixConfig:
+    """Postfix 設定取得テスト"""
+
+    def test_TC_PTF_026_config_success(self, test_client, admin_token):
+        """TC_PTF_026: 設定取得成功"""
+        mock_data = {"config": "inet_interfaces = all\nsmtpd_tls_security_level = may\n"}
+        with patch("backend.api.routes.postfix.sudo_wrapper.get_postfix_config", return_value=mock_data):
+            resp = test_client.get(
+                "/api/postfix/config",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert "config" in body["data"]
+
+    def test_TC_PTF_027_config_viewer(self, test_client, viewer_token):
+        """TC_PTF_027: viewer でも設定取得可能"""
+        mock_data = {"config": ""}
+        with patch("backend.api.routes.postfix.sudo_wrapper.get_postfix_config", return_value=mock_data):
+            resp = test_client.get(
+                "/api/postfix/config",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 200
+
+    def test_TC_PTF_028_config_unauthenticated(self, test_client):
+        """TC_PTF_028: 未認証は拒否"""
+        resp = test_client.get("/api/postfix/config")
+        assert resp.status_code in (401, 403)
+
+    def test_TC_PTF_029_config_wrapper_error(self, test_client, admin_token):
+        """TC_PTF_029: SudoWrapperError → 503"""
+        with patch(
+            "backend.api.routes.postfix.sudo_wrapper.get_postfix_config",
+            side_effect=SudoWrapperError("config error"),
+        ):
+            resp = test_client.get(
+                "/api/postfix/config",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_TC_PTF_030_config_empty(self, test_client, admin_token):
+        """TC_PTF_030: 設定が空の場合"""
+        mock_data = {"config": ""}
+        with patch("backend.api.routes.postfix.sudo_wrapper.get_postfix_config", return_value=mock_data):
+            resp = test_client.get(
+                "/api/postfix/config",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["data"]["config"] == ""
+
+
+class TestPostfixStats:
+    """Postfix 統計取得テスト"""
+
+    def test_TC_PTF_031_stats_success(self, test_client, admin_token):
+        """TC_PTF_031: 統計取得成功"""
+        mock_data = {"sent": 42, "received": 38, "deferred": 2}
+        with patch("backend.api.routes.postfix.sudo_wrapper.get_postfix_stats", return_value=mock_data):
+            resp = test_client.get(
+                "/api/postfix/stats",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert body["data"]["sent"] == 42
+        assert body["data"]["received"] == 38
+        assert body["data"]["deferred"] == 2
+
+    def test_TC_PTF_032_stats_zero(self, test_client, admin_token):
+        """TC_PTF_032: 統計が0の場合"""
+        mock_data = {"sent": 0, "received": 0, "deferred": 0}
+        with patch("backend.api.routes.postfix.sudo_wrapper.get_postfix_stats", return_value=mock_data):
+            resp = test_client.get(
+                "/api/postfix/stats",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 200
+
+    def test_TC_PTF_033_stats_viewer(self, test_client, viewer_token):
+        """TC_PTF_033: viewer でも統計取得可能"""
+        mock_data = {"sent": 10, "received": 5, "deferred": 0}
+        with patch("backend.api.routes.postfix.sudo_wrapper.get_postfix_stats", return_value=mock_data):
+            resp = test_client.get(
+                "/api/postfix/stats",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 200
+
+    def test_TC_PTF_034_stats_unauthenticated(self, test_client):
+        """TC_PTF_034: 未認証は拒否"""
+        resp = test_client.get("/api/postfix/stats")
+        assert resp.status_code in (401, 403)
+
+    def test_TC_PTF_035_stats_wrapper_error(self, test_client, admin_token):
+        """TC_PTF_035: SudoWrapperError → 503"""
+        with patch(
+            "backend.api.routes.postfix.sudo_wrapper.get_postfix_stats",
+            side_effect=SudoWrapperError("stats error"),
+        ):
+            resp = test_client.get(
+                "/api/postfix/stats",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503

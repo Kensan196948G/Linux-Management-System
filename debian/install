@@ -1,0 +1,8 @@
+backend opt/linux-management-system/
+frontend opt/linux-management-system/
+wrappers opt/linux-management-system/
+config opt/linux-management-system/
+systemd opt/linux-management-system/
+scripts opt/linux-management-system/
+docs opt/linux-management-system/
+wrappers/adminui-*.sh usr/local/sbin/

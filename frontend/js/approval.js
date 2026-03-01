@@ -1060,7 +1060,7 @@ class ApprovalManager {
             });
 
             if (response.status === 'success') {
-                this.showNotification('承認しました', 'success');
+                this.showBanner('✅ 承認しました', 'success');
 
                 // モーダルを閉じる
                 if (this.approveModal) this.approveModal.hide();
@@ -1095,7 +1095,7 @@ class ApprovalManager {
             });
 
             if (response.status === 'success') {
-                this.showNotification('拒否しました', 'success');
+                this.showBanner('❌ 却下しました', 'danger');
 
                 // モーダルを閉じる
                 if (this.rejectModal) this.rejectModal.hide();
@@ -1210,6 +1210,26 @@ class ApprovalManager {
         if (this.notificationToast) {
             this.notificationToast.show();
         }
+    }
+
+    /**
+     * ページ上部に承認/却下通知バナーを5秒表示
+     */
+    showBanner(message, type) {
+        const banner = document.getElementById('action-banner');
+        if (!banner) {
+            this.showNotification(message, type);
+            return;
+        }
+        const bgColors = { success: '#d4edda', danger: '#f8d7da', warning: '#fff3cd', info: '#d1ecf1' };
+        const textColors = { success: '#155724', danger: '#721c24', warning: '#856404', info: '#0c5460' };
+        banner.textContent = message;
+        banner.style.backgroundColor = bgColors[type] || '#f8f9fa';
+        banner.style.color = textColors[type] || '#333';
+        banner.style.border = `1px solid ${textColors[type] || '#ccc'}`;
+        banner.style.display = 'block';
+        clearTimeout(this._bannerTimer);
+        this._bannerTimer = setTimeout(() => { banner.style.display = 'none'; }, 5000);
     }
 
     /**

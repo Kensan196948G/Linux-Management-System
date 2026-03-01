@@ -1507,6 +1507,18 @@ class SudoWrapper:
         safe_lines = max(1, min(200, lines))
         return self._execute("adminui-postfix.sh", ["logs", str(safe_lines)])
 
+    def get_postfix_queue_detail(self) -> Dict[str, Any]:
+        """Postfix キューの詳細を取得"""
+        return self._execute("adminui-postfix.sh", ["queue-detail"], timeout=15)
+
+    def get_postfix_config(self) -> Dict[str, Any]:
+        """Postfix 本番設定を取得 (postconf -n)"""
+        return self._execute("adminui-postfix.sh", ["config"], timeout=15)
+
+    def get_postfix_stats(self) -> Dict[str, Any]:
+        """Postfix 送受信統計を取得"""
+        return self._execute("adminui-postfix.sh", ["stats"], timeout=15)
+
     def get_netstat_connections(self) -> Dict[str, Any]:
         """アクティブ接続一覧を取得
 

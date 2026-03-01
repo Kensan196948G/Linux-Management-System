@@ -86,6 +86,9 @@
                 <li class="nav-item">
                     <button class="nav-link" data-tab="report" onclick="switchTab('report')">レポート</button>
                 </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-tab="alerts" onclick="switchTab('alerts')">⚠️ アラート</button>
+                </li>
                 <li class="nav-item" id="setTabItem">
                     <button class="nav-link" data-tab="set" onclick="switchTab('set')">クォータ設定</button>
                 </li>
@@ -96,7 +99,10 @@
                 <div class="status-card">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <span class="status-title">ユーザークォータ一覧</span>
-                        <span id="quotaStatusBadge" class="badge badge-unavail px-2 py-1">読み込み中...</span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span id="quotaStatusBadge" class="badge badge-unavail px-2 py-1">読み込み中...</span>
+                            <a id="csvDownloadBtn" href="#" class="btn btn-sm btn-outline-success" onclick="downloadCSV(event)">⬇ CSV エクスポート</a>
+                        </div>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-sm quota-table">
@@ -124,6 +130,23 @@
                 <div class="status-card">
                     <span class="status-title">クォータレポート</span>
                     <pre id="reportContent" class="bg-dark text-light p-3 rounded" style="font-size:12px; max-height:500px; overflow-y:auto;">読み込み中...</pre>
+                </div>
+            </div>
+
+            <!-- アラートタブ -->
+            <div id="tab-alerts" class="d-none">
+                <div class="status-card">
+                    <span class="status-title">⚠️ クォータアラート</span>
+                    <p class="text-muted small">ディスク使用率が閾値を超えたユーザーを表示します。</p>
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <label for="alertThreshold" class="form-label mb-0 fw-semibold">警告閾値:</label>
+                        <input type="range" id="alertThreshold" class="form-range" min="1" max="100" value="80" style="width:200px" oninput="document.getElementById('thresholdValue').textContent=this.value+'%'">
+                        <span id="thresholdValue" class="badge bg-warning text-dark fs-6">80%</span>
+                        <button class="btn btn-sm btn-warning" onclick="loadAlerts()">チェック</button>
+                    </div>
+                    <div id="alertsResult">
+                        <p class="text-muted">「チェック」ボタンを押してアラートを確認してください。</p>
+                    </div>
                 </div>
             </div>
 
@@ -208,7 +231,7 @@ function switchTab(tab) {
     currentTab = tab;
     document.querySelectorAll('[data-tab]').forEach(el => el.classList.remove('active'));
     document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
-    ['users', 'report', 'set'].forEach(t => {
+    ['users', 'report', 'alerts', 'set'].forEach(t => {
         document.getElementById(`tab-${t}`).classList.toggle('d-none', t !== tab);
     });
     if (tab === 'users') loadUserQuotas();
@@ -343,6 +366,66 @@ document.getElementById('fsFilter').addEventListener('change', refreshAll);
 async function refreshAll() {
     if (currentTab === 'users') await loadUserQuotas();
     else if (currentTab === 'report') await loadReport();
+    else if (currentTab === 'alerts') await loadAlerts();
+}
+
+async function downloadCSV(e) {
+    e.preventDefault();
+    const token = await getToken();
+    if (!token) { showAlert('ログインが必要です'); return; }
+    const fs = document.getElementById('fsFilter')?.value || '';
+    const params = fs ? `?filesystem=${encodeURIComponent(fs)}` : '';
+    try {
+        const resp = await fetch(`${API_BASE}/quotas/export/csv${params}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!resp.ok) { showAlert('❌ CSV エクスポートエラー'); return; }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'quota_report.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        showAlert(`❌ 通信エラー: ${err.message}`);
+    }
+}
+
+async function loadAlerts() {
+    const token = await getToken();
+    if (!token) { showAlert('ログインが必要です'); return; }
+    const threshold = document.getElementById('alertThreshold')?.value || 80;
+    const fs = document.getElementById('fsFilter')?.value || '';
+    let url = `${API_BASE}/quotas/alerts?threshold=${threshold}`;
+    if (fs) url += `&filesystem=${encodeURIComponent(fs)}`;
+    try {
+        const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await resp.json();
+        const container = document.getElementById('alertsResult');
+        if (!resp.ok) { container.innerHTML = `<div class="alert alert-danger">${data.detail || 'エラー'}</div>`; return; }
+        const alerts = data.alerts || [];
+        if (alerts.length === 0) {
+            container.innerHTML = `<div class="alert alert-success">✅ 使用率 ${threshold}% 超のユーザーはいません。</div>`;
+            return;
+        }
+        let rows = alerts.map(a => `<tr>
+            <td>${a.username}</td>
+            <td>${a.filesystem || '-'}</td>
+            <td>${formatBytes(a.used_kb)}</td>
+            <td>${formatBytes(a.limit_kb)}</td>
+            <td><span class="badge ${a.usage_percent >= 90 ? 'bg-danger' : 'bg-warning text-dark'}">${a.usage_percent}%</span></td>
+        </tr>`).join('');
+        container.innerHTML = `
+            <div class="alert alert-warning">⚠️ ${alerts.length} 件のユーザーが使用率 ${threshold}% を超えています。</div>
+            <div class="table-responsive">
+            <table class="table table-sm quota-table">
+                <thead><tr><th>ユーザー</th><th>FS</th><th>使用量</th><th>リミット</th><th>使用率</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table></div>`;
+    } catch (err) {
+        document.getElementById('alertsResult').innerHTML = `<div class="alert alert-danger">通信エラー: ${err.message}</div>`;
+    }
 }
 
 // 権限チェック: write:quotas がなければ設定タブを非表示

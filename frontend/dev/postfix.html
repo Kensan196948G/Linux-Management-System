@@ -38,7 +38,10 @@
 
         <!-- タブ -->
         <ul class="nav nav-tabs mb-3" id="mainTab">
-            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-queue">📬 メールキュー</a></li>
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-queue">📬 キュー</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-queue-detail">🔍 キュー詳細</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-config">⚙️ 設定</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-stats">📈 統計</a></li>
             <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs">📜 ログ</a></li>
         </ul>
 
@@ -51,6 +54,36 @@
                         <button class="btn btn-sm btn-primary" onclick="loadQueue()">🔄 更新</button>
                     </div>
                     <div id="queue-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- キュー詳細タブ -->
+            <div class="tab-pane fade" id="tab-queue-detail">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">🔍 キュー詳細 (postqueue -p)</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadQueueDetail()">🔄 更新</button>
+                    </div>
+                    <div id="queue-detail-content"><span class="text-muted">タブを開くと読み込みます...</span></div>
+                </div>
+            </div>
+
+            <!-- 設定タブ -->
+            <div class="tab-pane fade" id="tab-config">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">⚙️ 本番設定 (postconf -n)</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadConfig()">🔄 更新</button>
+                    </div>
+                    <div id="config-content"><span class="text-muted">タブを開くと読み込みます...</span></div>
+                </div>
+            </div>
+
+            <!-- 統計タブ -->
+            <div class="tab-pane fade" id="tab-stats">
+                <div class="status-card">
+                    <div class="status-title">📈 送受信統計</div>
+                    <div id="stats-content"><span class="text-muted">タブを開くと読み込みます...</span></div>
                 </div>
             </div>
 
@@ -150,6 +183,70 @@ async function loadQueue() {
     }
 }
 
+async function loadQueueDetail() {
+    const el = document.getElementById('queue-detail-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/postfix/queue-detail');
+        const d = res.data;
+        if (d.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">⚠️ Postfix はインストールされていません。</div>';
+            return;
+        }
+        const text = d.queue_detail || '(キュー詳細なし)';
+        el.innerHTML = `<div class="raw-output">${escapeHtml(text)}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadConfig() {
+    const el = document.getElementById('config-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/postfix/config');
+        const d = res.data;
+        if (d.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">⚠️ Postfix はインストールされていません。</div>';
+            return;
+        }
+        const text = d.config || '(設定なし)';
+        el.innerHTML = `<div class="raw-output">${escapeHtml(text)}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadStats() {
+    const el = document.getElementById('stats-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/postfix/stats');
+        const d = res.data;
+        if (d.status === 'unavailable') {
+            el.innerHTML = '<div class="unavail-notice">⚠️ Postfix はインストールされていません。</div>';
+            return;
+        }
+        el.innerHTML = `
+        <div class="row g-3 text-center">
+          <div class="col-md-4">
+            <div class="metric-val text-success">${d.sent ?? '—'}</div>
+            <div class="metric-label">送信完了</div>
+          </div>
+          <div class="col-md-4">
+            <div class="metric-val text-primary">${d.received ?? '—'}</div>
+            <div class="metric-label">受信</div>
+          </div>
+          <div class="col-md-4">
+            <div class="metric-val text-warning">${d.deferred ?? '—'}</div>
+            <div class="metric-label">遅延</div>
+          </div>
+        </div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
 async function loadLogs() {
     const el = document.getElementById('logs-content');
     const lines = document.getElementById('log-lines').value;
@@ -177,6 +274,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!getToken()) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
     loadStatus();
     loadQueue();
+    document.querySelector('[href="#tab-queue-detail"]').addEventListener('shown.bs.tab', loadQueueDetail);
+    document.querySelector('[href="#tab-config"]').addEventListener('shown.bs.tab', loadConfig);
+    document.querySelector('[href="#tab-stats"]').addEventListener('shown.bs.tab', loadStats);
     document.querySelector('[href="#tab-logs"]').addEventListener('shown.bs.tab', loadLogs);
 });
 </script>
