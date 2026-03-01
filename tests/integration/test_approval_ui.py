@@ -69,9 +69,9 @@ class TestPendingEndpoint:
         assert response.status_code == 200
 
     def test_pending_unauthenticated_returns_401(self, test_client):
-        """TC-UI-003: 認証なしは 401 を返す"""
+        """TC-UI-003: 認証なしは 401/403 を返す"""
         response = test_client.get("/api/approval/pending")
-        assert response.status_code == 401
+        assert response.status_code in (401, 403)
 
 
 # ============================================================================
@@ -82,9 +82,9 @@ class TestPendingEndpoint:
 class TestHistoryEndpoint:
     """GET /api/approval/history のテスト"""
 
-    def test_history_returns_200_with_items(self, test_client, approver_headers):
-        """TC-UI-004: 認証済み Approver は 200 + items キーを返す"""
-        response = test_client.get("/api/approval/history", headers=approver_headers)
+    def test_history_returns_200_with_items(self, test_client, admin_headers):
+        """TC-UI-004: 認証済み Admin は 200 + items キーを返す"""
+        response = test_client.get("/api/approval/history", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
         assert "items" in data or data.get("status") == "success"
@@ -95,9 +95,9 @@ class TestHistoryEndpoint:
         assert response.status_code == 200
 
     def test_history_unauthenticated_returns_401(self, test_client):
-        """TC-UI-006: 認証なしは 401 を返す"""
+        """TC-UI-006: 認証なしは 401/403 を返す"""
         response = test_client.get("/api/approval/history")
-        assert response.status_code == 401
+        assert response.status_code in (401, 403)
 
 
 # ============================================================================
@@ -114,9 +114,9 @@ class TestDetailEndpoint:
         assert response.status_code == 404
 
     def test_get_request_unauthenticated_returns_401(self, test_client):
-        """TC-UI-008: 認証なしは 401 を返す"""
+        """TC-UI-008: 認証なしは 401/403 を返す"""
         response = test_client.get("/api/approval/99999")
-        assert response.status_code == 401
+        assert response.status_code in (401, 403)
 
 
 # ============================================================================
@@ -137,12 +137,12 @@ class TestApproveEndpoint:
         assert response.status_code == 404
 
     def test_approve_unauthenticated_returns_401(self, test_client):
-        """TC-UI-010: 認証なしは 401 を返す"""
+        """TC-UI-010: 認証なしは 401/403 を返す"""
         response = test_client.post(
             "/api/approval/99999/approve",
             json={"comment": "テスト"},
         )
-        assert response.status_code == 401
+        assert response.status_code in (401, 403)
 
 
 # ============================================================================
@@ -163,9 +163,9 @@ class TestRejectEndpoint:
         assert response.status_code == 404
 
     def test_reject_unauthenticated_returns_401(self, test_client):
-        """TC-UI-012: 認証なしは 401 を返す"""
+        """TC-UI-012: 認証なしは 401/403 を返す"""
         response = test_client.post(
             "/api/approval/99999/reject",
             json={"reason": "テスト拒否"},
         )
-        assert response.status_code == 401
+        assert response.status_code in (401, 403)

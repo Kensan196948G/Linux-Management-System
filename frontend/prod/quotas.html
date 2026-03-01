@@ -480,6 +480,57 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 </script>
+<script>
+// CSV エクスポートとアラート機能
+async function downloadCSV(e) {
+    e.preventDefault();
+    try {
+        const resp = await fetch('/api/quotas/export/csv', {
+            headers: api.token ? { 'Authorization': `Bearer ${api.token}` } : {}
+        });
+        if (!resp.ok) { showAlert('❌ CSV エクスポートエラー', 'danger'); return; }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'quota_report.csv'; a.click();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        showAlert(`❌ 通信エラー: ${escapeHtml(err.message)}`, 'danger');
+    }
+}
+
+async function loadQuotaAlerts() {
+    const threshold = document.getElementById('alertThresholdProd')?.value || 80;
+    const container = document.getElementById('alerts-result-prod');
+    try {
+        const resp = await fetch(`/api/quotas/alerts?threshold=${threshold}`, {
+            headers: api.token ? { 'Authorization': `Bearer ${api.token}` } : {}
+        });
+        const data = await resp.json();
+        if (!resp.ok) { container.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.detail || 'エラー')}</div>`; return; }
+        const alerts = data.alerts || [];
+        if (alerts.length === 0) {
+            container.innerHTML = `<div class="alert alert-success">✅ 使用率 ${threshold}% 超のユーザーはいません。</div>`;
+            return;
+        }
+        let rows = alerts.map(a => `<tr>
+            <td>${escapeHtml(a.username)}</td>
+            <td>${escapeHtml(a.filesystem || '-')}</td>
+            <td>${a.used_kb} KB</td>
+            <td>${a.limit_kb} KB</td>
+            <td><span class="badge ${a.usage_percent >= 90 ? 'bg-danger' : 'bg-warning text-dark'}">${a.usage_percent}%</span></td>
+        </tr>`).join('');
+        container.innerHTML = `
+            <div class="alert alert-warning">⚠️ ${alerts.length} 件のユーザーが使用率 ${threshold}% を超えています。</div>
+            <table class="table table-sm table-hover">
+                <thead class="table-dark"><tr><th>ユーザー</th><th>FS</th><th>使用量</th><th>リミット</th><th>使用率</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    } catch (err) {
+        container.innerHTML = `<div class="alert alert-danger">通信エラー: ${escapeHtml(err.message)}</div>`;
+    }
+}
+</script>
 <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
 </html>

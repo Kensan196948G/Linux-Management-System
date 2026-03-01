@@ -609,6 +609,64 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 // ページ離脱時にSSE接続をクリーンアップ
 window.addEventListener('beforeunload', disconnectSSE);
+
+// ── リアルタイムグラフ (Chart.js) ──────────────────────────
+var RT_MAX = 60;
+var rtCpuData = [], rtMemData = [], rtNetInData = [], rtNetOutData = [];
+for (var _i = 0; _i < RT_MAX; _i++) { rtCpuData.push(0); rtMemData.push(0); rtNetInData.push(0); rtNetOutData.push(0); }
+var rtCpuChart, rtMemChart, rtNetChart;
+
+function rtMakeLabels() {
+    var a = [];
+    for (var i = RT_MAX; i >= 1; i--) a.push('-' + i + 's');
+    return a;
+}
+function rtPush(arr, val) { arr.push(val); if (arr.length > RT_MAX) arr.shift(); }
+
+function rtPushCpu(v) {
+    rtPush(rtCpuData, v);
+    if (rtCpuChart) { rtCpuChart.data.datasets[0].data = rtCpuData.slice(); rtCpuChart.update(); }
+}
+function rtPushMem(v) {
+    rtPush(rtMemData, v);
+    if (rtMemChart) { rtMemChart.data.datasets[0].data = rtMemData.slice(); rtMemChart.update(); }
+}
+function rtPushNet(inn, out) {
+    rtPush(rtNetInData, inn);
+    rtPush(rtNetOutData, out);
+    if (rtNetChart) {
+        rtNetChart.data.datasets[0].data = rtNetInData.slice();
+        rtNetChart.data.datasets[1].data = rtNetOutData.slice();
+        rtNetChart.update();
+    }
+}
+
+function initRtCharts() {
+    if (!window.Chart) return;
+    var labels = rtMakeLabels();
+    var lineOpts = { scales: { y: { min: 0 } }, plugins: { legend: { display: false } }, animation: { duration: 200 }, elements: { point: { radius: 0 } } };
+
+    rtCpuChart = new Chart(document.getElementById('rt-cpu-line'), {
+        type: 'line',
+        data: { labels: labels, datasets: [{ label: 'CPU%', data: rtCpuData.slice(), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 }] },
+        options: Object.assign({}, lineOpts, { scales: { y: { min: 0, max: 100 } } })
+    });
+    rtMemChart = new Chart(document.getElementById('rt-mem-line'), {
+        type: 'line',
+        data: { labels: labels, datasets: [{ label: 'MEM%', data: rtMemData.slice(), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }] },
+        options: Object.assign({}, lineOpts, { scales: { y: { min: 0, max: 100 } } })
+    });
+    rtNetChart = new Chart(document.getElementById('rt-net-line'), {
+        type: 'line',
+        data: { labels: labels, datasets: [
+            { label: 'IN', data: rtNetInData.slice(), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 },
+            { label: 'OUT', data: rtNetOutData.slice(), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3 }
+        ] },
+        options: Object.assign({}, lineOpts, { plugins: { legend: { display: true } } })
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() { initRtCharts(); });
 </script>
 <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
