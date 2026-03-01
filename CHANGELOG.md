@@ -11,6 +11,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.22.0] - 2026-03-01
+
+### Added (Step 26)
+- セキュリティ監査レポート機能
+  - `GET /api/security/audit-report` — 監査ログ統計レポート
+  - `GET /api/security/failed-logins` — ログイン失敗一覧
+  - `GET /api/security/sudo-logs` — sudoログ
+  - `GET /api/security/open-ports` — オープンポート一覧
+  - `GET /api/security/bandit-status` — Banditセキュリティスキャン結果
+- `wrappers/adminui-security.sh` — セキュリティ情報ラッパー
+- `frontend/dev/security.html` — セキュリティ監査UI（失敗ログイン10件以上で赤色警告）
+
+---
+
+## [v0.21.0] - 2026-03-01
+
+### Added (Step 24-25)
+- Apache設定管理強化
+  - `GET /api/apache/vhosts-detail` — バーチャルホスト詳細
+  - `GET /api/apache/ssl-certs` — SSL証明書一覧
+- ログ集約+検索UI
+  - `GET /api/logs/search` — ログ全文検索
+  - `GET /api/logs/files` — ログファイル一覧
+  - `GET /api/logs/recent-errors` — 最近のエラー
+- `wrappers/adminui-logsearch.sh` — ログ検索ラッパー
+- `frontend/dev/logs.html` 強化（検索バー・フィルタ・ハイライト）
+
+---
+
+## [v0.20.0] - 2026-03-01
+
+### Added (Step 22-23)
+- Cron UI強化
+  - `GET /api/cron/validate` — cron式バリデーション（禁止文字チェック付き）
+  - `frontend/dev/cron.html` — collapsibleバリデーターパネル
+- Users/Groups UI強化
+  - `GET /api/users/groups` — グループ一覧エイリアス
+  - `GET /api/users/list` — ユーザー一覧エイリアス
+  - `frontend/dev/users.html` — タブUI・承認申請フォーム強化
+
+---
+
 ## [0.14.0] - 2026-03-01
 
 **v0.14.0 リリース** - HTTPS/TLS本番対応 + システム設定モジュール + UIテーマ管理
