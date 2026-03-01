@@ -16,7 +16,7 @@ Apache Webserver 管理 API エンドポイント（読み取り専用）
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from ...core import require_permission, sudo_wrapper
@@ -73,6 +73,26 @@ class ApacheConfigCheckResponse(BaseModel):
     status: str
     syntax_ok: Optional[bool] = None
     output: Optional[str] = None
+    message: Optional[str] = None
+    timestamp: str
+
+
+class ApacheConfigResponse(BaseModel):
+    """Apache 設定ファイル内容レスポンス"""
+
+    status: str
+    config: Optional[str] = None
+    config_file: Optional[str] = None
+    message: Optional[str] = None
+    timestamp: str
+
+
+class ApacheLogsResponse(BaseModel):
+    """Apache エラーログレスポンス"""
+
+    status: str
+    logs: Optional[str] = None
+    lines: Optional[int] = None
     message: Optional[str] = None
     timestamp: str
 
@@ -205,4 +225,66 @@ async def get_apache_config_check(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Apache config-check unavailable: {e}",
+        )
+
+
+@router.get(
+    "/config",
+    response_model=ApacheConfigResponse,
+    summary="Apache 設定ファイル内容取得",
+    description="Apache 設定ファイル（/etc/apache2/apache2.conf）の内容を取得します。",
+)
+async def get_apache_config(
+    current_user: TokenData = Depends(require_permission("read:servers")),
+) -> dict:
+    """Apache 設定ファイル内容を取得する。"""
+    try:
+        result = sudo_wrapper.get_apache_config()
+        data = parse_wrapper_result(result)
+
+        audit_log.record(
+            user_id=current_user.user_id,
+            operation="apache_config",
+            target="apache",
+            status="success",
+        )
+        return data
+
+    except SudoWrapperError as e:
+        logger.error("Apache config error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Apache config unavailable: {e}",
+        )
+
+
+@router.get(
+    "/logs",
+    response_model=ApacheLogsResponse,
+    summary="Apache エラーログ取得",
+    description="Apache エラーログの末尾N行を取得します（最大200行）。",
+)
+async def get_apache_logs(
+    lines: int = Query(default=50, ge=1, le=200, description="取得行数 (1-200)"),
+    current_user: TokenData = Depends(require_permission("read:servers")),
+) -> dict:
+    """Apache エラーログを取得する。"""
+    try:
+        result = sudo_wrapper.get_apache_logs(lines=lines)
+        data = parse_wrapper_result(result)
+
+        audit_log.record(
+            user_id=current_user.user_id,
+            operation="apache_logs",
+            target="apache",
+            status="success",
+            details={"lines": lines},
+        )
+        return data
+
+    except SudoWrapperError as e:
+        logger.error("Apache logs error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Apache logs unavailable: {e}",
         )

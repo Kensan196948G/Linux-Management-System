@@ -105,6 +105,10 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # Nginx 管理
+            "read:nginx",
+            # Apache 管理
+            "read:apache",
         ],
     ),
     "Operator": UserRole(
@@ -158,6 +162,10 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # Nginx 管理
+            "read:nginx",
+            # Apache 管理
+            "read:apache",
         ],
     ),
     "Approver": UserRole(
@@ -218,6 +226,10 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # Nginx 管理
+            "read:nginx",
+            # Apache 管理
+            "read:apache",
         ],
     ),
     "Admin": UserRole(
@@ -291,6 +303,10 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # Nginx 管理
+            "read:nginx",
+            # Apache 管理
+            "read:apache",
         ],
     ),
 }
