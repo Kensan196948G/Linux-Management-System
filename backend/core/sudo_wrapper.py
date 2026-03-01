@@ -1403,6 +1403,60 @@ class SudoWrapper:
         safe_lines = max(1, min(200, lines))
         return self._execute("adminui-postfix.sh", ["logs", str(safe_lines)])
 
+    # ────────── MySQL / MariaDB ──────────
+
+    def get_mysql_status(self) -> Dict[str, Any]:
+        """MySQL/MariaDB サービス状態・バージョンを取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-mysql.sh", ["status"])
+
+    def get_mysql_databases(self) -> Dict[str, Any]:
+        """データベース一覧を取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-mysql.sh", ["databases"])
+
+    def get_mysql_users(self) -> Dict[str, Any]:
+        """ユーザー一覧を取得（パスワードハッシュ除外）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-mysql.sh", ["users"])
+
+    def get_mysql_processes(self) -> Dict[str, Any]:
+        """プロセスリストを取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-mysql.sh", ["processlist"])
+
+    def get_mysql_variables(self) -> Dict[str, Any]:
+        """システム変数（重要なもの）を取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-mysql.sh", ["variables"])
+
+    def get_mysql_logs(self, lines: int = 50) -> Dict[str, Any]:
+        """MySQL エラーログを取得
+
+        Args:
+            lines: 取得行数 (1-200)
+
+        Returns:
+            実行結果の辞書
+        """
+        safe_lines = max(1, min(200, lines))
+        return self._execute("adminui-mysql.sh", ["logs", str(safe_lines)])
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()

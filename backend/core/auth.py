@@ -81,6 +81,8 @@ ROLES = {
             # クォータ管理
             "read:quotas",
             # DB監視（read:servers 再利用）
+            # MySQL/MariaDB
+            "read:mysql",
         ],
     ),
     "Operator": UserRole(
@@ -110,6 +112,8 @@ ROLES = {
             "read:time",
             # クォータ管理
             "read:quotas",
+            # MySQL/MariaDB
+            "read:mysql",
         ],
     ),
     "Approver": UserRole(
@@ -146,6 +150,8 @@ ROLES = {
             "write:quotas",
             # パッケージ管理（個別アップグレード）
             "write:packages",
+            # MySQL/MariaDB
+            "read:mysql",
         ],
     ),
     "Admin": UserRole(
@@ -195,6 +201,8 @@ ROLES = {
             # パッケージ管理（個別/全体アップグレード）
             "write:packages",
             "execute:upgrade_all",
+            # MySQL/MariaDB
+            "read:mysql",
         ],
     ),
 }
