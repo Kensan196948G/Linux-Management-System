@@ -150,6 +150,42 @@ cmd_top() {
     echo "{\"status\":\"ok\",\"interfaces\":$result,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
 }
 
+# 帯域使用履歴（vnstat 全期間サマリ）
+cmd_history() {
+    local iface="${1:-eth0}"
+    is_valid_iface "$iface"
+    if ! has_vnstat; then
+        cat /proc/net/dev 2>/dev/null || true
+        return
+    fi
+    local out
+    out=$(vnstat -i "$iface" --json 2>/dev/null || vnstat -i "$iface" 2>/dev/null || echo '{}')
+    echo "{\"status\":\"ok\",\"period\":\"history\",\"source\":\"vnstat\",\"data\":$out,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+}
+
+# 月次統計
+cmd_monthly() {
+    local iface="${1:-eth0}"
+    is_valid_iface "$iface"
+    if ! has_vnstat; then
+        cat /proc/net/dev 2>/dev/null || true
+        return
+    fi
+    local out
+    out=$(vnstat -i "$iface" -m --json 2>/dev/null || vnstat -i "$iface" -m 2>/dev/null || echo '{}')
+    echo "{\"status\":\"ok\",\"period\":\"monthly\",\"source\":\"vnstat\",\"data\":$out,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+}
+
+# アラート設定（設定ファイルから読む、なければデフォルト値）
+cmd_alert_config() {
+    local config_file="/etc/adminui/bandwidth-alert.json"
+    if [[ -f "$config_file" ]]; then
+        cat "$config_file"
+    else
+        echo '{"threshold_gb": 100, "alert_email": "", "enabled": false}'
+    fi
+}
+
 # ===================================================================
 # サブコマンドディスパッチ
 # ===================================================================
@@ -163,6 +199,9 @@ case "$SUBCMD" in
     hourly)    cmd_hourly "${1:-}" ;;
     live)      cmd_live "${1:-}" ;;
     top)       cmd_top "$@" ;;
+    history)   cmd_history "${1:-eth0}" ;;
+    monthly)   cmd_monthly "${1:-eth0}" ;;
+    alert-config) cmd_alert_config ;;
     *)
         echo "{\"status\":\"error\",\"message\":\"Unknown subcommand: $SUBCMD\"}" >&2
         exit 1

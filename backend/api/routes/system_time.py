@@ -138,6 +138,78 @@ async def list_timezones(
         ) from e
 
 
+@router.get(
+    "/ntp-servers",
+    summary="NTPサーバー一覧取得",
+    description="chrony または ntpd から NTP ソースサーバーの一覧を返します。",
+)
+async def get_ntp_servers(
+    current_user: Annotated[TokenData, Depends(require_permission("read:time"))],
+) -> dict:
+    """NTPサーバー一覧を返します。
+
+    Returns:
+        NTPサーバー出力
+
+    Raises:
+        HTTPException 500: 取得失敗
+    """
+    try:
+        result = sudo_wrapper.get_ntp_servers()
+
+        audit_log.record(
+            operation="time_ntp_servers_view",
+            user_id=current_user.user_id,
+            target="system",
+            status="success",
+        )
+
+        return result
+
+    except SudoWrapperError as e:
+        logger.error("Failed to get NTP servers: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="NTPサーバー一覧の取得に失敗しました",
+        ) from e
+
+
+@router.get(
+    "/sync-status",
+    summary="時刻同期状態詳細取得",
+    description="timedatectl show の出力から詳細な時刻同期状態を返します。",
+)
+async def get_time_sync_status(
+    current_user: Annotated[TokenData, Depends(require_permission("read:time"))],
+) -> dict:
+    """詳細な時刻同期状態を返します。
+
+    Returns:
+        時刻同期状態出力
+
+    Raises:
+        HTTPException 500: 取得失敗
+    """
+    try:
+        result = sudo_wrapper.get_time_sync_status()
+
+        audit_log.record(
+            operation="time_sync_status_view",
+            user_id=current_user.user_id,
+            target="system",
+            status="success",
+        )
+
+        return result
+
+    except SudoWrapperError as e:
+        logger.error("Failed to get time sync status: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="時刻同期状態の取得に失敗しました",
+        ) from e
+
+
 @router.post(
     "/timezone",
     summary="タイムゾーン変更（承認フロー必須・Admin のみ）",

@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-ALLOWED_SUBCOMMANDS=("list" "updates" "security" "upgrade" "upgrade-all" "upgrade-dryrun")
+ALLOWED_SUBCOMMANDS=("list" "updates" "security" "upgrade" "upgrade-all" "upgrade-dryrun" "upgradeable" "search" "info" "installed" "security-updates")
 
 if [ "$#" -ne 1 ]; then
     echo '{"status":"error","message":"Usage: adminui-packages.sh <subcommand>"}' >&2
@@ -261,6 +261,72 @@ if [ "$SUBCOMMAND" = "upgrade-all" ]; then
         echo "{\"status\":\"error\",\"message\":\"Failed to upgrade all packages\",\"exit_code\":${EXIT_CODE}}" >&2
         exit 1
     fi
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: upgradeable - アップグレード可能パッケージ一覧（rawテキスト）
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "upgradeable" ]; then
+    apt list --upgradeable 2>/dev/null
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: search <query> - パッケージ検索
+# ==============================================================================
+
+# 禁止文字チェック関数
+validate_input() {
+    local input="$1"
+    if echo "$input" | grep -qP '[;|&$()` ><*?{}\[\]]'; then
+        echo "Error: Forbidden characters in input" >&2
+        exit 1
+    fi
+}
+
+if [ "$SUBCOMMAND" = "search" ]; then
+    QUERY="${2:-}"
+    if [ -z "$QUERY" ]; then
+        echo "Error: search requires a query argument" >&2
+        exit 1
+    fi
+    validate_input "${QUERY}"
+    apt-cache search "${QUERY}"
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: info <package> - パッケージ詳細情報
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "info" ]; then
+    PACKAGE="${2:-}"
+    if [ -z "$PACKAGE" ]; then
+        echo "Error: info requires a package name argument" >&2
+        exit 1
+    fi
+    validate_input "${PACKAGE}"
+    apt-cache show "${PACKAGE}"
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: installed - インストール済みパッケージ一覧（dpkg -l）
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "installed" ]; then
+    dpkg -l | grep "^ii"
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: security-updates - セキュリティアップデート一覧
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "security-updates" ]; then
+    apt list --upgradeable 2>/dev/null | grep -i security || true
     exit 0
 fi
 

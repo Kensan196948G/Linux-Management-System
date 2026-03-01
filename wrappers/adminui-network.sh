@@ -27,7 +27,7 @@ set -euo pipefail
 # 定数
 # ==============================================================================
 
-ALLOWED_SUBCOMMANDS=("interfaces" "stats" "connections" "routes")
+ALLOWED_SUBCOMMANDS=("interfaces" "stats" "connections" "routes" "interfaces-detail" "dns-config" "active-connections")
 
 # ==============================================================================
 # ユーティリティ
@@ -168,6 +168,64 @@ case "$SUBCOMMAND" in
         fi
 
         output_json "success" "routes" "$routes_json"
+        ;;
+
+    # ------------------------------------------------------------------
+    # interfaces-detail: インターフェース詳細 (ip -j addr show)
+    # ------------------------------------------------------------------
+    interfaces-detail)
+        if ! command -v ip &>/dev/null; then
+            error_json "ip command not found"
+            exit 1
+        fi
+
+        if ip -j addr show &>/dev/null 2>&1; then
+            detail_json=$(ip -j addr show 2>/dev/null || echo "[]")
+        else
+            detail_json=$(ip addr show 2>/dev/null | python3 -c "import sys,json; print(json.dumps([{'raw': sys.stdin.read()}]))" 2>/dev/null || echo "[]")
+        fi
+
+        output_json "success" "interfaces" "$detail_json"
+        ;;
+
+    # ------------------------------------------------------------------
+    # dns-config: DNS設定 (/etc/resolv.conf + /etc/hosts)
+    # ------------------------------------------------------------------
+    dns-config)
+        resolv_content=""
+        hosts_content=""
+
+        if [[ -r /etc/resolv.conf ]]; then
+            resolv_content=$(cat /etc/resolv.conf 2>/dev/null || echo "")
+        fi
+
+        if [[ -r /etc/hosts ]]; then
+            hosts_content=$(head -50 /etc/hosts 2>/dev/null || echo "")
+        fi
+
+        # JSON エスケープ（バックスラッシュ・ダブルクォート・改行・タブ）
+        resolv_escaped=$(printf '%s' "$resolv_content" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo '""')
+        hosts_escaped=$(printf '%s' "$hosts_content" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo '""')
+
+        printf '{"status":"success","resolv_conf":%s,"hosts":%s,"timestamp":"%s"}\n' \
+            "$resolv_escaped" "$hosts_escaped" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        ;;
+
+    # ------------------------------------------------------------------
+    # active-connections: アクティブ接続 (ss -tunp)
+    # ------------------------------------------------------------------
+    active-connections)
+        if ! command -v ss &>/dev/null; then
+            error_json "ss command not found (install iproute2)"
+            exit 1
+        fi
+
+        # ss -tunp: TCP/UDP, numeric, with process info
+        conn_output=$(ss -tunp 2>/dev/null || echo "")
+        conn_escaped=$(printf '%s' "$conn_output" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo '""')
+
+        printf '{"status":"success","connections":%s,"timestamp":"%s"}\n' \
+            "$conn_escaped" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         ;;
 
     *)

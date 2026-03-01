@@ -400,3 +400,162 @@ async def get_dns_config(
         details={},
     )
     return {"status": "success", "dns": dns_info}
+
+
+# ===================================================================
+# 拡張エンドポイント (v0.23)
+# ===================================================================
+
+
+@router.get("/interfaces-detail")
+async def get_interfaces_detail(
+    current_user: TokenData = Depends(require_permission("read:network")),
+):
+    """
+    ネットワークインターフェース詳細を取得 (ip -j addr show)
+
+    Args:
+        current_user: 現在のユーザー (read:network 権限必須)
+
+    Returns:
+        インターフェース詳細情報
+
+    Raises:
+        HTTPException: 取得失敗時
+    """
+    import datetime
+
+    logger.info(f"Network interfaces-detail requested by={current_user.username}")
+    audit_log.record(
+        operation="network_interfaces_detail",
+        user_id=current_user.user_id,
+        target="network",
+        status="attempt",
+        details={},
+    )
+    try:
+        result = sudo_wrapper.get_network_interfaces_detail()
+        if result.get("returncode", result.get("status")) not in (0, "success", None):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=result.get("stderr") or result.get("message", "interfaces-detail unavailable"),
+            )
+        audit_log.record(
+            operation="network_interfaces_detail",
+            user_id=current_user.user_id,
+            target="network",
+            status="success",
+            details={},
+        )
+        return {
+            "interfaces": result.get("stdout", result.get("interfaces", "")),
+            "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Network interfaces-detail failed: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+@router.get("/dns-config")
+async def get_dns_config_detail(
+    current_user: TokenData = Depends(require_permission("read:network")),
+):
+    """
+    DNS設定詳細を取得 (/etc/resolv.conf + /etc/hosts)
+
+    Args:
+        current_user: 現在のユーザー (read:network 権限必須)
+
+    Returns:
+        DNS設定情報
+
+    Raises:
+        HTTPException: 取得失敗時
+    """
+    import datetime
+
+    logger.info(f"Network dns-config requested by={current_user.username}")
+    audit_log.record(
+        operation="network_dns_config",
+        user_id=current_user.user_id,
+        target="network",
+        status="attempt",
+        details={},
+    )
+    try:
+        result = sudo_wrapper.get_network_dns_config()
+        if result.get("returncode", result.get("status")) not in (0, "success", None):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=result.get("stderr") or result.get("message", "dns-config unavailable"),
+            )
+        audit_log.record(
+            operation="network_dns_config",
+            user_id=current_user.user_id,
+            target="network",
+            status="success",
+            details={},
+        )
+        return {
+            "resolv_conf": result.get("stdout", result.get("resolv_conf", "")),
+            "hosts": result.get("hosts", ""),
+            "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Network dns-config failed: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+@router.get("/active-connections")
+async def get_active_connections(
+    current_user: TokenData = Depends(require_permission("read:network")),
+):
+    """
+    アクティブ接続一覧を取得 (ss -tunp)
+
+    Args:
+        current_user: 現在のユーザー (read:network 権限必須)
+
+    Returns:
+        アクティブ接続情報
+
+    Raises:
+        HTTPException: 取得失敗時
+    """
+    import datetime
+
+    logger.info(f"Network active-connections requested by={current_user.username}")
+    audit_log.record(
+        operation="network_active_connections",
+        user_id=current_user.user_id,
+        target="network",
+        status="attempt",
+        details={},
+    )
+    try:
+        result = sudo_wrapper.get_network_active_connections()
+        if result.get("returncode", result.get("status")) not in (0, "success", None):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=result.get("stderr") or result.get("message", "active-connections unavailable"),
+            )
+        audit_log.record(
+            operation="network_active_connections",
+            user_id=current_user.user_id,
+            target="network",
+            status="success",
+            details={},
+        )
+        return {
+            "connections": result.get("stdout", result.get("connections", "")),
+            "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Network active-connections failed: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))

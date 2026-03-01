@@ -309,3 +309,183 @@ class TestBandwidthSecurity:
             headers={"Authorization": f"Bearer {viewer_token}"},
         )
         assert resp.status_code == 422
+
+
+# ===================================================================
+# 新規エンドポイント: history / monthly / alert-config
+# ===================================================================
+
+BANDWIDTH_HISTORY = {
+    "status": "ok",
+    "period": "history",
+    "source": "vnstat",
+    "data": {"interfaces": [{"name": "eth0", "traffic": {"total": {"rx": 10240, "tx": 5120}}}]},
+    "timestamp": "2026-03-01T00:00:00Z",
+}
+
+BANDWIDTH_MONTHLY = {
+    "status": "ok",
+    "period": "monthly",
+    "source": "vnstat",
+    "data": {"interfaces": [{"name": "eth0", "traffic": {"month": []}}]},
+    "timestamp": "2026-03-01T00:00:00Z",
+}
+
+BANDWIDTH_ALERT_CONFIG = {
+    "threshold_gb": 100,
+    "alert_email": "",
+    "enabled": False,
+}
+
+
+class TestBandwidthHistory:
+    """GET /api/bandwidth/history のテスト"""
+
+    def test_history_success(self, test_client, viewer_token):
+        """TC_BW_021: Viewer で帯域使用履歴取得成功"""
+        with patch(
+            "backend.api.routes.bandwidth.sudo_wrapper.get_bandwidth_history",
+            return_value=BANDWIDTH_HISTORY,
+        ):
+            resp = test_client.get(
+                "/api/bandwidth/history?interface=eth0",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+
+    def test_history_no_auth(self, test_client):
+        """TC_BW_022: 未認証で帯域使用履歴拒否"""
+        resp = test_client.get("/api/bandwidth/history")
+        assert resp.status_code in (401, 403)
+
+    def test_history_injection(self, test_client, viewer_token):
+        """TC_BW_023: インジェクション文字を含むinterfaceパラメータを拒否"""
+        resp = test_client.get(
+            "/api/bandwidth/history?interface=eth0;evil",
+            headers={"Authorization": f"Bearer {viewer_token}"},
+        )
+        assert resp.status_code == 422
+
+    def test_history_service_error(self, test_client, viewer_token):
+        """TC_BW_024: コマンド失敗時に503を返す"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+
+        with patch(
+            "backend.api.routes.bandwidth.sudo_wrapper.get_bandwidth_history",
+            side_effect=SudoWrapperError("command failed"),
+        ):
+            resp = test_client.get(
+                "/api/bandwidth/history?interface=eth0",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_history_interface_too_long(self, test_client, viewer_token):
+        """TC_BW_025: 長すぎるinterfaceパラメータを拒否"""
+        long_iface = "a" * 100
+        resp = test_client.get(
+            f"/api/bandwidth/history?interface={long_iface}",
+            headers={"Authorization": f"Bearer {viewer_token}"},
+        )
+        assert resp.status_code == 422
+
+
+class TestBandwidthMonthly:
+    """GET /api/bandwidth/monthly のテスト"""
+
+    def test_monthly_success(self, test_client, viewer_token):
+        """TC_BW_026: Viewer で月次帯域使用量取得成功"""
+        with patch(
+            "backend.api.routes.bandwidth.sudo_wrapper.get_bandwidth_monthly",
+            return_value=BANDWIDTH_MONTHLY,
+        ):
+            resp = test_client.get(
+                "/api/bandwidth/monthly?interface=eth0",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+
+    def test_monthly_no_auth(self, test_client):
+        """TC_BW_027: 未認証で月次帯域使用量拒否"""
+        resp = test_client.get("/api/bandwidth/monthly")
+        assert resp.status_code in (401, 403)
+
+    def test_monthly_injection(self, test_client, viewer_token):
+        """TC_BW_028: パイプ注入を含むinterfaceパラメータを拒否"""
+        resp = test_client.get(
+            "/api/bandwidth/monthly?interface=eth0|ls",
+            headers={"Authorization": f"Bearer {viewer_token}"},
+        )
+        assert resp.status_code == 422
+
+    def test_monthly_service_error(self, test_client, viewer_token):
+        """TC_BW_029: コマンド失敗時に503を返す"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+
+        with patch(
+            "backend.api.routes.bandwidth.sudo_wrapper.get_bandwidth_monthly",
+            side_effect=SudoWrapperError("command failed"),
+        ):
+            resp = test_client.get(
+                "/api/bandwidth/monthly?interface=eth0",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 503
+
+
+class TestBandwidthAlertConfig:
+    """GET /api/bandwidth/alert-config のテスト"""
+
+    def test_alert_config_success(self, test_client, viewer_token):
+        """TC_BW_030: Viewer でアラート設定取得成功"""
+        with patch(
+            "backend.api.routes.bandwidth.sudo_wrapper.get_bandwidth_alert_config",
+            return_value=BANDWIDTH_ALERT_CONFIG,
+        ):
+            resp = test_client.get(
+                "/api/bandwidth/alert-config",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "threshold_gb" in data
+        assert "enabled" in data
+
+    def test_alert_config_no_auth(self, test_client):
+        """TC_BW_031: 未認証でアラート設定拒否"""
+        resp = test_client.get("/api/bandwidth/alert-config")
+        assert resp.status_code in (401, 403)
+
+    def test_alert_config_service_error(self, test_client, viewer_token):
+        """TC_BW_032: コマンド失敗時に503を返す"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+
+        with patch(
+            "backend.api.routes.bandwidth.sudo_wrapper.get_bandwidth_alert_config",
+            side_effect=SudoWrapperError("command failed"),
+        ):
+            resp = test_client.get(
+                "/api/bandwidth/alert-config",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_alert_config_response_structure(self, test_client, viewer_token):
+        """TC_BW_033: アラート設定のレスポンス構造確認"""
+        with patch(
+            "backend.api.routes.bandwidth.sudo_wrapper.get_bandwidth_alert_config",
+            return_value={"threshold_gb": 200, "alert_email": "admin@example.com", "enabled": True},
+        ):
+            resp = test_client.get(
+                "/api/bandwidth/alert-config",
+                headers={"Authorization": f"Bearer {viewer_token}"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["threshold_gb"] == 200
+        assert data["alert_email"] == "admin@example.com"
+        assert data["enabled"] is True

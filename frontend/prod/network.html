@@ -83,6 +83,21 @@
                         📊 統計
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('interfaces-detail')" id="tab-interfaces-detail">
+                        🔍 詳細
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('dns-config')" id="tab-dns-config">
+                        🌐 DNS設定
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('active-connections')" id="tab-active-connections">
+                        🔗 接続一覧
+                    </a>
+                </li>
             </ul>
 
             <!-- インターフェース一覧 -->
@@ -140,6 +155,41 @@
                     <div class="row" id="stats-cards"></div>
                 </div>
             </div>
+
+            <!-- インターフェース詳細 -->
+            <div id="pane-interfaces-detail" style="display:none">
+                <div id="interfaces-detail-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="interfaces-detail-content" style="display:none">
+                    <pre id="interfaces-detail-pre" class="bg-light p-3 rounded" style="font-size:12px;max-height:500px;overflow:auto"></pre>
+                </div>
+            </div>
+
+            <!-- DNS設定 -->
+            <div id="pane-dns-config" style="display:none">
+                <div id="dns-config-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="dns-config-content" style="display:none">
+                    <div class="card mb-3">
+                        <div class="card-header">📄 /etc/resolv.conf</div>
+                        <div class="card-body p-2">
+                            <pre id="dns-resolv-pre" class="mb-0" style="font-size:12px;max-height:300px;overflow:auto"></pre>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">📄 /etc/hosts</div>
+                        <div class="card-body p-2">
+                            <pre id="dns-hosts-pre" class="mb-0" style="font-size:12px;max-height:300px;overflow:auto"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- アクティブ接続一覧 -->
+            <div id="pane-active-connections" style="display:none">
+                <div id="active-connections-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="active-connections-content" style="display:none">
+                    <pre id="active-connections-pre" class="bg-light p-3 rounded" style="font-size:12px;max-height:500px;overflow:auto"></pre>
+                </div>
+            </div>
         </div>
     </main>
 </div>
@@ -154,7 +204,7 @@ let currentTab = 'interfaces';
 
 // タブ切り替え
 function showTab(tab) {
-    ['interfaces', 'connections', 'routes', 'stats'].forEach(t => {
+    ['interfaces', 'connections', 'routes', 'stats', 'interfaces-detail', 'dns-config', 'active-connections'].forEach(t => {
         document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
         document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
     });
@@ -163,6 +213,9 @@ function showTab(tab) {
     else if (tab === 'connections') loadConnections();
     else if (tab === 'routes') loadRoutes();
     else if (tab === 'stats') loadStats();
+    else if (tab === 'interfaces-detail') loadInterfacesDetail();
+    else if (tab === 'dns-config') loadDnsConfig();
+    else if (tab === 'active-connections') loadActiveConnections();
 }
 
 function escapeHtml(str) {
@@ -333,6 +386,48 @@ function formatBytes(bytes) {
     let i = 0;
     while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
     return `${bytes.toFixed(1)} ${units[i]}`;
+}
+
+async function loadInterfacesDetail() {
+    const loading = document.getElementById('interfaces-detail-loading');
+    const content = document.getElementById('interfaces-detail-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.get('/api/network/interfaces-detail');
+        document.getElementById('interfaces-detail-pre').textContent =
+            typeof data.interfaces === 'string' ? data.interfaces : JSON.stringify(data.interfaces, null, 2);
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadDnsConfig() {
+    const loading = document.getElementById('dns-config-loading');
+    const content = document.getElementById('dns-config-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.get('/api/network/dns-config');
+        document.getElementById('dns-resolv-pre').textContent = data.resolv_conf || '';
+        document.getElementById('dns-hosts-pre').textContent = data.hosts || '';
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadActiveConnections() {
+    const loading = document.getElementById('active-connections-loading');
+    const content = document.getElementById('active-connections-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.get('/api/network/active-connections');
+        document.getElementById('active-connections-pre').textContent =
+            typeof data.connections === 'string' ? data.connections : JSON.stringify(data.connections, null, 2);
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
 }
 
 function refreshAll() {

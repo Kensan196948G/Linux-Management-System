@@ -24,7 +24,7 @@ error() {
 }
 
 # ─── 定数 ────────────────────────────────────────────────────────
-readonly ALLOWED_SUBCMDS=("status" "list-timezones" "set-timezone")
+readonly ALLOWED_SUBCMDS=("status" "list-timezones" "set-timezone" "ntp-servers" "sync-status" "current-time" "timezones")
 readonly ZONEINFO_DIR="/usr/share/zoneinfo"
 
 # ─── ヘルパー ────────────────────────────────────────────────────
@@ -157,6 +157,60 @@ case "$SUBCMD" in
             error "Failed to set timezone: $TZ"
             printf '{"status":"error","message":"Failed to set timezone to %s"}\n' "$TZ"
             exit 1
+        fi
+        ;;
+
+    # ── NTP サーバー一覧 (chrony / ntpd) ────────────────────────
+    ntp-servers)
+        if command -v chronyc &>/dev/null; then
+            OUTPUT=$(chronyc sources 2>/dev/null || echo "chrony not running")
+        elif command -v ntpq &>/dev/null; then
+            OUTPUT=$(ntpq -p 2>/dev/null || echo "ntpd not running")
+        else
+            OUTPUT="No NTP client found"
+        fi
+        printf '{"status":"ok","data":{"output":"%s"}}\n' "$(echo "$OUTPUT" | sed 's/"/\\"/g' | tr '\n' '|')"
+        ;;
+
+    # ── 時刻同期状態（詳細） ─────────────────────────────────
+    sync-status)
+        if command -v timedatectl &>/dev/null; then
+            SYNC_OUT=$(timedatectl show 2>/dev/null || timedatectl status 2>/dev/null || date)
+        else
+            SYNC_OUT=$(date)
+        fi
+        printf '{"status":"ok","data":{"output":"%s"}}\n' "$(echo "$SYNC_OUT" | sed 's/"/\\"/g' | tr '\n' '|')"
+        ;;
+
+    # ── 現在時刻（簡易） ─────────────────────────────────────
+    current-time)
+        SYSTEM_TIME=$(date -Iseconds 2>/dev/null || date)
+        UTC_TIME=$(date -u -Iseconds 2>/dev/null || date -u)
+        printf '{"status":"ok","data":{"system_time":"%s","utc_time":"%s"}}\n' "$SYSTEM_TIME" "$UTC_TIME"
+        ;;
+
+    # ── タイムゾーン一覧（timezones エイリアス） ─────────────
+    timezones)
+        if command -v timedatectl &>/dev/null; then
+            echo '{"status":"ok","data":{"timezones":['
+            FIRST=1
+            while IFS= read -r tz; do
+                [[ -z "$tz" ]] && continue
+                if [[ $FIRST -eq 0 ]]; then printf ','; fi
+                printf '"%s"' "$tz"
+                FIRST=0
+            done < <(timedatectl list-timezones 2>/dev/null)
+            echo ']}}'
+        else
+            echo '{"status":"ok","data":{"timezones":['
+            FIRST=1
+            while IFS= read -r f; do
+                tz="${f#${ZONEINFO_DIR}/}"
+                if [[ $FIRST -eq 0 ]]; then printf ','; fi
+                printf '"%s"' "$tz"
+                FIRST=0
+            done < <(find "$ZONEINFO_DIR" -type f -not -path "*/right/*" -not -path "*/posix/*" | sort | head -600)
+            echo ']}}'
         fi
         ;;
 

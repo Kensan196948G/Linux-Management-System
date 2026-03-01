@@ -307,3 +307,119 @@ async def get_bandwidth_top(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"トラフィック統計取得エラー: {e}",
         )
+
+
+class BandwidthAlertConfigResponse(BaseModel):
+    """帯域アラート設定レスポンス"""
+
+    status: str = "ok"
+    threshold_gb: int = 100
+    alert_email: str = ""
+    enabled: bool = False
+
+
+@router.get(
+    "/history",
+    response_model=BandwidthSummaryResponse,
+    summary="帯域使用履歴",
+    description="vnstat による帯域使用履歴を取得します",
+)
+async def get_bandwidth_history(
+    interface: str = Query(default="eth0", description="インターフェース名", max_length=32),
+    current_user: TokenData = Depends(require_permission("read:bandwidth")),
+) -> BandwidthSummaryResponse:
+    """帯域使用履歴を取得する"""
+    _validate_iface(interface)
+    try:
+        result = sudo_wrapper.get_bandwidth_history(interface)
+        parsed = parse_wrapper_result(result)
+        audit_log.record(
+            operation="bandwidth_history_read",
+            user_id=current_user.user_id,
+            target=interface,
+            status="success",
+        )
+        return BandwidthSummaryResponse(
+            status=parsed.get("status", "ok"),
+            source=parsed.get("source", "vnstat"),
+            interface=interface,
+            data=parsed.get("data"),
+            message=parsed.get("message"),
+            timestamp=parsed.get("timestamp", ""),
+        )
+    except (SudoWrapperError, ValueError) as e:
+        logger.error("Bandwidth history error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"帯域使用履歴取得エラー: {e}",
+        )
+
+
+@router.get(
+    "/monthly",
+    response_model=BandwidthSummaryResponse,
+    summary="月次帯域使用量",
+    description="vnstat による月次トラフィック統計を取得します",
+)
+async def get_bandwidth_monthly(
+    interface: str = Query(default="eth0", description="インターフェース名", max_length=32),
+    current_user: TokenData = Depends(require_permission("read:bandwidth")),
+) -> BandwidthSummaryResponse:
+    """月次帯域使用量を取得する"""
+    _validate_iface(interface)
+    try:
+        result = sudo_wrapper.get_bandwidth_monthly(interface)
+        parsed = parse_wrapper_result(result)
+        audit_log.record(
+            operation="bandwidth_monthly_read",
+            user_id=current_user.user_id,
+            target=interface,
+            status="success",
+        )
+        return BandwidthSummaryResponse(
+            status=parsed.get("status", "ok"),
+            source=parsed.get("source", "vnstat"),
+            interface=interface,
+            data=parsed.get("data"),
+            message=parsed.get("message"),
+            timestamp=parsed.get("timestamp", ""),
+        )
+    except (SudoWrapperError, ValueError) as e:
+        logger.error("Bandwidth monthly error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"月次帯域使用量取得エラー: {e}",
+        )
+
+
+@router.get(
+    "/alert-config",
+    response_model=BandwidthAlertConfigResponse,
+    summary="帯域アラート設定",
+    description="帯域使用量アラートの設定を取得します",
+)
+async def get_bandwidth_alert_config(
+    current_user: TokenData = Depends(require_permission("read:bandwidth")),
+) -> BandwidthAlertConfigResponse:
+    """帯域アラート設定を取得する"""
+    try:
+        result = sudo_wrapper.get_bandwidth_alert_config()
+        parsed = parse_wrapper_result(result)
+        audit_log.record(
+            operation="bandwidth_alert_config_read",
+            user_id=current_user.user_id,
+            target="alert-config",
+            status="success",
+        )
+        return BandwidthAlertConfigResponse(
+            status="ok",
+            threshold_gb=parsed.get("threshold_gb", 100),
+            alert_email=parsed.get("alert_email", ""),
+            enabled=parsed.get("enabled", False),
+        )
+    except SudoWrapperError as e:
+        logger.error("Bandwidth alert-config error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"アラート設定取得エラー: {e}",
+        )

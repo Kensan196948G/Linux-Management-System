@@ -879,6 +879,38 @@ class SudoWrapper:
         """
         return self._execute("adminui-bandwidth.sh", ["top"], timeout=10)
 
+    def get_bandwidth_history(self, iface: str = "eth0") -> Dict[str, Any]:
+        """帯域使用履歴を取得 (vnstat)
+
+        Args:
+            iface: インターフェース名
+
+        Returns:
+            帯域履歴の辞書
+        """
+        self._validate_iface(iface)
+        return self._execute("adminui-bandwidth.sh", ["history", iface], timeout=15)
+
+    def get_bandwidth_monthly(self, iface: str = "eth0") -> Dict[str, Any]:
+        """月次帯域使用量を取得
+
+        Args:
+            iface: インターフェース名
+
+        Returns:
+            月次統計の辞書
+        """
+        self._validate_iface(iface)
+        return self._execute("adminui-bandwidth.sh", ["monthly", iface], timeout=15)
+
+    def get_bandwidth_alert_config(self) -> Dict[str, Any]:
+        """帯域アラート設定を取得
+
+        Returns:
+            アラート設定の辞書
+        """
+        return self._execute("adminui-bandwidth.sh", ["alert-config"], timeout=10)
+
     # ===================================================================
     # Apache Webserver 管理メソッド
     # ===================================================================
@@ -1195,6 +1227,53 @@ class SudoWrapper:
         """
         return self._execute("adminui-packages.sh", ["upgrade-all"], timeout=300)
 
+    def get_packages_upgradeable(self) -> Dict[str, Any]:
+        """アップグレード可能なパッケージ一覧を取得"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "upgradeable"],
+            capture_output=True, text=True, timeout=60
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def search_packages(self, query: str) -> Dict[str, Any]:
+        """パッケージを検索 (apt-cache search)"""
+        FORBIDDEN = [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?", "{", "}", "[", "]"]
+        for char in FORBIDDEN:
+            if char in query:
+                raise ValueError(f"Forbidden character in query: {char}")
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "search", query],
+            capture_output=True, text=True, timeout=60
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_package_info(self, package: str) -> Dict[str, Any]:
+        """パッケージ詳細情報を取得 (apt-cache show)"""
+        FORBIDDEN = [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?", "{", "}", "[", "]", " "]
+        for char in FORBIDDEN:
+            if char in package:
+                raise ValueError(f"Forbidden character in package name: {char}")
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "info", package],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_packages_installed(self) -> Dict[str, Any]:
+        """インストール済みパッケージ一覧 (dpkg -l)"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "installed"],
+            capture_output=True, text=True, timeout=60
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def get_packages_security_updates(self) -> Dict[str, Any]:
+        """セキュリティアップデート一覧"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "security-updates"],
+            capture_output=True, text=True, timeout=60
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     # ------------------------------------------------------------------
     # SSH設定（読み取り専用）
@@ -2372,6 +2451,49 @@ class SudoWrapper:
             SudoWrapperError: 実行失敗時
         """
         return self._execute("adminui-logsearch.sh", ["recent-errors"], timeout=15)
+
+    def get_network_interfaces_detail(self) -> Dict[str, Any]:
+        """ネットワークインターフェース詳細を取得 (ip -j addr show)
+
+        Returns:
+            インターフェース詳細情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-network.sh", ["interfaces-detail"], timeout=30)
+
+    def get_network_dns_config(self) -> Dict[str, Any]:
+        """DNS設定を取得 (/etc/resolv.conf + /etc/hosts)
+
+        Returns:
+            DNS設定情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-network.sh", ["dns-config"], timeout=30)
+
+    def get_network_active_connections(self) -> Dict[str, Any]:
+        """アクティブ接続一覧を取得 (ss -tunp)
+
+        Returns:
+            アクティブ接続情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+    def get_ntp_servers(self) -> Dict[str, Any]:
+        """NTPサーバー一覧を取得 (chrony/ntpd)"""
+        return self._execute("adminui-time.sh", ["ntp-servers"])
+
+    def get_time_sync_status(self) -> Dict[str, Any]:
+        """時刻同期状態（詳細）を取得"""
+        return self._execute("adminui-time.sh", ["sync-status"])
+
+    def get_available_timezones(self) -> Dict[str, Any]:
+        """利用可能なタイムゾーン一覧を取得 (timezones サブコマンド)"""
+        return self._execute("adminui-time.sh", ["timezones"])
 
 
 # グローバルインスタンス

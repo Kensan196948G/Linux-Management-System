@@ -119,6 +119,8 @@ ROLES = {
             "read:modules",
             # セキュリティ監査
             "read:security",
+            # 帯域幅監視
+            "read:bandwidth",
         ],
     ),
     "Operator": UserRole(
@@ -186,6 +188,8 @@ ROLES = {
             "read:modules",
             # セキュリティ監査
             "read:security",
+            # 帯域幅監視
+            "read:bandwidth",
         ],
     ),
     "Approver": UserRole(
@@ -260,6 +264,8 @@ ROLES = {
             "read:modules",
             # セキュリティ監査
             "read:security",
+            # 帯域幅監視
+            "read:bandwidth",
         ],
     ),
     "Admin": UserRole(
@@ -347,6 +353,8 @@ ROLES = {
             "read:modules",
             # セキュリティ監査
             "read:security",
+            # 帯域幅監視
+            "read:bandwidth",
         ],
     ),
 }

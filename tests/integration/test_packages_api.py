@@ -482,3 +482,171 @@ class TestPackageUpgradeAll:
         ):
             resp = client.post("/api/packages/upgrade-all", headers=admin_headers)
         assert resp.status_code == 503
+
+
+# ===================================================================
+# v0.23 UI強化エンドポイントテスト
+# ===================================================================
+
+SAMPLE_UPGRADEABLE_STDOUT = "nginx/focal-updates 1.18.0-0ubuntu1.4 amd64 [upgradable from: 1.18.0-0ubuntu1.3]\nopenssl/focal-security 1.1.1f-1ubuntu2.22 amd64 [upgradable from: 1.1.1f-1ubuntu2.21]\n"
+SAMPLE_SEARCH_STDOUT = "nginx - small, powerful, scalable web/proxy server\nnginx-full - nginx web/proxy server (full version)\n"
+SAMPLE_INFO_STDOUT = "Package: nginx\nVersion: 1.18.0-0ubuntu1.4\nDescription: small, powerful, scalable web/proxy server\n"
+SAMPLE_INSTALLED_STDOUT = "ii  nginx  1.18.0-0ubuntu1.4  amd64  small, powerful, scalable web/proxy server\nii  bash   5.1.16-1ubuntu7  amd64  GNU Bourne Again shell\n"
+SAMPLE_SECURITY_STDOUT = "openssl/focal-security 1.1.1f-1ubuntu2.22 amd64 [upgradable from: 1.1.1f-1ubuntu2.21]\n"
+
+UPGRADEABLE_MOCK = {"stdout": SAMPLE_UPGRADEABLE_STDOUT, "stderr": "", "returncode": 0}
+SEARCH_MOCK = {"stdout": SAMPLE_SEARCH_STDOUT, "stderr": "", "returncode": 0}
+INFO_MOCK = {"stdout": SAMPLE_INFO_STDOUT, "stderr": "", "returncode": 0}
+INSTALLED_MOCK = {"stdout": SAMPLE_INSTALLED_STDOUT, "stderr": "", "returncode": 0}
+SECURITY_MOCK = {"stdout": SAMPLE_SECURITY_STDOUT, "stderr": "", "returncode": 0}
+
+
+class TestUpgradeableEndpoint:
+    """GET /api/packages/upgradeable エンドポイントテスト"""
+
+    def test_upgradeable_success(self, client, auth_headers):
+        """TC_PKG_V23_001: 認証済みで200を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_packages_upgradeable", return_value=UPGRADEABLE_MOCK):
+            resp = client.get("/api/packages/upgradeable", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "packages" in data
+        assert "count" in data
+        assert "timestamp" in data
+
+    def test_upgradeable_count_correct(self, client, auth_headers):
+        """TC_PKG_V23_002: countフィールドが正しい"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_packages_upgradeable", return_value=UPGRADEABLE_MOCK):
+            resp = client.get("/api/packages/upgradeable", headers=auth_headers)
+        assert resp.json()["count"] == 2
+
+    def test_upgradeable_no_auth(self, client):
+        """TC_PKG_V23_003: 未認証で401を返す"""
+        resp = client.get("/api/packages/upgradeable")
+        assert resp.status_code in (401, 403)
+
+    def test_upgradeable_viewer_allowed(self, client, viewer_headers):
+        """TC_PKG_V23_004: viewerロールで200を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_packages_upgradeable", return_value=UPGRADEABLE_MOCK):
+            resp = client.get("/api/packages/upgradeable", headers=viewer_headers)
+        assert resp.status_code == 200
+
+    def test_upgradeable_wrapper_error_503(self, client, auth_headers):
+        """TC_PKG_V23_005: 実行エラーで503を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_packages_upgradeable", side_effect=Exception("apt error")):
+            resp = client.get("/api/packages/upgradeable", headers=auth_headers)
+        assert resp.status_code == 503
+
+
+class TestSearchEndpoint:
+    """GET /api/packages/search エンドポイントテスト"""
+
+    def test_search_success(self, client, auth_headers):
+        """TC_PKG_V23_006: 検索成功で200を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.search_packages", return_value=SEARCH_MOCK):
+            resp = client.get("/api/packages/search?q=nginx", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["query"] == "nginx"
+        assert "results" in data
+        assert data["count"] == 2
+
+    def test_search_forbidden_chars(self, client, auth_headers):
+        """TC_PKG_V23_007: 禁止文字を含むクエリで400を返す"""
+        resp = client.get("/api/packages/search?q=nginx;evil", headers=auth_headers)
+        assert resp.status_code == 400
+
+    def test_search_forbidden_pipe(self, client, auth_headers):
+        """TC_PKG_V23_008: パイプ文字を含むクエリで400を返す"""
+        resp = client.get("/api/packages/search?q=nginx|cat", headers=auth_headers)
+        assert resp.status_code == 400
+
+    def test_search_no_auth(self, client):
+        """TC_PKG_V23_009: 未認証で401を返す"""
+        resp = client.get("/api/packages/search?q=nginx")
+        assert resp.status_code in (401, 403)
+
+    def test_search_wrapper_error_503(self, client, auth_headers):
+        """TC_PKG_V23_010: 実行エラーで503を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.search_packages", side_effect=Exception("apt-cache error")):
+            resp = client.get("/api/packages/search?q=nginx", headers=auth_headers)
+        assert resp.status_code == 503
+
+    def test_search_value_error_400(self, client, auth_headers):
+        """TC_PKG_V23_011: ValueError で400を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.search_packages", side_effect=ValueError("bad char")):
+            resp = client.get("/api/packages/search?q=nginx", headers=auth_headers)
+        assert resp.status_code == 400
+
+
+class TestPackageInfoEndpoint:
+    """GET /api/packages/info/{package_name} エンドポイントテスト"""
+
+    def test_info_success(self, client, auth_headers):
+        """TC_PKG_V23_012: パッケージ情報取得成功で200を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_package_info", return_value=INFO_MOCK):
+            resp = client.get("/api/packages/info/nginx", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["package"] == "nginx"
+        assert "info" in data
+
+    def test_info_forbidden_chars(self, client, auth_headers):
+        """TC_PKG_V23_013: 禁止文字を含むパッケージ名で400を返す"""
+        resp = client.get("/api/packages/info/evil;cmd", headers=auth_headers)
+        assert resp.status_code == 400
+
+    def test_info_no_auth(self, client):
+        """TC_PKG_V23_014: 未認証で401を返す"""
+        resp = client.get("/api/packages/info/nginx")
+        assert resp.status_code in (401, 403)
+
+    def test_info_command_failure_503(self, client, auth_headers):
+        """TC_PKG_V23_015: コマンド失敗（returncode!=0）で503を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_package_info", return_value={"stdout": "", "stderr": "not found", "returncode": 1}):
+            resp = client.get("/api/packages/info/nonexistent", headers=auth_headers)
+        assert resp.status_code == 503
+
+    def test_info_wrapper_exception_503(self, client, auth_headers):
+        """TC_PKG_V23_016: 例外で503を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_package_info", side_effect=Exception("error")):
+            resp = client.get("/api/packages/info/nginx", headers=auth_headers)
+        assert resp.status_code == 503
+
+
+class TestSecurityUpdatesV2Endpoint:
+    """GET /api/packages/security-updates エンドポイントテスト"""
+
+    def test_security_updates_success(self, client, auth_headers):
+        """TC_PKG_V23_017: 認証済みで200を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_packages_security_updates", return_value=SECURITY_MOCK):
+            resp = client.get("/api/packages/security-updates", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "updates" in data
+        assert "count" in data
+        assert "timestamp" in data
+
+    def test_security_updates_no_auth(self, client):
+        """TC_PKG_V23_018: 未認証で401を返す"""
+        resp = client.get("/api/packages/security-updates")
+        assert resp.status_code in (401, 403)
+
+    def test_security_updates_viewer_allowed(self, client, viewer_headers):
+        """TC_PKG_V23_019: viewerロールで200を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_packages_security_updates", return_value=SECURITY_MOCK):
+            resp = client.get("/api/packages/security-updates", headers=viewer_headers)
+        assert resp.status_code == 200
+
+    def test_security_updates_empty(self, client, auth_headers):
+        """TC_PKG_V23_020: 空の結果でcount=0を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_packages_security_updates", return_value={"stdout": "", "stderr": "", "returncode": 0}):
+            resp = client.get("/api/packages/security-updates", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["count"] == 0
+
+    def test_security_updates_wrapper_error_503(self, client, auth_headers):
+        """TC_PKG_V23_021: 実行エラーで503を返す"""
+        with patch("backend.api.routes.packages.sudo_wrapper.get_packages_security_updates", side_effect=Exception("error")):
+            resp = client.get("/api/packages/security-updates", headers=auth_headers)
+        assert resp.status_code == 503

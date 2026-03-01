@@ -81,6 +81,9 @@
                     <a class="nav-link active" onclick="showTab('status')" id="tab-status">🕐 現在時刻</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('ntp')" id="tab-ntp">📡 NTP サーバー</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" onclick="showTab('timezone')" id="tab-timezone">
                         🌍 タイムゾーン変更
                         <span class="admin-only-badge ms-1">Admin</span>
@@ -106,6 +109,32 @@
                     </div>
                     <div class="metric-grid" id="time-status-grid">
                         <!-- JS で動的生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── TAB: NTP サーバー ───────────────────────────── -->
+            <div id="pane-ntp" style="display:none">
+                <!-- 時刻同期状態インジケーター -->
+                <div class="time-card" id="sync-status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="time-title">🔄 時刻同期状態</div>
+                        <span id="sync-loading" class="text-muted small">読み込み中...</span>
+                    </div>
+                    <div id="sync-status-indicator" class="metric-item text-center py-3">
+                        <div class="metric-value" id="sync-status-text">---</div>
+                    </div>
+                    <pre id="sync-status-raw" class="mt-3 p-2 bg-light rounded small" style="max-height:200px;overflow:auto;white-space:pre-wrap;display:none"></pre>
+                </div>
+
+                <!-- NTP サーバー一覧テーブル -->
+                <div class="time-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="time-title">📡 NTP ソースサーバー一覧</div>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="loadNtpData()">🔄 更新</button>
+                    </div>
+                    <div id="ntp-table-area">
+                        <div class="text-muted small p-3">読み込み中...</div>
                     </div>
                 </div>
             </div>
@@ -194,11 +223,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── タブ切り替え ────────────────────────────────────────────────
 function showTab(tab) {
-    ['status', 'timezone'].forEach(t => {
+    ['status', 'ntp', 'timezone'].forEach(t => {
         document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
         document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
     });
     if (tab === 'timezone' && allTimezones.length === 0) loadTimezones();
+    if (tab === 'ntp') loadNtpData();
+}    if (tab === 'timezone' && allTimezones.length === 0) loadTimezones();
 }
 
 // ── リアルタイムクロック ─────────────────────────────────────────
@@ -258,6 +289,45 @@ function renderTimeStatus(d) {
 }
 
 // ── タイムゾーン一覧取得 ─────────────────────────────────────────
+// ── NTP データ読み込み ──────────────────────────────────────────
+async function loadNtpData() {
+    try {
+        // 時刻同期状態
+        document.getElementById('sync-loading').textContent = '読み込み中...';
+        const syncData = await apiGet(`${API_BASE}/time/sync-status`);
+        const rawOutput = syncData.data && syncData.data.output ? syncData.data.output.replace(/\|/g, '\n') : '';
+
+        // NTPSynchronized の確認
+        const isSynced = /NTPSynchronized=yes/i.test(rawOutput);
+        const syncText = document.getElementById('sync-status-text');
+        syncText.innerHTML = isSynced
+            ? '<span class="ntp-synced">✅ 時刻同期済み（NTP 稼働中）</span>'
+            : '<span class="ntp-unsynced">⚠️ 時刻未同期</span>';
+        document.getElementById('sync-status-raw').textContent = rawOutput;
+        document.getElementById('sync-status-raw').style.display = rawOutput ? '' : 'none';
+        document.getElementById('sync-loading').textContent = '';
+    } catch (err) {
+        document.getElementById('sync-status-text').textContent = `取得失敗: ${err.message}`;
+        document.getElementById('sync-loading').textContent = '';
+    }
+
+    try {
+        // NTP サーバー一覧
+        const ntpData = await apiGet(`${API_BASE}/time/ntp-servers`);
+        const rawNtp = ntpData.data && ntpData.data.output ? ntpData.data.output.replace(/\|/g, '\n') : '';
+        const area = document.getElementById('ntp-table-area');
+        if (!rawNtp.trim()) {
+            area.innerHTML = '<div class="text-muted small p-3">NTP クライアントが見つかりません</div>';
+            return;
+        }
+        // テキスト表形式で表示
+        area.innerHTML = `<pre class="p-2 bg-light rounded small" style="overflow:auto;max-height:300px;white-space:pre">${escapeHtml(rawNtp)}</pre>`;
+    } catch (err) {
+        document.getElementById('ntp-table-area').innerHTML =
+            `<div class="text-danger small p-3">取得失敗: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
 async function loadTimezones() {
     const list = document.getElementById('tz-list');
     list.innerHTML = '<div class="text-muted small p-3">読み込み中...</div>';

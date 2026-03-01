@@ -2,19 +2,23 @@
 パッケージ管理 API エンドポイント
 
 提供エンドポイント:
-  GET  /api/packages/installed  - インストール済みパッケージ一覧
-  GET  /api/packages/updates    - 更新可能なパッケージ一覧
-  GET  /api/packages/security   - セキュリティ更新一覧
-  GET  /api/packages/upgrade/dryrun - アップグレードのドライラン
-  POST /api/packages/upgrade        - 特定パッケージのアップグレードリクエスト
-  POST /api/packages/upgrade-all    - 全パッケージのアップグレードリクエスト
+  GET  /api/packages/installed        - インストール済みパッケージ一覧
+  GET  /api/packages/updates          - 更新可能なパッケージ一覧
+  GET  /api/packages/security         - セキュリティ更新一覧
+  GET  /api/packages/upgrade/dryrun   - アップグレードのドライラン
+  POST /api/packages/upgrade          - 特定パッケージのアップグレードリクエスト
+  POST /api/packages/upgrade-all      - 全パッケージのアップグレードリクエスト
+  GET  /api/packages/upgradeable      - アップグレード可能パッケージ一覧 (v0.23)
+  GET  /api/packages/search           - パッケージ検索 (v0.23)
+  GET  /api/packages/info/{pkg}       - パッケージ詳細情報 (v0.23)
+  GET  /api/packages/security-updates - セキュリティアップデート一覧 (v0.23)
 """
 
 import logging
 import re
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
 
 from ...core import require_permission, sudo_wrapper
@@ -339,3 +343,127 @@ async def upgrade_all_packages(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"全パッケージアップグレードエラー: {e}",
         )
+
+
+# ===================================================================
+# v0.23 UI強化エンドポイント
+# ===================================================================
+
+_FORBIDDEN_CHARS = [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?", "{", "}", "[", "]"]
+
+
+@router.get(
+    "/upgradeable",
+    summary="アップグレード可能なパッケージ一覧 (v0.23)",
+    description="apt list --upgradeable で取得した生テキスト行を返します",
+)
+async def get_upgradeable_packages(
+    current_user: TokenData = Depends(require_permission("read:packages")),
+) -> dict:
+    """アップグレード可能なパッケージ一覧を取得する"""
+    try:
+        result = sudo_wrapper.get_packages_upgradeable()
+        lines = [line for line in result["stdout"].splitlines() if line and not line.startswith("Listing")]
+        from datetime import datetime, timezone
+        audit_log.record(
+            operation="packages_upgradeable_read",
+            user_id=current_user.user_id,
+            target="packages",
+            status="success",
+            details={"count": len(lines)},
+        )
+        return {"packages": lines, "count": len(lines), "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        logger.error("get_upgradeable_packages error: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+@router.get(
+    "/search",
+    summary="パッケージ検索 (v0.23)",
+    description="apt-cache search でパッケージを検索します",
+)
+async def search_packages_endpoint(
+    q: str = Query(..., min_length=1, max_length=100),
+    current_user: TokenData = Depends(require_permission("read:packages")),
+) -> dict:
+    """パッケージを検索する"""
+    for char in _FORBIDDEN_CHARS:
+        if char in q:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Forbidden character in query: {char}")
+    try:
+        result = sudo_wrapper.search_packages(q)
+        lines = [line for line in result["stdout"].splitlines() if line]
+        audit_log.record(
+            operation="packages_search",
+            user_id=current_user.user_id,
+            target=q,
+            status="success",
+            details={"count": len(lines)},
+        )
+        return {"query": q, "results": lines, "count": len(lines)}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("search_packages error: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+@router.get(
+    "/info/{package_name}",
+    summary="パッケージ詳細情報 (v0.23)",
+    description="apt-cache show でパッケージ詳細を取得します",
+)
+async def get_package_info_endpoint(
+    package_name: str,
+    current_user: TokenData = Depends(require_permission("read:packages")),
+) -> dict:
+    """パッケージ詳細情報を取得する"""
+    forbidden = _FORBIDDEN_CHARS + [" "]
+    for char in forbidden:
+        if char in package_name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid package name")
+    try:
+        result = sudo_wrapper.get_package_info(package_name)
+        if result["returncode"] != 0:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Package lookup failed")
+        audit_log.record(
+            operation="packages_info_read",
+            user_id=current_user.user_id,
+            target=package_name,
+            status="success",
+        )
+        return {"package": package_name, "info": result["stdout"]}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("get_package_info error: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+@router.get(
+    "/security-updates",
+    summary="セキュリティアップデート一覧 (v0.23)",
+    description="apt list --upgradeable からセキュリティ更新のみを返します",
+)
+async def get_security_updates_v2(
+    current_user: TokenData = Depends(require_permission("read:packages")),
+) -> dict:
+    """セキュリティアップデート一覧を取得する"""
+    try:
+        result = sudo_wrapper.get_packages_security_updates()
+        lines = [line for line in result["stdout"].splitlines() if line]
+        from datetime import datetime, timezone
+        audit_log.record(
+            operation="packages_security_updates_read",
+            user_id=current_user.user_id,
+            target="packages",
+            status="success",
+            details={"count": len(lines)},
+        )
+        return {"updates": lines, "count": len(lines), "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        logger.error("get_security_updates_v2 error: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))

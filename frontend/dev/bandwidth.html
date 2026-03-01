@@ -93,6 +93,33 @@
                 </div>
                 <div id="hourlyBody"><div class="text-muted small">読み込み中...</div></div>
             </div>
+
+            <!-- 月次統計 -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">📆 月次統計 (vnstat)</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadMonthly()">🔄 更新</button>
+                </div>
+                <div id="monthlyBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+
+            <!-- 帯域使用履歴 -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">📊 帯域使用履歴 (vnstat)</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadHistory()">🔄 更新</button>
+                </div>
+                <div id="historyBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
+
+            <!-- アラート設定 -->
+            <div class="status-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="status-title mb-0">🔔 帯域アラート設定</div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadAlertConfig()">🔄 更新</button>
+                </div>
+                <div id="alertConfigBody"><div class="text-muted small">読み込み中...</div></div>
+            </div>
         </div>
     </div>
 </div>
@@ -253,6 +280,55 @@ function loadAll() {
     loadTop();
     loadDaily();
     loadHourly();
+    loadMonthly();
+    loadHistory();
+    loadAlertConfig();
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+async function loadMonthly() {
+    const el = document.getElementById('monthlyBody');
+    const q = iface() ? '?interface=' + encodeURIComponent(iface()) : '';
+    try {
+        const d = await apiFetch('/api/bandwidth/monthly' + q);
+        if (!d) return;
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${escapeHtml(d.message || 'vnstat が未インストールです')}</div>`;
+            return;
+        }
+        el.innerHTML = `<pre class="small" style="max-height:200px;overflow-y:auto">${escapeHtml(JSON.stringify(d.data, null, 2))}</pre>`;
+    } catch(e) { el.innerHTML = `<div class="text-danger small">エラー: ${escapeHtml(e.message)}</div>`; }
+}
+
+async function loadHistory() {
+    const el = document.getElementById('historyBody');
+    const q = iface() ? '?interface=' + encodeURIComponent(iface()) : '';
+    try {
+        const d = await apiFetch('/api/bandwidth/history' + q);
+        if (!d) return;
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${escapeHtml(d.message || 'vnstat が未インストールです')}</div>`;
+            return;
+        }
+        el.innerHTML = `<pre class="small" style="max-height:200px;overflow-y:auto">${escapeHtml(JSON.stringify(d.data, null, 2))}</pre>`;
+    } catch(e) { el.innerHTML = `<div class="text-danger small">エラー: ${escapeHtml(e.message)}</div>`; }
+}
+
+async function loadAlertConfig() {
+    const el = document.getElementById('alertConfigBody');
+    try {
+        const d = await apiFetch('/api/bandwidth/alert-config');
+        if (!d) return;
+        el.innerHTML = `
+            <table class="table tbl table-sm">
+                <tr><th>閾値 (GB)</th><td>${escapeHtml(d.threshold_gb)}</td></tr>
+                <tr><th>通知先メール</th><td>${d.alert_email ? escapeHtml(d.alert_email) : '<span class="text-muted">未設定</span>'}</td></tr>
+                <tr><th>有効</th><td>${d.enabled ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>'}</td></tr>
+            </table>`;
+    } catch(e) { el.innerHTML = `<div class="text-danger small">エラー: ${escapeHtml(e.message)}</div>`; }
 }
 
 function onIfaceChange() { loadAll(); }
