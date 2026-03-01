@@ -199,6 +199,62 @@ async def list_users(
         )
 
 
+@router.get("/list", response_model=UserListResponse)
+async def list_users_alias(
+    sort_by: str = Query("username", pattern="^(username|uid|last_login)$"),
+    limit: int = Query(100, ge=1, le=500),
+    filter_locked: Optional[str] = Query(None, pattern="^(true|false)$"),
+    username_filter: Optional[str] = Query(
+        None, min_length=1, max_length=32, pattern=r"^[a-z0-9_-]+$"
+    ),
+    current_user: TokenData = Depends(require_permission("read:users")),
+):
+    """
+    ユーザー一覧を取得 (/api/users/list エイリアス)
+
+    Args:
+        sort_by: ソートキー (username/uid/last_login)
+        limit: 取得件数 (1-500)
+        filter_locked: ロック状態フィルタ (true/false)
+        username_filter: ユーザー名フィルタ
+        current_user: 現在のユーザー (read:users 権限必須)
+
+    Returns:
+        ユーザー一覧
+    """
+    return await list_users(
+        sort_by=sort_by,
+        limit=limit,
+        filter_locked=filter_locked,
+        username_filter=username_filter,
+        current_user=current_user,
+    )
+
+
+@router.get("/groups", response_model=GroupListResponse)
+async def list_groups_alias(
+    sort_by: str = Query("name", pattern="^(name|gid|member_count)$"),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: TokenData = Depends(require_permission("read:users")),
+):
+    """
+    グループ一覧を取得 (/api/users/groups エイリアス)
+
+    Args:
+        sort_by: ソートキー (name/gid/member_count)
+        limit: 取得件数 (1-500)
+        current_user: 現在のユーザー (read:users 権限必須)
+
+    Returns:
+        グループ一覧
+    """
+    return await list_groups(
+        sort_by=sort_by,
+        limit=limit,
+        current_user=current_user,
+    )
+
+
 @router.get("/{username}", response_model=UserDetailResponse)
 async def get_user_detail(
     username: str,

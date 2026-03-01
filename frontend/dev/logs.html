@@ -49,6 +49,16 @@
         #loading-indicator { color:#6b7280; font-size:14px; }
         /* ロードモアボタン */
         #load-more-btn { margin-top: 10px; }
+        /* 検索バー */
+        .search-bar { background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:12px 16px; margin-bottom:12px; }
+        /* 検索ハイライト */
+        .search-highlight { background:#fef08a; border-radius:2px; font-weight:700; }
+        /* エラーハイライト */
+        .err-highlight { color:#991b1b; font-weight:700; }
+        /* 最近のエラーパネル */
+        .recent-errors-panel { background:#fff5f5; border:1px solid #fca5a5; border-radius:8px; padding:12px 16px; margin-top:14px; max-height:220px; overflow-y:auto; }
+        .recent-errors-panel h6 { color:#991b1b; margin-bottom:8px; }
+        .recent-errors-panel .err-line { font-family:monospace; font-size:11px; color:#7f1d1d; border-bottom:1px solid #fee2e2; padding:2px 0; word-break:break-all; }
     </style>
 </head>
 <body>
@@ -72,6 +82,43 @@
         </div>
 
         <div class="main-body">
+
+            <!-- 検索バー (Step 25) -->
+            <div class="search-bar">
+                <div class="row g-2 align-items-end">
+                    <div class="col-sm-4">
+                        <label class="form-label form-label-sm mb-1">🔍 キーワード検索</label>
+                        <input type="text" class="form-control form-control-sm" id="search-input" placeholder="例: error, nginx, failed..." maxlength="100">
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label form-label-sm mb-1">対象ファイル</label>
+                        <select class="form-select form-select-sm" id="search-file-select">
+                            <option value="syslog">syslog</option>
+                            <option value="auth.log">auth.log</option>
+                            <option value="kern.log">kern.log</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label form-label-sm mb-1">件数</label>
+                        <select class="form-select form-select-sm" id="search-lines-select">
+                            <option value="20">20件</option>
+                            <option value="50" selected>50件</option>
+                            <option value="100">100件</option>
+                            <option value="200">200件</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-3">
+                        <button class="btn btn-sm btn-info w-100" onclick="searchLogs()">🔍 ログ検索</button>
+                    </div>
+                </div>
+                <div id="search-result-container" class="mt-2" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small text-muted" id="search-result-label"></span>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0 px-2" onclick="clearSearch()">✕ クリア</button>
+                    </div>
+                    <div id="search-result-box" class="font-monospace small" style="max-height:200px;overflow-y:auto;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px;"></div>
+                </div>
+            </div>
 
             <!-- フィルターバー -->
             <div class="filter-bar">
@@ -167,6 +214,12 @@
             <div id="empty-state" class="text-center py-5 text-muted" style="display:none;">
                 <p>📜 表示するログがありません</p>
                 <p class="small">サービスを選択して「ログ取得」を押してください</p>
+            </div>
+
+            <!-- 最近のエラーパネル (Step 25) -->
+            <div id="recent-errors-panel" class="recent-errors-panel" style="display:none;">
+                <h6>🚨 直近のエラー</h6>
+                <div id="recent-errors-body"></div>
             </div>
 
         </div>
@@ -439,6 +492,101 @@ function logout() {
     window.location.href = 'dashboard.html';
 }
 
+// ===== ログ検索 (Step 25) =====
+async function searchLogs() {
+    const q     = document.getElementById('search-input').value.trim();
+    const file  = document.getElementById('search-file-select').value;
+    const lines = document.getElementById('search-lines-select').value;
+    const resCont = document.getElementById('search-result-container');
+    const resBox  = document.getElementById('search-result-box');
+    const resLbl  = document.getElementById('search-result-label');
+    if (!q) { return; }
+    resBox.innerHTML = '<span class="text-muted">検索中...</span>';
+    resCont.style.display = 'block';
+    try {
+        const resp = await fetch(
+            `${window.location.origin}/api/logs/search?q=${encodeURIComponent(q)}&file=${encodeURIComponent(file)}&lines=${lines}`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }
+        );
+        if (resp.status === 401) { window.location.href = 'dashboard.html'; return; }
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            resBox.innerHTML = `<span class="text-danger">エラー: ${escapeHtml(err.detail || resp.status)}</span>`;
+            resLbl.textContent = '検索失敗';
+            return;
+        }
+        const data = await resp.json();
+        const results = data.results || [];
+        resLbl.textContent = `"${escapeHtml(q)}" — ${results.length} 件`;
+        if (results.length === 0) {
+            resBox.innerHTML = '<span class="text-muted">結果なし</span>';
+            return;
+        }
+        const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        resBox.innerHTML = results.map(line => {
+            const escaped = escapeHtml(line);
+            const highlighted = escaped.replace(re, m => `<mark class="search-highlight">${escapeHtml(m)}</mark>`);
+            const errClass = /error|critical|fatal/i.test(line) ? ' err-highlight' : '';
+            return `<div class="py-1 border-bottom${errClass}">${highlighted}</div>`;
+        }).join('');
+    } catch (e) {
+        resBox.innerHTML = `<span class="text-danger">通信エラー: ${escapeHtml(e.message)}</span>`;
+    }
+}
+
+function clearSearch() {
+    document.getElementById('search-result-container').style.display = 'none';
+    document.getElementById('search-input').value = '';
+}
+
+// ファイル一覧を動的取得してドロップダウンを更新
+async function loadLogFiles() {
+    try {
+        const resp = await fetch(
+            `${window.location.origin}/api/logs/files`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }
+        );
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const files = (data.files || []).map(f => f.replace(/.*\//, ''));
+        const sel = document.getElementById('search-file-select');
+        const current = sel.value;
+        sel.innerHTML = '';
+        const unique = [...new Set(['syslog', 'auth.log', 'kern.log', ...files])];
+        unique.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f; opt.textContent = f;
+            if (f === current) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    } catch (e) { /* ignore */ }
+}
+
+// 直近エラーパネルを表示
+async function loadRecentErrors() {
+    const panel = document.getElementById('recent-errors-panel');
+    const body  = document.getElementById('recent-errors-body');
+    try {
+        const resp = await fetch(
+            `${window.location.origin}/api/logs/recent-errors`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }
+        );
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const errors = data.errors || [];
+        if (errors.length === 0) return;
+        panel.style.display = 'block';
+        body.innerHTML = errors.map(line => `<div class="err-line">${escapeHtml(line)}</div>`).join('');
+    } catch (e) { /* ignore */ }
+}
+
+// Enterキーで検索
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'search-input') {
+        searchLogs();
+    }
+});
+
 // ===== 初期化 =====
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof restoreAccordionState === 'function') {
@@ -456,6 +604,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (emailEl) emailEl.textContent = u.email    || '-';
         }).catch(() => {});
     }
+    // Step 25: ファイル一覧と直近エラーを非同期で取得
+    loadLogFiles();
+    loadRecentErrors();
 });
 </script>
 </body>

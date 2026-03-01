@@ -175,13 +175,13 @@ class UserManager {
 
         try {
             const params = new URLSearchParams();
-            params.append('sort', this.currentFilters.sortBy);
+            params.append('sort_by', this.currentFilters.sortBy);
             params.append('limit', this.currentFilters.limit);
             if (this.currentFilters.filterLocked) {
                 params.append('filter_locked', this.currentFilters.filterLocked);
             }
 
-            const response = await api.request('GET', `/api/users?${params.toString()}`);
+            const response = await api.request('GET', `/api/users/list?${params.toString()}`);
             console.log('UserManager: Users loaded', response);
 
             this.users = response.users || [];
@@ -329,7 +329,7 @@ class UserManager {
         this.showLoading('groupTableBody');
 
         try {
-            const response = await api.request('GET', '/api/users/groups/list');
+            const response = await api.request('GET', '/api/users/groups');
             console.log('UserManager: Groups loaded', response);
 
             this.groups = response.groups || [];
@@ -541,7 +541,7 @@ class UserManager {
             }
 
             try {
-                const response = await api.request('POST', '/api/approval', {
+                const response = await api.request('POST', '/api/approval/request', {
                     request_type: 'user_add',
                     payload: { username, gecos, shell },
                     reason: reason

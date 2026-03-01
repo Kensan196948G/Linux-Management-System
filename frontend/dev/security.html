@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Audit - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .audit-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .dark-mode .audit-card {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        .dark-mode body, .dark-mode .main-content {
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .audit-card-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dark-mode .audit-card-title { color: #f1f5f9; }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 7px 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 14px;
+        }
+        .stat-row:last-child { border-bottom: none; }
+        .dark-mode .stat-row { border-bottom-color: #334155; }
+        .stat-label { color: #6b7280; }
+        .dark-mode .stat-label { color: #94a3b8; }
+        .stat-value { font-weight: 600; }
+        .log-entry {
+            font-family: monospace;
+            font-size: 12px;
+            padding: 4px 0;
+            border-bottom: 1px solid #f3f4f6;
+            word-break: break-all;
+        }
+        .dark-mode .log-entry { border-bottom-color: #334155; color: #cbd5e1; }
+        .log-entry:last-child { border-bottom: none; }
+        pre.ports-output {
+            font-size: 12px;
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 12px;
+            overflow-x: auto;
+            max-height: 300px;
+        }
+        .dark-mode pre.ports-output { background: #0f172a; color: #cbd5e1; }
+        .badge-danger { background: #ef4444; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        .badge-warning { background: #f59e0b; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        .badge-ok { background: #22c55e; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        .warning-alert {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #b91c1c;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .dark-mode .warning-alert { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
+    </style>
+</head>
+<body>
+<div id="sidebar-container"></div>
+<div class="main-content">
+    <div class="container-fluid py-4">
+        <div class="d-flex align-items-center mb-4 gap-2">
+            <i class="bi bi-shield-lock-fill fs-4 text-danger"></i>
+            <h2 class="mb-0">Security Audit</h2>
+        </div>
+
+        <!-- Audit Report Card -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-file-earmark-text text-primary"></i> 監査ログサマリ (Audit Report)
+            </div>
+            <div id="audit-report-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- Failed Logins Card -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-exclamation-triangle-fill text-danger"></i> ログイン失敗一覧 (Failed Logins)
+                <span id="failed-logins-badge"></span>
+            </div>
+            <div id="failed-logins-alert"></div>
+            <div id="failed-logins-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- Sudo Logs Card -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-terminal-fill text-warning"></i> sudo 使用ログ (Sudo Logs)
+            </div>
+            <div id="sudo-logs-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- Open Ports Card -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-hdd-network text-info"></i> 開放ポート一覧 (Open Ports)
+            </div>
+            <div id="open-ports-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- Bandit Status Card -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-bug-fill text-secondary"></i> Bandit セキュリティスキャン (bandit-status)
+            </div>
+            <div id="bandit-status-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+(async function () {
+    const token = localStorage.getItem('token');
+    if (!token) { window.location.href = '/dev/index.html'; return; }
+    const headers = { 'Authorization': 'Bearer ' + token };
+
+    async function apiFetch(url) {
+        const r = await fetch(url, { headers });
+        if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+        return r.json();
+    }
+
+    function escape(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // --- Audit Report ---
+    try {
+        const d = await apiFetch('/api/security/audit-report');
+        document.getElementById('audit-report-content').innerHTML = `
+            <div class="stat-row"><span class="stat-label">認証ログ 総行数</span><span class="stat-value">${escape(d.auth_log_lines)}</span></div>
+            <div class="stat-row"><span class="stat-label">認証成功件数</span><span class="stat-value">${escape(d.accepted_logins)}</span></div>
+            <div class="stat-row"><span class="stat-label">認証失敗件数</span><span class="stat-value">${escape(d.failed_logins)}</span></div>
+            <div class="stat-row"><span class="stat-label">sudo 使用件数</span><span class="stat-value">${escape(d.sudo_count)}</span></div>
+            <div class="stat-row"><span class="stat-label">最終ログイン</span><span class="stat-value" style="font-size:13px">${escape(d.last_login)}</span></div>
+            <div class="stat-row"><span class="stat-label">取得日時</span><span class="stat-value">${escape(d.timestamp)}</span></div>
+        `;
+    } catch (e) {
+        document.getElementById('audit-report-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
+    }
+
+    // --- Failed Logins ---
+    try {
+        const d = await apiFetch('/api/security/failed-logins');
+        const count = d.entries ? d.entries.length : 0;
+        const badgeEl = document.getElementById('failed-logins-badge');
+        const alertEl = document.getElementById('failed-logins-alert');
+        if (count >= 10) {
+            badgeEl.innerHTML = `<span class="badge-danger">${count}件</span>`;
+            alertEl.innerHTML = `<div class="warning-alert"><i class="bi bi-exclamation-triangle-fill"></i> 警告: ログイン失敗が ${count} 件あります。不正アクセスの可能性を確認してください。</div>`;
+        } else {
+            badgeEl.innerHTML = `<span class="badge-ok">${count}件</span>`;
+        }
+        if (count === 0) {
+            document.getElementById('failed-logins-content').innerHTML = '<div class="text-muted">ログイン失敗なし</div>';
+        } else {
+            document.getElementById('failed-logins-content').innerHTML =
+                d.entries.map(e => `<div class="log-entry">${escape(e)}</div>`).join('');
+        }
+    } catch (e) {
+        document.getElementById('failed-logins-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
+    }
+
+    // --- Sudo Logs ---
+    try {
+        const d = await apiFetch('/api/security/sudo-logs');
+        if (!d.entries || d.entries.length === 0) {
+            document.getElementById('sudo-logs-content').innerHTML = '<div class="text-muted">sudo ログなし</div>';
+        } else {
+            document.getElementById('sudo-logs-content').innerHTML =
+                d.entries.map(e => `<div class="log-entry">${escape(e)}</div>`).join('');
+        }
+    } catch (e) {
+        document.getElementById('sudo-logs-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
+    }
+
+    // --- Open Ports ---
+    try {
+        const d = await apiFetch('/api/security/open-ports');
+        document.getElementById('open-ports-content').innerHTML =
+            `<pre class="ports-output">${escape(d.output)}</pre>`;
+    } catch (e) {
+        document.getElementById('open-ports-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
+    }
+
+    // --- Bandit Status ---
+    try {
+        const d = await apiFetch('/api/security/bandit-status');
+        if (d.status === 'unavailable') {
+            document.getElementById('bandit-status-content').innerHTML =
+                `<div class="text-muted"><i class="bi bi-info-circle"></i> ${escape(d.error || 'bandit 未インストール')}</div>`;
+        } else {
+            const highBadge = d.high > 0 ? `<span class="badge-danger">HIGH: ${d.high}</span>` : `<span class="badge-ok">HIGH: 0</span>`;
+            const medBadge = d.medium > 0 ? `<span class="badge-warning">MEDIUM: ${d.medium}</span>` : `<span class="badge-ok">MEDIUM: 0</span>`;
+            document.getElementById('bandit-status-content').innerHTML = `
+                <div class="d-flex gap-3 align-items-center flex-wrap">
+                    ${highBadge} ${medBadge}
+                    <span class="stat-label">LOW: ${d.low}</span>
+                    <span class="stat-label">Total: ${d.total_issues}</span>
+                </div>
+            `;
+        }
+    } catch (e) {
+        document.getElementById('bandit-status-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
+    }
+})();
+</script>
+</body>
+</html>
