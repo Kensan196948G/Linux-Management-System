@@ -524,23 +524,24 @@ function connectSSE() {
     sseConnection.onmessage = function(event) {
         try {
             var data = JSON.parse(event.data);
-            // CPU カードをリアルタイム更新
-            if (data.cpu_percent !== undefined) {
+            // CPU カードをリアルタイム更新 (dashboard endpoint uses "cpu" key)
+            var cpuPercent = data.cpu !== undefined ? data.cpu : data.cpu_percent;
+            var memPercent = data.mem !== undefined ? data.mem : data.mem_percent;
+            if (cpuPercent !== undefined) {
                 var cpuCard = document.getElementById('card-cpu');
                 if (cpuCard) {
-                    var cpuPercent = data.cpu_percent;
                     cpuCard.className = 'summary-card ' + getCardClass(cpuPercent);
                     cpuCard.innerHTML =
                         '<div class="summary-card-value">' + escapeHtml(String(cpuPercent)) + '%</div>' +
                         '<div class="summary-card-label">CPU使用率</div>' +
                         '<div class="summary-card-sub">Live</div>';
                 }
+                if (typeof rtPushCpu === 'function') rtPushCpu(cpuPercent);
             }
             // メモリカードをリアルタイム更新
-            if (data.mem_percent !== undefined) {
+            if (memPercent !== undefined) {
                 var memCard = document.getElementById('card-memory');
                 if (memCard) {
-                    var memPercent = data.mem_percent;
                     var memUsed = data.mem_used || '-';
                     var memTotal = data.mem_total || '-';
                     memCard.className = 'summary-card ' + getCardClass(memPercent);
@@ -549,6 +550,11 @@ function connectSSE() {
                         '<div class="summary-card-label">メモリ使用率</div>' +
                         '<div class="summary-card-sub">' + escapeHtml(String(memUsed)) + ' / ' + escapeHtml(String(memTotal)) + '</div>';
                 }
+                if (typeof rtPushMem === 'function') rtPushMem(memPercent);
+            }
+            // ネットワークチャート更新
+            if (data.net_in !== undefined && typeof rtPushNet === 'function') {
+                rtPushNet(data.net_in, data.net_out || 0);
             }
             // 最終更新時刻を更新
             document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('ja-JP');
