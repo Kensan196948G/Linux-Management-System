@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Netstat ネットワーク統計 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .raw-output { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; font-family: monospace; white-space: pre-wrap; max-height: 500px; overflow-y: auto; }
+        .nav-tabs .nav-link.active { color: #2563eb; font-weight: 600; border-bottom: 2px solid #2563eb; background: none; }
+        .nav-tabs .nav-link { color: #6b7280; }
+        .tool-badge { background: #e0f2fe; color: #0369a1; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+    <div class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">🌐 Netstat ネットワーク統計</h1>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">🔄 更新</button>
+        </div>
+
+        <!-- タブ -->
+        <ul class="nav nav-tabs mb-3" id="mainTab">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-connections">🔗 アクティブ接続</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-listening">👂 リスニングポート</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-stats">📊 統計</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-routes">🗺️ ルーティング</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- アクティブ接続タブ -->
+            <div class="tab-pane fade show active" id="tab-connections">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">🔗 アクティブ接続一覧</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadConnections()">🔄 更新</button>
+                    </div>
+                    <div id="connections-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- リスニングポートタブ -->
+            <div class="tab-pane fade" id="tab-listening">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">👂 リスニングポート一覧</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadListening()">🔄 更新</button>
+                    </div>
+                    <div id="listening-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- 統計タブ -->
+            <div class="tab-pane fade" id="tab-stats">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">📊 ネットワーク統計サマリ</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadStats()">🔄 更新</button>
+                    </div>
+                    <div id="stats-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- ルーティングタブ -->
+            <div class="tab-pane fade" id="tab-routes">
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">🗺️ ルーティングテーブル</div>
+                        <button class="btn btn-sm btn-primary" onclick="loadRoutes()">🔄 更新</button>
+                    </div>
+                    <div id="routes-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('netstat')):renderSidebar('netstat');</script>
+<script>
+const API_BASE = '/api';
+
+function getToken() {
+    return localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+}
+
+function authHeaders() {
+    return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
+}
+
+async function apiFetch(path) {
+    const resp = await fetch(API_BASE + path, { headers: authHeaders() });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toolBadge(tool) {
+    return tool ? `<span class="tool-badge">${escapeHtml(tool)}</span>` : '';
+}
+
+async function loadConnections() {
+    const el = document.getElementById('connections-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/netstat/connections');
+        const d = res.data;
+        if (d.error) {
+            el.innerHTML = `<div class="text-warning">⚠️ ${escapeHtml(d.error)}</div>`;
+            return;
+        }
+        el.innerHTML = `
+        <div class="mb-2">${toolBadge(d.tool)}</div>
+        <div class="raw-output">${escapeHtml(d.connections || '(接続なし)')}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadListening() {
+    const el = document.getElementById('listening-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/netstat/listening');
+        const d = res.data;
+        if (d.error) {
+            el.innerHTML = `<div class="text-warning">⚠️ ${escapeHtml(d.error)}</div>`;
+            return;
+        }
+        el.innerHTML = `
+        <div class="mb-2">${toolBadge(d.tool)}</div>
+        <div class="raw-output">${escapeHtml(d.listening || '(リスニングなし)')}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadStats() {
+    const el = document.getElementById('stats-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/netstat/stats');
+        const d = res.data;
+        if (d.error) {
+            el.innerHTML = `<div class="text-warning">⚠️ ${escapeHtml(d.error)}</div>`;
+            return;
+        }
+        el.innerHTML = `
+        <div class="mb-2">${toolBadge(d.tool)}</div>
+        <div class="raw-output">${escapeHtml(d.stats || '(統計なし)')}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+async function loadRoutes() {
+    const el = document.getElementById('routes-content');
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const res = await apiFetch('/netstat/routes');
+        const d = res.data;
+        if (d.error) {
+            el.innerHTML = `<div class="text-warning">⚠️ ${escapeHtml(d.error)}</div>`;
+            return;
+        }
+        el.innerHTML = `
+        <div class="mb-2">${toolBadge(d.tool)}</div>
+        <div class="raw-output">${escapeHtml(d.routes || '(ルートなし)')}</div>`;
+    } catch (e) {
+        el.innerHTML = `<div class="text-danger">エラー: ${e.message}</div>`;
+    }
+}
+
+function refreshAll() {
+    loadConnections();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (!getToken()) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
+    loadConnections();
+    document.querySelector('[href="#tab-listening"]').addEventListener('shown.bs.tab', loadListening);
+    document.querySelector('[href="#tab-stats"]').addEventListener('shown.bs.tab', loadStats);
+    document.querySelector('[href="#tab-routes"]').addEventListener('shown.bs.tab', loadRoutes);
+});
+</script>
+</body>
+</html>

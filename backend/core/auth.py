@@ -85,6 +85,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # Netstat
+            "read:netstat",
+            # BIND DNS
+            "read:bind",
             # SMART Drive Status
             "read:smart",
             # Disk Partitions
@@ -122,6 +126,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # Netstat
+            "read:netstat",
+            # BIND DNS
+            "read:bind",
             # SMART Drive Status
             "read:smart",
             # Disk Partitions
@@ -166,6 +174,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # Netstat
+            "read:netstat",
+            # BIND DNS
+            "read:bind",
             # SMART Drive Status
             "read:smart",
             # Disk Partitions
@@ -223,6 +235,10 @@ ROLES = {
             "read:postgresql",
             # MySQL/MariaDB
             "read:mysql",
+            # Netstat
+            "read:netstat",
+            # BIND DNS
+            "read:bind",
             # SMART Drive Status
             "read:smart",
             # Disk Partitions

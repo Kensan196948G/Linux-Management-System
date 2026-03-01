@@ -1403,6 +1403,74 @@ class SudoWrapper:
         safe_lines = max(1, min(200, lines))
         return self._execute("adminui-postfix.sh", ["logs", str(safe_lines)])
 
+    def get_netstat_connections(self) -> Dict[str, Any]:
+        """アクティブ接続一覧を取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-netstat.sh", ["connections"])
+
+    def get_netstat_listening(self) -> Dict[str, Any]:
+        """リスニングポート一覧を取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-netstat.sh", ["listening"])
+
+    def get_netstat_stats(self) -> Dict[str, Any]:
+        """ネットワーク統計サマリを取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-netstat.sh", ["stats"])
+
+    def get_netstat_routes(self) -> Dict[str, Any]:
+        """ルーティングテーブルを取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-netstat.sh", ["routes"])
+
+    def get_bind_status(self) -> Dict[str, Any]:
+        """BIND DNS サービス状態を取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-bind.sh", ["status"])
+
+    def get_bind_zones(self) -> Dict[str, Any]:
+        """BIND ゾーン一覧を取得
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-bind.sh", ["zones"])
+
+    def get_bind_config(self) -> Dict[str, Any]:
+        """BIND 設定確認を取得 (named-checkconf)
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-bind.sh", ["config"])
+
+    def get_bind_logs(self, lines: int = 50) -> Dict[str, Any]:
+        """BIND DNS ログを取得
+
+        Args:
+            lines: 取得行数 (1-200)
+
+        Returns:
+            実行結果の辞書
+        """
+        safe_lines = max(1, min(200, lines))
+        return self._execute("adminui-bind.sh", ["logs", str(safe_lines)])
+
     def get_postgresql_status(self) -> Dict[str, Any]:
         """PostgreSQL サービス状態を取得
 

@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
+from .routes import approval, audit, auth, bandwidth, bind, bootup, cron, dbmonitor, filesystem, firewall, hardware, logs, mysql, netstat, network, packages, postfix, postgresql, processes, quotas, servers, services, ssh, stream, system, system_time, users, apache
 from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filesystem, firewall, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, ssh, stream, system, system_time, users, apache
 
 # ログ設定
@@ -87,6 +88,8 @@ app.include_router(dbmonitor.router, prefix="/api")
 app.include_router(bandwidth.router, prefix="/api")
 app.include_router(apache.router, prefix="/api")
 app.include_router(postfix.router, prefix="/api")
+app.include_router(netstat.router, prefix="/api")
+app.include_router(bind.router, prefix="/api")
 app.include_router(mysql.router, prefix="/api")
 app.include_router(postgresql.router, prefix="/api")
 app.include_router(smart.router, prefix="/api")
