@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
 from .routes import approval, audit, auth, bandwidth, bind, bootup, cron, dbmonitor, filesystem, firewall, hardware, logs, mysql, netstat, network, packages, postfix, postgresql, processes, quotas, servers, services, ssh, stream, system, system_time, users, apache
+from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, dhcp, filesystem, firewall, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, ssh, stream, system, system_time, users, apache
 from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filesystem, firewall, ftp, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, squid, ssh, stream, system, system_time, users, apache
 
 # ログ設定
@@ -94,6 +95,7 @@ app.include_router(mysql.router, prefix="/api")
 app.include_router(postgresql.router, prefix="/api")
 app.include_router(smart.router, prefix="/api")
 app.include_router(partitions.router, prefix="/api")
+app.include_router(dhcp.router, prefix="/api")
 app.include_router(stream.router, prefix="/api")
 app.include_router(ftp.router, prefix="/api")
 app.include_router(squid.router, prefix="/api")

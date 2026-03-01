@@ -93,6 +93,8 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # DHCP Server
+            "read:dhcp",
             # FTP Server
             "read:ftp",
             # Squid Proxy
@@ -138,6 +140,8 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # DHCP Server
+            "read:dhcp",
             # FTP Server
             "read:ftp",
             # Squid Proxy
@@ -190,6 +194,8 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # DHCP Server
+            "read:dhcp",
             # FTP Server
             "read:ftp",
             # Squid Proxy
@@ -255,6 +261,8 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # DHCP Server
+            "read:dhcp",
             # FTP Server
             "read:ftp",
             # Squid Proxy
