@@ -6,7 +6,8 @@ Cron ジョブ管理 API エンドポイント
 """
 
 import logging
-from typing import Optional
+import re
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
@@ -167,8 +168,6 @@ class AddCronJobRequest(BaseModel):
             raise ValueError("Schedule must have exactly 5 fields")
 
         # 各フィールドが許可文字のみであることを確認
-        import re
-
         field_pattern = re.compile(r"^[0-9\*\/\,\-]+$")
         for field in fields:
             if not field_pattern.match(field):
@@ -289,9 +288,165 @@ class CronJobActionResponse(BaseModel):
     user: str
 
 
+class CronValidateResponse(BaseModel):
+    """cron式バリデーション結果レスポンス"""
+
+    valid: bool
+    description: str
+    expression: str
+
+
+# ===================================================================
+# cron式バリデーションヘルパー
+# ===================================================================
+
+_CRON_FIELD_PATTERN = re.compile(r"^[0-9\*\/\,\-]+$")
+
+# 禁止文字（セキュリティチェック用）
+_VALIDATE_FORBIDDEN_CHARS: list[str] = [";", "|", "&", "$", "(", ")", "`", ">", "<", "{", "}", "[", "]"]
+
+
+def _describe_cron_field(value: str, field_name: str, unit: str, max_val: int) -> str:
+    """cron フィールド 1 つを人間可読テキストに変換する"""
+    if value == "*":
+        return f"すべての{field_name}"
+    if re.match(r"^\*/(\d+)$", value):
+        interval = int(re.match(r"^\*/(\d+)$", value).group(1))
+        return f"{interval}{unit}ごと"
+    if re.match(r"^\d+$", value):
+        return f"{field_name}{value}"
+    if "," in value:
+        return f"{field_name} {value}"
+    if "-" in value:
+        parts = value.split("-", 1)
+        return f"{field_name}{parts[0]}〜{parts[1]}"
+    return value
+
+
+def _build_cron_description(expression: str) -> str:
+    """5フィールドの cron 式を人間可読な説明に変換する"""
+    fields = expression.strip().split()
+    minute, hour, day, month, weekday = fields
+
+    # 一般的なパターンを先にチェック
+    if expression.strip() == "* * * * *":
+        return "毎分"
+    if re.match(r"^\*/(\d+) \* \* \* \*$", expression.strip()):
+        interval = int(re.match(r"^\*/(\d+) \* \* \* \*$", expression.strip()).group(1))
+        return f"{interval}分ごと"
+    if re.match(r"^0 \* \* \* \*$", expression.strip()):
+        return "毎時0分"
+    if re.match(r"^0 0 \* \* \*$", expression.strip()):
+        return "毎日 0:00"
+    if re.match(r"^0 0 \* \* 0$", expression.strip()):
+        return "毎週日曜 0:00"
+    if re.match(r"^0 0 1 \* \*$", expression.strip()):
+        return "毎月1日 0:00"
+    if re.match(r"^0 0 1 1 \*$", expression.strip()):
+        return "毎年1月1日 0:00"
+
+    WEEKDAY_NAMES = ["日", "月", "火", "水", "木", "金", "土"]
+
+    parts: list[str] = []
+
+    # 月
+    if month != "*":
+        parts.append(_describe_cron_field(month, "月", "ヶ月", 12))
+    # 日
+    if day != "*":
+        parts.append(_describe_cron_field(day, "日", "日", 31))
+    # 曜日
+    if weekday != "*":
+        if re.match(r"^\d$", weekday) and int(weekday) <= 6:
+            parts.append(f"{WEEKDAY_NAMES[int(weekday)]}曜日")
+        else:
+            parts.append(_describe_cron_field(weekday, "曜日", "", 7))
+    # 時
+    if hour != "*":
+        parts.append(_describe_cron_field(hour, "時", "時間", 23))
+    # 分
+    parts.append(_describe_cron_field(minute, "分", "分", 59))
+
+    return " ".join(parts) if parts else expression.strip()
+
+
 # ===================================================================
 # エンドポイント
 # ===================================================================
+
+
+@router.get("/validate", response_model=CronValidateResponse)
+async def validate_cron_expression(
+    expression: str = Query(..., description="cron式 (5フィールド)"),
+    current_user: TokenData = Depends(require_permission("read:cron")),
+) -> Dict[str, Any]:
+    """
+    cron式を検証して説明テキストを返す
+
+    Args:
+        expression: 検証する cron 式 (例: "*/5 * * * *")
+        current_user: 現在のユーザー (read:cron 権限必須)
+
+    Returns:
+        valid=True なら description に人間可読な説明を返す
+
+    Raises:
+        HTTPException 400: 禁止文字が含まれる場合
+    """
+    # セキュリティ: 禁止文字チェック
+    for char in _VALIDATE_FORBIDDEN_CHARS:
+        if char in expression:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Forbidden character in expression: {char}",
+            )
+
+    # 5フィールドチェック
+    fields = expression.strip().split()
+    if len(fields) != 5:
+        return {
+            "valid": False,
+            "description": f"cron式は5フィールド必要です (現在: {len(fields)}フィールド)",
+            "expression": expression,
+        }
+
+    # 各フィールドの文字チェック
+    field_names = ["分", "時", "日", "月", "曜日"]
+    for i, field in enumerate(fields):
+        if not _CRON_FIELD_PATTERN.match(field):
+            return {
+                "valid": False,
+                "description": f"フィールド「{field_names[i]}」に無効な文字が含まれています: {field}",
+                "expression": expression,
+            }
+
+    # 値範囲チェック
+    range_checks = [
+        (fields[0], 0, 59, "分"),
+        (fields[1], 0, 23, "時"),
+        (fields[2], 1, 31, "日"),
+        (fields[3], 1, 12, "月"),
+        (fields[4], 0, 7, "曜日"),
+    ]
+    for field_val, min_v, max_v, name in range_checks:
+        if re.match(r"^\d+$", field_val):
+            num = int(field_val)
+            if not (min_v <= num <= max_v):
+                return {
+                    "valid": False,
+                    "description": f"「{name}」の値 {num} が範囲外です ({min_v}〜{max_v})",
+                    "expression": expression,
+                }
+
+    description = _build_cron_description(expression)
+
+    logger.debug(f"Cron validate: expression={expression!r}, valid=True, by={current_user.username}")
+
+    return {
+        "valid": True,
+        "description": description,
+        "expression": expression,
+    }
 
 
 @router.get("/{username}", response_model=CronJobListResponse)

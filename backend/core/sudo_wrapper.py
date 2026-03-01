@@ -2262,6 +2262,117 @@ class SudoWrapper:
         """
         return self._execute("adminui-sshkeys.sh", ["auth-keys"], timeout=15)
 
+    def get_apache_vhosts_detail(self) -> Dict[str, Any]:
+        """Apache バーチャルホスト詳細を取得。
+
+        Returns:
+            ポート/サーバー名/ドキュメントルートを含む詳細情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-apache.sh", ["vhosts-detail"], timeout=15)
+
+    def get_apache_ssl_certs(self) -> Dict[str, Any]:
+        """SSL証明書一覧と有効期限を取得。
+
+        Returns:
+            SSL証明書パスと有効期限の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-apache.sh", ["ssl-certs"], timeout=15)
+
+    def get_security_audit_report(self) -> Dict[str, Any]:
+        """セキュリティ監査ログサマリ
+
+        Returns:
+            監査ログ統計の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-security.sh", ["audit-report"], timeout=15)
+
+    def get_failed_logins(self) -> Dict[str, Any]:
+        """失敗ログイン一覧
+
+        Returns:
+            失敗ログインエントリの辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-security.sh", ["failed-logins"], timeout=15)
+
+    def get_sudo_logs(self) -> Dict[str, Any]:
+        """sudo使用ログ
+
+        Returns:
+            sudoログエントリの辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-security.sh", ["sudo-logs"], timeout=15)
+
+    def get_open_ports(self) -> Dict[str, Any]:
+        """開放ポート一覧
+
+        Returns:
+            開放ポート情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-security.sh", ["open-ports"], timeout=15)
+
+
+    # ------------------------------------------------------------------
+    # ログ検索 (logsearch)
+    # ------------------------------------------------------------------
+
+    def search_logs(self, pattern: str, logfile: str = "syslog", lines: int = 50) -> Dict[str, Any]:
+        """ログファイルを全文検索
+
+        Args:
+            pattern: 検索キーワード（禁止文字チェック済み）
+            logfile: 検索対象ログファイル名
+            lines: 最大返却行数
+
+        Returns:
+            検索結果の辞書
+
+        Raises:
+            SudoWrapperError: 禁止文字または実行失敗時
+        """
+        self._validate_filemanager_arg(pattern)
+        self._validate_filemanager_arg(logfile)
+        return self._execute("adminui-logsearch.sh", ["search", pattern, logfile, str(lines)], timeout=20)
+
+    def list_log_files(self) -> Dict[str, Any]:
+        """ログファイル一覧取得
+
+        Returns:
+            ログファイル一覧の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-logsearch.sh", ["list-files"], timeout=10)
+
+    def get_recent_errors(self) -> Dict[str, Any]:
+        """直近エラーログ集約
+
+        Returns:
+            直近エラーログの辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-logsearch.sh", ["recent-errors"], timeout=15)
+
 
 # グローバルインスタンス
 

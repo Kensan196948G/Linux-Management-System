@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-ALLOWED_SUBCOMMANDS=("status" "vhosts" "modules" "config-check" "config" "logs")
+ALLOWED_SUBCOMMANDS=("status" "vhosts" "modules" "config-check" "config" "logs" "vhosts-detail" "ssl-certs" "module-status")
 
 error_json() {
     echo "{\"status\": \"error\", \"message\": \"$1\"}" >&2
@@ -177,6 +177,45 @@ case "$SUBCOMMAND" in
         LOG_ESCAPED=$(echo "$LOG_CONTENT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo "\"\"")
         LINE_COUNT=$(echo "$LOG_CONTENT" | wc -l)
         echo "{\"status\": \"success\", \"logs\": ${LOG_ESCAPED}, \"lines\": ${LINE_COUNT}, \"timestamp\": \"${TIMESTAMP}\"}"
+        ;;
+
+    vhosts-detail)
+        # 詳細なバーチャルホスト情報（ポート/サーバー名/ドキュメントルート）
+        if [ -z "$APACHE2CTL" ]; then
+            echo "{\"status\": \"unavailable\", \"message\": \"apache2ctl not found\", \"data\": \"\", \"timestamp\": \"${TIMESTAMP}\"}"
+            exit 0
+        fi
+        DETAIL_OUTPUT=$("$APACHE2CTL" -S 2>&1 || true)
+        DETAIL_ESCAPED=$(echo "$DETAIL_OUTPUT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo "\"\"")
+        echo "{\"status\": \"success\", \"data\": ${DETAIL_ESCAPED}, \"timestamp\": \"${TIMESTAMP}\"}"
+        ;;
+
+    ssl-certs)
+        # SSL証明書一覧と有効期限
+        CERT_LIST=""
+        while IFS= read -r cert; do
+            [ -z "$cert" ] && continue
+            EXPIRY=$(openssl x509 -in "$cert" -noout -dates 2>/dev/null | grep "notAfter" | sed 's/notAfter=//' || echo "unknown")
+            CERT_LIST="${CERT_LIST}${cert}|${EXPIRY}\n"
+        done < <(find /etc/ssl/certs/ -name "*.pem" -o -name "*.crt" 2>/dev/null | head -20)
+        while IFS= read -r cert; do
+            [ -z "$cert" ] && continue
+            EXPIRY=$(openssl x509 -in "$cert" -noout -dates 2>/dev/null | grep "notAfter" | sed 's/notAfter=//' || echo "unknown")
+            CERT_LIST="${CERT_LIST}${cert}|${EXPIRY}\n"
+        done < <(find /etc/letsencrypt/ -name "*.pem" -o -name "*.crt" 2>/dev/null | head -20)
+        CERT_ESCAPED=$(printf "%b" "$CERT_LIST" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo "\"\"")
+        echo "{\"status\": \"success\", \"data\": ${CERT_ESCAPED}, \"timestamp\": \"${TIMESTAMP}\"}"
+        ;;
+
+    module-status)
+        # 詳細モジュール状態
+        if [ -z "$APACHE2CTL" ]; then
+            echo "{\"status\": \"unavailable\", \"message\": \"apache2ctl not found\", \"data\": \"\", \"timestamp\": \"${TIMESTAMP}\"}"
+            exit 0
+        fi
+        MOD_OUTPUT=$("$APACHE2CTL" -M 2>&1 | grep -E "^Loaded|^\s" || true)
+        MOD_ESCAPED=$(echo "$MOD_OUTPUT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo "\"\"")
+        echo "{\"status\": \"success\", \"data\": ${MOD_ESCAPED}, \"timestamp\": \"${TIMESTAMP}\"}"
         ;;
 
     *)

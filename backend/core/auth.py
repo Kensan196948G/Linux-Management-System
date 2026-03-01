@@ -117,6 +117,8 @@ ROLES = {
             "read:sshkeys",
             # モジュール管理
             "read:modules",
+            # セキュリティ監査
+            "read:security",
         ],
     ),
     "Operator": UserRole(
@@ -182,6 +184,8 @@ ROLES = {
             "read:sshkeys",
             # モジュール管理
             "read:modules",
+            # セキュリティ監査
+            "read:security",
         ],
     ),
     "Approver": UserRole(
@@ -254,6 +258,8 @@ ROLES = {
             "read:sshkeys",
             # モジュール管理
             "read:modules",
+            # セキュリティ監査
+            "read:security",
         ],
     ),
     "Admin": UserRole(
@@ -339,6 +345,8 @@ ROLES = {
             "read:sshkeys",
             # モジュール管理
             "read:modules",
+            # セキュリティ監査
+            "read:security",
         ],
     ),
 }

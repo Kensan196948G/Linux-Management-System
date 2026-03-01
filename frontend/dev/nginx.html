@@ -123,6 +123,15 @@
                 </div>
             </div>
 
+            <!-- SSL Certificates Card -->
+            <div class="nginx-card">
+                <div class="nginx-card-title">🔒 SSL証明書</div>
+                <div id="ssl-loading" class="text-center py-3 text-muted">読み込み中...</div>
+                <div id="ssl-content" style="display:none">
+                    <pre class="pre-content" id="ssl-pre"></pre>
+                </div>
+            </div>
+
             <!-- Logs Card -->
             <div class="nginx-card">
                 <div class="nginx-card-title">📋 アクセスログ</div>
@@ -275,11 +284,27 @@
         }
     }
 
+    async function fetchSslCerts() {
+        document.getElementById('ssl-loading').style.display = '';
+        document.getElementById('ssl-content').style.display = 'none';
+        try {
+            const data = await apiFetch('/apache/ssl-certs');
+            document.getElementById('ssl-loading').style.display = 'none';
+            document.getElementById('ssl-content').style.display = '';
+            document.getElementById('ssl-pre').textContent =
+                data.data || data.message || '(証明書なし)';
+        } catch (e) {
+            document.getElementById('ssl-loading').innerHTML =
+                `<div class="text-danger">取得エラー: ${e.message}</div>`;
+        }
+    }
+
     function refreshAll() {
         fetchStatus();
         fetchConfig();
         fetchVhosts();
         fetchConnections();
+        fetchSslCerts();
         fetchLogs();
     }
 

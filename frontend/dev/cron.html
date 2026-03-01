@@ -180,6 +180,35 @@
                     </div>
                 </div>
 
+                <!-- cron式バリデーター -->
+                <div class="card mb-3">
+                    <div class="card-header py-2 d-flex align-items-center gap-2"
+                         style="background:#f1f5f9; cursor:pointer;"
+                         data-bs-toggle="collapse" data-bs-target="#cronValidatorBody">
+                        <i class="bi bi-check2-circle text-primary"></i>
+                        <strong>cron式バリデーター</strong>
+                        <span class="ms-1 text-muted small">（入力しながらリアルタイム検証）</span>
+                        <i class="bi bi-chevron-down ms-auto"></i>
+                    </div>
+                    <div class="collapse show" id="cronValidatorBody">
+                        <div class="card-body">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-12 col-md-6">
+                                    <label for="cronValidatorInput" class="form-label mb-1 small fw-semibold">cron式（5フィールド）</label>
+                                    <input type="text" class="form-control font-monospace" id="cronValidatorInput"
+                                           placeholder="例: */5 * * * *">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label mb-1 small fw-semibold">検証結果</label>
+                                    <div id="cronValidatorResult" class="schedule-preview text-muted">
+                                        cron式を入力してください
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ステータス表示 -->
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span id="cronStatusText" class="text-muted small"></span>

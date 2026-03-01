@@ -288,3 +288,61 @@ async def get_apache_logs(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Apache logs unavailable: {e}",
         )
+
+
+@router.get(
+    "/vhosts-detail",
+    summary="Apache バーチャルホスト詳細取得",
+    description="Apache バーチャルホスト詳細情報（ポート/サーバー名/ドキュメントルート）を取得します。",
+)
+async def get_apache_vhosts_detail(
+    current_user: TokenData = Depends(require_permission("read:apache")),
+) -> dict:
+    """Apache バーチャルホスト詳細を取得する。"""
+    try:
+        result = sudo_wrapper.get_apache_vhosts_detail()
+        data = parse_wrapper_result(result)
+
+        audit_log.record(
+            user_id=current_user.user_id,
+            operation="apache_vhosts_detail",
+            target="apache",
+            status="success",
+        )
+        return data
+
+    except SudoWrapperError as e:
+        logger.error("Apache vhosts-detail error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Apache vhosts-detail unavailable: {e}",
+        )
+
+
+@router.get(
+    "/ssl-certs",
+    summary="SSL証明書一覧取得",
+    description="システムのSSL証明書一覧と有効期限を取得します。",
+)
+async def get_apache_ssl_certs(
+    current_user: TokenData = Depends(require_permission("read:apache")),
+) -> dict:
+    """SSL証明書一覧と有効期限を取得する。"""
+    try:
+        result = sudo_wrapper.get_apache_ssl_certs()
+        data = parse_wrapper_result(result)
+
+        audit_log.record(
+            user_id=current_user.user_id,
+            operation="apache_ssl_certs",
+            target="apache",
+            status="success",
+        )
+        return data
+
+    except SudoWrapperError as e:
+        logger.error("Apache ssl-certs error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Apache ssl-certs unavailable: {e}",
+        )
