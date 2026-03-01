@@ -113,6 +113,8 @@ ROLES = {
             "read:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
+            # モジュール管理
+            "read:modules",
         ],
     ),
     "Operator": UserRole(
@@ -174,6 +176,8 @@ ROLES = {
             "read:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
+            # モジュール管理
+            "read:modules",
         ],
     ),
     "Approver": UserRole(
@@ -242,6 +246,8 @@ ROLES = {
             "read:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
+            # モジュール管理
+            "read:modules",
         ],
     ),
     "Admin": UserRole(
@@ -323,6 +329,8 @@ ROLES = {
             "read:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
+            # モジュール管理
+            "read:modules",
         ],
     ),
 }

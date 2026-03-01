@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module Management - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .module-card {
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            padding: 18px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+            transition: box-shadow 0.15s, transform 0.1s;
+            cursor: default;
+            min-height: 110px;
+        }
+        .module-card:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+            transform: translateY(-2px);
+        }
+        .dark-mode .module-card {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        .dark-mode body, .dark-mode .main-content {
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .module-icon {
+            font-size: 28px;
+            color: #3b82f6;
+            line-height: 1;
+        }
+        .dark-mode .module-icon { color: #60a5fa; }
+        .module-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #111827;
+            line-height: 1.3;
+        }
+        .dark-mode .module-name { color: #f1f5f9; }
+        .module-status {
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .status-available   { color: #16a34a; }
+        .status-unavailable { color: #ca8a04; }
+        .status-unknown     { color: #6b7280; }
+        .category-header {
+            font-size: 15px;
+            font-weight: 700;
+            color: #374151;
+            padding: 10px 0 8px;
+            margin-bottom: 4px;
+            border-bottom: 2px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dark-mode .category-header { color: #cbd5e1; border-bottom-color: #334155; }
+        .filter-tabs .nav-link {
+            font-size: 13px;
+            color: #6b7280;
+            border-radius: 20px;
+            padding: 4px 14px;
+            margin-right: 4px;
+        }
+        .filter-tabs .nav-link.active {
+            background: #3b82f6;
+            color: white;
+        }
+        .dark-mode .filter-tabs .nav-link { color: #94a3b8; }
+        .dark-mode .filter-tabs .nav-link.active { background: #2563eb; color: white; }
+        .total-badge {
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 12px;
+        }
+        .dark-mode .total-badge { background: #1e3a8a; color: #93c5fd; }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar-container"></aside>
+
+        <main class="main-content">
+            <div class="main-header">
+                <h2 id="page-title">
+                    <i class="bi bi-grid-3x3-gap-fill me-2"></i>Module Management
+                    <span class="total-badge ms-2" id="total-badge">...</span>
+                </h2>
+            </div>
+
+            <div class="main-body">
+                <!-- フィルタータブ -->
+                <ul class="nav filter-tabs mb-4" id="category-tabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" data-category="all">All</a>
+                    </li>
+                </ul>
+
+                <!-- モジュールグリッド -->
+                <div id="modules-container">
+                    <div class="text-center text-muted py-5">
+                        <div class="spinner-border spinner-border-sm me-2"></div>
+                        Loading modules...
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../js/env-config.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/components.js"></script>
+    <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('modules')):renderSidebar('modules');</script>
+    <script>
+    (function () {
+        'use strict';
+
+        const CATEGORY_ICONS = {
+            system:            'bi-pc-display',
+            servers:           'bi-server',
+            networking:        'bi-diagram-3',
+            hardware:          'bi-cpu',
+            system_management: 'bi-sliders',
+        };
+
+        const MODULE_ICON_MAP = {
+            activity:     'bi-activity',
+            people:       'bi-people',
+            clock:        'bi-clock',
+            'file-text':  'bi-file-text',
+            hdd:          'bi-hdd',
+            power:        'bi-power',
+            database:     'bi-database',
+            terminal:     'bi-terminal',
+            key:          'bi-key',
+            settings:     'bi-gear',
+            folder:       'bi-folder',
+            globe:        'bi-globe',
+            mail:         'bi-envelope',
+            server:       'bi-server',
+            upload:       'bi-upload',
+            shuffle:      'bi-shuffle',
+            wifi:         'bi-wifi',
+            shield:       'bi-shield',
+            'bar-chart':  'bi-bar-chart',
+            'git-branch': 'bi-diagram-2',
+            cpu:          'bi-cpu',
+            layers:       'bi-layers',
+            thermometer:  'bi-thermometer',
+            play:         'bi-play-circle',
+            monitor:      'bi-monitor',
+            package:      'bi-box-seam',
+            'check-square': 'bi-check-square',
+        };
+
+        let allData = null;
+        let statusMap = {};
+        let activeCategory = 'all';
+
+        async function loadModules() {
+            try {
+                const base = (typeof API_BASE_URL !== 'undefined') ? API_BASE_URL : '';
+                const res = await fetch(base + '/api/modules');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                allData = await res.json();
+                buildTabs(allData.categories);
+                renderModules(allData.categories);
+                document.getElementById('total-badge').textContent = allData.total_modules + ' modules';
+                tryLoadStatus(base);
+            } catch (e) {
+                document.getElementById('modules-container').innerHTML =
+                    '<div class="alert alert-danger">モジュール一覧の取得に失敗しました: ' + e.message + '</div>';
+            }
+        }
+
+        async function tryLoadStatus(base) {
+            try {
+                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                if (!token) return;
+                const res = await fetch(base + '/api/modules/status', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                data.statuses.forEach(s => { statusMap[s.id] = s.available; });
+                renderModules(allData.categories);
+            } catch (_) { /* ステータス取得失敗は無視 */ }
+        }
+
+        function buildTabs(categories) {
+            const tabs = document.getElementById('category-tabs');
+            tabs.innerHTML = '<li class="nav-item"><a class="nav-link active" href="#" data-category="all">All</a></li>';
+            Object.entries(categories).forEach(([key, cat]) => {
+                const li = document.createElement('li');
+                li.className = 'nav-item';
+                const icon = CATEGORY_ICONS[key] || 'bi-grid';
+                li.innerHTML = `<a class="nav-link" href="#" data-category="${key}"><i class="bi ${icon} me-1"></i>${cat.label}</a>`;
+                tabs.appendChild(li);
+            });
+            tabs.addEventListener('click', e => {
+                const a = e.target.closest('[data-category]');
+                if (!a) return;
+                e.preventDefault();
+                tabs.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                a.classList.add('active');
+                activeCategory = a.dataset.category;
+                renderModules(allData.categories);
+            });
+        }
+
+        function renderModules(categories) {
+            const container = document.getElementById('modules-container');
+            container.innerHTML = '';
+            Object.entries(categories).forEach(([key, cat]) => {
+                if (activeCategory !== 'all' && activeCategory !== key) return;
+                const section = document.createElement('div');
+                section.className = 'mb-4';
+                const catIcon = CATEGORY_ICONS[key] || 'bi-grid';
+                section.innerHTML = `<div class="category-header"><i class="bi ${catIcon}"></i>${cat.label} <span class="text-muted fw-normal" style="font-size:13px">(${cat.modules.length})</span></div>`;
+                const row = document.createElement('div');
+                row.className = 'row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 mt-0';
+                cat.modules.forEach(mod => {
+                    const col = document.createElement('div');
+                    col.className = 'col';
+                    const biIcon = MODULE_ICON_MAP[mod.icon] || 'bi-app';
+                    let statusHtml = '<span class="status-unknown"><i class="bi bi-question-circle"></i> Unknown</span>';
+                    if (mod.id in statusMap) {
+                        statusHtml = statusMap[mod.id]
+                            ? '<span class="status-available"><i class="bi bi-check-circle-fill"></i> Available</span>'
+                            : '<span class="status-unavailable"><i class="bi bi-exclamation-triangle-fill"></i> Unavailable</span>';
+                    }
+                    col.innerHTML = `
+                        <div class="module-card" title="${mod.endpoint}">
+                            <i class="bi ${biIcon} module-icon"></i>
+                            <div class="module-name">${mod.name}</div>
+                            <div class="module-status">${statusHtml}</div>
+                        </div>`;
+                    row.appendChild(col);
+                });
+                section.appendChild(row);
+                container.appendChild(section);
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadModules);
+        } else {
+            loadModules();
+        }
+    })();
+    </script>
+</body>
+</html>
