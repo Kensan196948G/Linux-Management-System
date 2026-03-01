@@ -1772,6 +1772,68 @@ class SudoWrapper:
         """
         return self._execute("adminui-partitions.sh", ["detail"], timeout=15)
 
+    def get_dhcp_status(self) -> Dict[str, Any]:
+        """DHCP サービス状態を取得
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-dhcp.sh", ["status"])
+
+    def get_dhcp_leases(self) -> Dict[str, Any]:
+        """DHCP アクティブリース一覧を取得
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-dhcp.sh", ["leases"])
+
+    def get_dhcp_config(self) -> Dict[str, Any]:
+        """DHCP 設定サマリを取得
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-dhcp.sh", ["config"])
+
+    def get_dhcp_pools(self) -> Dict[str, Any]:
+        """DHCP アドレスプール情報を取得
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-dhcp.sh", ["pools"])
+
+    def get_dhcp_logs(self, lines: int = 50) -> Dict[str, Any]:
+        """DHCP ログを取得
+
+        Args:
+            lines: 取得行数 (1-200)
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        safe_lines = max(1, min(200, lines))
+        return self._execute("adminui-dhcp.sh", ["logs", str(safe_lines)])
+
+
+# グローバルインスタンス
+
     # ------------------------------------------------------------------
     # センサー (lm-sensors)
     # ------------------------------------------------------------------
@@ -1782,9 +1844,6 @@ class SudoWrapper:
 
         Returns:
             全センサー情報の辞書
-    def get_dhcp_status(self) -> Dict[str, Any]:
-        """DHCP サービス状態を取得
-            実行結果の辞書
 
         Raises:
             SudoWrapperError: 実行失敗時
@@ -1797,10 +1856,6 @@ class SudoWrapper:
 
         Returns:
             温度センサー情報の辞書
-        return self._execute("adminui-dhcp.sh", ["status"])
-    def get_dhcp_leases(self) -> Dict[str, Any]:
-        """DHCP アクティブリース一覧を取得
-            実行結果の辞書
 
         Raises:
             SudoWrapperError: 実行失敗時
@@ -1813,10 +1868,6 @@ class SudoWrapper:
 
         Returns:
             ファン速度情報の辞書
-        return self._execute("adminui-dhcp.sh", ["leases"])
-    def get_dhcp_config(self) -> Dict[str, Any]:
-        """DHCP 設定サマリを取得
-            実行結果の辞書
 
         Raises:
             SudoWrapperError: 実行失敗時
@@ -1829,10 +1880,6 @@ class SudoWrapper:
 
         Returns:
             電圧センサー情報の辞書
-        return self._execute("adminui-dhcp.sh", ["config"])
-    def get_dhcp_pools(self) -> Dict[str, Any]:
-        """DHCP アドレスプール情報を取得
-            実行結果の辞書
 
         Raises:
             SudoWrapperError: 実行失敗時
@@ -1849,12 +1896,6 @@ class SudoWrapper:
 
         Returns:
             ルーティングテーブルの辞書
-        return self._execute("adminui-dhcp.sh", ["pools"])
-    def get_dhcp_logs(self, lines: int = 50) -> Dict[str, Any]:
-        """DHCP ログを取得
-        Args:
-            lines: 取得行数 (1-200)
-            実行結果の辞書
 
         Raises:
             SudoWrapperError: 実行失敗時
@@ -1896,9 +1937,8 @@ class SudoWrapper:
             SudoWrapperError: 実行失敗時
         """
         return self._execute("adminui-routing.sh", ["interfaces"], timeout=15)
-        safe_lines = max(1, min(200, lines))
-        return self._execute("adminui-dhcp.sh", ["logs", str(safe_lines)])
 
 
 # グローバルインスタンス
+
 sudo_wrapper = SudoWrapper()
