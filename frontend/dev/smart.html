@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART ドライブ状態 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .badge-passed { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-failed { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-unknown { background: #f3f4f6; color: #6b7280; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .badge-unavail { background: #fef9c3; color: #713f12; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .raw-output { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; font-family: monospace; white-space: pre-wrap; max-height: 320px; overflow-y: auto; }
+        .disk-item { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 16px; margin-bottom: 10px; cursor: pointer; }
+        .disk-item:hover { background: #f9fafb; }
+        .disk-name { font-weight: bold; color: #1e293b; font-size: 14px; }
+        .disk-meta { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .unavail-notice { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px; color: #713f12; font-size: 13px; }
+        .nav-tabs .nav-link.active { color: #2563eb; font-weight: 600; border-bottom: 2px solid #2563eb; background: none; }
+        .nav-tabs .nav-link { color: #6b7280; cursor: pointer; }
+        .input-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2>💾 SMART ドライブ状態</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">🔄 更新</button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <ul class="nav nav-tabs mb-3" id="smart-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('disks')" id="tab-disks">🖥️ ディスク一覧</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('info')" id="tab-info">ℹ️ 詳細情報</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('health')" id="tab-health">🏥 健全性チェック</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('tests')" id="tab-tests">🧪 テスト結果</a>
+                </li>
+            </ul>
+
+            <!-- ディスク一覧 -->
+            <div id="pane-disks">
+                <div class="status-card">
+                    <div class="status-title">ブロックデバイス一覧</div>
+                    <div id="disks-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+
+            <!-- 詳細情報 -->
+            <div id="pane-info" style="display:none">
+                <div class="status-card">
+                    <div class="status-title">ディスク詳細情報 (smartctl -i)</div>
+                    <div class="input-row">
+                        <input type="text" id="info-disk-input" class="form-control form-control-sm" style="max-width:180px" placeholder="/dev/sda">
+                        <button class="btn btn-sm btn-primary" onclick="loadInfo()">取得</button>
+                    </div>
+                    <div id="info-content"><span class="text-muted">ディスク名を入力して取得してください。</span></div>
+                </div>
+            </div>
+
+            <!-- 健全性チェック -->
+            <div id="pane-health" style="display:none">
+                <div class="status-card">
+                    <div class="status-title">ディスク健全性 (smartctl -H)</div>
+                    <div class="input-row">
+                        <input type="text" id="health-disk-input" class="form-control form-control-sm" style="max-width:180px" placeholder="/dev/sda">
+                        <button class="btn btn-sm btn-primary" onclick="loadHealth()">チェック</button>
+                    </div>
+                    <div id="health-content"><span class="text-muted">ディスク名を入力してチェックしてください。</span></div>
+                </div>
+            </div>
+
+            <!-- テスト結果 -->
+            <div id="pane-tests" style="display:none">
+                <div class="status-card">
+                    <div class="status-title">SMART selftest ログ</div>
+                    <div id="tests-content"><span class="text-muted">読み込み中...</span></div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/common.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+const API_BASE = '/api';
+
+function getToken() { return localStorage.getItem('access_token') || ''; }
+
+function authHeaders() { return { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' }; }
+
+function showAlert(msg, type) {
+    document.getElementById('alert-area').innerHTML =
+        `<div class="alert alert-${type} alert-dismissible" role="alert">${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+}
+
+function showTab(tab) {
+    ['disks','info','health','tests'].forEach(t => {
+        document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    });
+}
+
+function renderRaw(text) {
+    return `<div class="raw-output">${escHtml(text || '')}</div>`;
+}
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadDisks() {
+    const el = document.getElementById('disks-content');
+    try {
+        const r = await fetch(API_BASE + '/smart/disks', { headers: authHeaders() });
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${escHtml(d.message || 'smartctl / lsblk が見つかりません')}</div>`;
+            return;
+        }
+        const devices = d.lsblk && d.lsblk.blockdevices ? d.lsblk.blockdevices : [];
+        const smartAvail = d.smartctl_available ? '<span class="badge-passed">smartctl 利用可能</span>' : '<span class="badge-unavail">smartctl 未インストール</span>';
+        let html = `<div class="mb-3">${smartAvail}</div>`;
+        if (devices.length === 0) {
+            html += '<div class="text-muted">ブロックデバイスが見つかりません。</div>';
+        } else {
+            devices.forEach(dev => {
+                html += `<div class="disk-item" onclick="selectDisk('/dev/${escHtml(dev.name)}')">
+                    <div class="disk-name">/dev/${escHtml(dev.name)}</div>
+                    <div class="disk-meta">サイズ: ${escHtml(dev.size||'-')} &nbsp;|&nbsp; タイプ: ${escHtml(dev.type||'-')} &nbsp;|&nbsp; モデル: ${escHtml(dev.model||'-')}</div>
+                </div>`;
+            });
+        }
+        el.innerHTML = html;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger">取得エラー: ${escHtml(String(e))}</div>`;
+    }
+}
+
+function selectDisk(disk) {
+    document.getElementById('info-disk-input').value = disk;
+    document.getElementById('health-disk-input').value = disk;
+    showTab('info');
+    loadInfo();
+}
+
+async function loadInfo() {
+    const disk = document.getElementById('info-disk-input').value.trim();
+    const el = document.getElementById('info-content');
+    if (!disk) { el.innerHTML = '<span class="text-muted">ディスク名を入力してください。</span>'; return; }
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const r = await fetch(API_BASE + '/smart/info/' + encodeURIComponent(disk.replace(/^\//,'')), { headers: authHeaders() });
+        if (r.status === 400) { const e = await r.json(); showAlert('⚠️ ' + escHtml(e.detail), 'warning'); el.innerHTML = ''; return; }
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${escHtml(d.message || 'smartctl が見つかりません')}</div>`;
+            return;
+        }
+        el.innerHTML = `<div class="mb-2"><strong>${escHtml(d.disk||disk)}</strong></div>` + renderRaw(d.info_raw);
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger">取得エラー: ${escHtml(String(e))}</div>`;
+    }
+}
+
+async function loadHealth() {
+    const disk = document.getElementById('health-disk-input').value.trim();
+    const el = document.getElementById('health-content');
+    if (!disk) { el.innerHTML = '<span class="text-muted">ディスク名を入力してください。</span>'; return; }
+    el.innerHTML = '<span class="text-muted">読み込み中...</span>';
+    try {
+        const r = await fetch(API_BASE + '/smart/health/' + encodeURIComponent(disk.replace(/^\//,'')), { headers: authHeaders() });
+        if (r.status === 400) { const e = await r.json(); showAlert('⚠️ ' + escHtml(e.detail), 'warning'); el.innerHTML = ''; return; }
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${escHtml(d.message || 'smartctl が見つかりません')}</div>`;
+            return;
+        }
+        const h = d.health || 'unknown';
+        const badgeClass = h === 'PASSED' ? 'badge-passed' : h === 'FAILED' ? 'badge-failed' : 'badge-unknown';
+        el.innerHTML = `<div class="mb-3"><strong>${escHtml(d.disk||disk)}</strong> &nbsp; <span class="${badgeClass}">${escHtml(h)}</span></div>` + renderRaw(d.output_raw);
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger">取得エラー: ${escHtml(String(e))}</div>`;
+    }
+}
+
+async function loadTests() {
+    const el = document.getElementById('tests-content');
+    try {
+        const r = await fetch(API_BASE + '/smart/tests', { headers: authHeaders() });
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        if (d.status === 'unavailable') {
+            el.innerHTML = `<div class="unavail-notice">⚠️ ${escHtml(d.message || 'smartctl が見つかりません')}</div>`;
+            return;
+        }
+        const tests = d.tests || [];
+        if (tests.length === 0) {
+            el.innerHTML = '<div class="text-muted">テスト結果が見つかりません。</div>';
+            return;
+        }
+        let html = '';
+        tests.forEach(t => {
+            html += `<div class="status-card mb-2"><div class="disk-name mb-2">${escHtml(t.disk||'')}</div>${renderRaw(t.selftest_raw)}</div>`;
+        });
+        el.innerHTML = html;
+    } catch(e) {
+        el.innerHTML = `<div class="text-danger">取得エラー: ${escHtml(String(e))}</div>`;
+    }
+}
+
+function refreshAll() {
+    loadDisks();
+    loadTests();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+    loadDisks();
+    loadTests();
+});
+</script>
+</body>
+</html>
