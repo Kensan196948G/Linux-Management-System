@@ -105,6 +105,8 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # SSH Keys 管理
+            "read:sshkeys",
         ],
     ),
     "Operator": UserRole(
@@ -158,6 +160,8 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # SSH Keys 管理
+            "read:sshkeys",
         ],
     ),
     "Approver": UserRole(
@@ -218,6 +222,8 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # SSH Keys 管理
+            "read:sshkeys",
         ],
     ),
     "Admin": UserRole(
@@ -291,6 +297,8 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # SSH Keys 管理
+            "read:sshkeys",
         ],
     ),
 }

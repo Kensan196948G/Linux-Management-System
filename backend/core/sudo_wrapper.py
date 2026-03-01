@@ -2014,6 +2014,58 @@ class SudoWrapper:
         """
         return self._execute("adminui-sysconfig.sh", ["modules"], timeout=15)
 
+    # ------------------------------------------------------------------
+    # SSH 鍵管理 (読み取り専用)
+    # ------------------------------------------------------------------
+
+    def get_ssh_keys(self) -> Dict[str, Any]:
+        """
+        SSH公開鍵一覧を取得 (/etc/ssh/*.pub)
+
+        Returns:
+            SSH公開鍵一覧の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sshkeys.sh", ["list-keys"], timeout=15)
+
+    def get_sshd_config(self) -> Dict[str, Any]:
+        """
+        sshd_config の安全な設定表示（重要パラメータのみ）
+
+        Returns:
+            sshd_config 設定の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sshkeys.sh", ["sshd-config"], timeout=15)
+
+    def get_ssh_host_keys(self) -> Dict[str, Any]:
+        """
+        ホスト鍵フィンガープリントを取得 (ssh-keygen -l)
+
+        Returns:
+            ホスト鍵フィンガープリントの辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sshkeys.sh", ["host-keys"], timeout=15)
+
+    def get_known_hosts_count(self) -> Dict[str, Any]:
+        """
+        /etc/ssh/ssh_known_hosts のエントリ数を取得（内容は非表示）
+
+        Returns:
+            known_hosts エントリ数の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sshkeys.sh", ["auth-keys"], timeout=15)
+
 
 # グローバルインスタンス
 
