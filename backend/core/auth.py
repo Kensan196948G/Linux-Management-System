@@ -93,6 +93,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # Sensors (lm-sensors)
+            "read:sensors",
+            # Routing & Gateways
+            "read:routing",
             # DHCP Server
             "read:dhcp",
             # FTP Server
@@ -140,6 +144,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # Sensors (lm-sensors)
+            "read:sensors",
+            # Routing & Gateways
+            "read:routing",
             # DHCP Server
             "read:dhcp",
             # FTP Server
@@ -194,6 +202,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # Sensors (lm-sensors)
+            "read:sensors",
+            # Routing & Gateways
+            "read:routing",
             # DHCP Server
             "read:dhcp",
             # FTP Server
@@ -261,6 +273,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # Sensors (lm-sensors)
+            "read:sensors",
+            # Routing & Gateways
+            "read:routing",
             # DHCP Server
             "read:dhcp",
             # FTP Server

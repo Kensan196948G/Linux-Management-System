@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>センサー情報 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .sensor-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .sensor-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+        }
+        .sensor-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .sensor-row:last-child { border-bottom: none; }
+        .temp-high { color: #dc2626; font-weight: bold; }
+        .temp-warn { color: #f59e0b; font-weight: bold; }
+        .temp-ok  { color: #059669; }
+        .gauge-container { margin-bottom: 12px; }
+        .gauge-label { display: flex; justify-content: space-between; font-size: 13px; color: #374151; margin-bottom: 4px; }
+        .progress { height: 12px; border-radius: 6px; }
+        .badge-source { font-size: 11px; padding: 2px 8px; border-radius: 12px; background: #e0f2fe; color: #0369a1; }
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .auto-refresh-badge { font-size: 11px; color: #6b7280; margin-left: 8px; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">🌡️ センサー情報 (lm-sensors)</h2>
+            <div>
+                <span class="auto-refresh-badge" id="refresh-countdown"></span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
+                    🔄 更新
+                </button>
+            </div>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <ul class="nav nav-tabs mb-3" id="sensor-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('all')" id="tab-all">📊 全センサー</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('temperature')" id="tab-temperature">🌡️ 温度</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('fans')" id="tab-fans">💨 ファン</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('voltage')" id="tab-voltage">⚡ 電圧</a>
+                </li>
+            </ul>
+
+            <!-- 全センサー -->
+            <div id="pane-all">
+                <div id="all-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="all-content" style="display:none"></div>
+            </div>
+
+            <!-- 温度 -->
+            <div id="pane-temperature" style="display:none">
+                <div id="temperature-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="temperature-content" style="display:none"></div>
+            </div>
+
+            <!-- ファン -->
+            <div id="pane-fans" style="display:none">
+                <div id="fans-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="fans-content" style="display:none"></div>
+            </div>
+
+            <!-- 電圧 -->
+            <div id="pane-voltage" style="display:none">
+                <div id="voltage-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="voltage-content" style="display:none"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+let currentTab = 'all';
+let refreshTimer = null;
+const REFRESH_INTERVAL = 30;
+
+function showTab(tab) {
+    ['all', 'temperature', 'fans', 'voltage'].forEach(t => {
+        document.getElementById('tab-' + t).classList.remove('active');
+        document.getElementById('pane-' + t).style.display = 'none';
+    });
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('pane-' + tab).style.display = '';
+    currentTab = tab;
+    if (tab === 'all') loadAll();
+    else if (tab === 'temperature') loadTemperature();
+    else if (tab === 'fans') loadFans();
+    else if (tab === 'voltage') loadVoltage();
+}
+
+function renderSensorChips(data, loading, content) {
+    loading.style.display = 'none';
+    content.style.display = '';
+
+    const src = data.source ? `<span class="badge-source">${data.source}</span>` : '';
+    if (data.status === 'unavailable') {
+        content.innerHTML = `<div class="alert alert-info">センサーデータが利用できません（lm-sensors未インストール）${src ? ' ' + src : ''}</div>`;
+        return;
+    }
+
+    const sensors = data.sensors || data.temperature || data.fans || data.voltage || {};
+    const chips = Object.keys(sensors);
+    if (chips.length === 0) {
+        content.innerHTML = `<div class="alert alert-info">表示可能なセンサーデータがありません</div>`;
+        return;
+    }
+
+    content.innerHTML = `<p class="text-muted mb-3">${src}</p>` + chips.map(chip => {
+        const chipData = sensors[chip];
+        const rows = Object.entries(chipData).map(([key, val]) => {
+            if (typeof val !== 'object' || val === null) return '';
+            const entries = Object.entries(val);
+            const inputEntry = entries.find(([k]) => k.endsWith('_input'));
+            if (!inputEntry) return '';
+            const [inputKey, inputVal] = inputEntry;
+            let unit = '', cls = '';
+            if (inputKey.startsWith('temp')) {
+                unit = '°C';
+                const crit = val[inputKey.replace('_input','_crit')];
+                const max = val[inputKey.replace('_input','_max')];
+                if (crit && inputVal >= crit) cls = 'temp-high';
+                else if (max && inputVal >= max * 0.8) cls = 'temp-warn';
+                else cls = 'temp-ok';
+                const maxLabel = max ? `<small class="text-muted"> / max ${max}${unit}</small>` : '';
+                // ゲージ表示（0-100°C）
+                const pct = Math.min(100, Math.round((inputVal / (max || 100)) * 100));
+                const barCls = cls === 'temp-high' ? 'bg-danger' : cls === 'temp-warn' ? 'bg-warning' : 'bg-success';
+                return `<div class="gauge-container">
+                    <div class="gauge-label"><span>${key}</span><span class="${cls}">${inputVal.toFixed(1)}${unit}${maxLabel}</span></div>
+                    <div class="progress"><div class="progress-bar ${barCls}" style="width:${pct}%"></div></div>
+                </div>`;
+            } else if (inputKey.startsWith('in')) {
+                unit = 'V';
+                return `<div class="sensor-row"><span>${key}</span><span>${inputVal.toFixed(3)} ${unit}</span></div>`;
+            } else if (inputKey.startsWith('fan')) {
+                unit = 'RPM';
+                return `<div class="sensor-row"><span>${key}</span><span>${Math.round(inputVal)} ${unit}</span></div>`;
+            }
+            return `<div class="sensor-row"><span>${key}</span><span>${inputVal}</span></div>`;
+        }).filter(r => r).join('');
+        if (!rows) return '';
+        return `<div class="sensor-card"><div class="sensor-title">${chip}</div>${rows}</div>`;
+    }).filter(h => h).join('') || '<div class="alert alert-info">表示可能なデータがありません</div>';
+}
+
+async function loadAll() {
+    const loading = document.getElementById('all-loading');
+    const content = document.getElementById('all-content');
+    loading.style.display = ''; content.style.display = 'none';
+    loading.innerHTML = '<div class="text-center py-4 text-muted">読み込み中...</div>';
+    try {
+        const data = await api.get('/api/sensors/all');
+        renderSensorChips(data, loading, content);
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadTemperature() {
+    const loading = document.getElementById('temperature-loading');
+    const content = document.getElementById('temperature-content');
+    loading.style.display = ''; content.style.display = 'none';
+    loading.innerHTML = '<div class="text-center py-4 text-muted">読み込み中...</div>';
+    try {
+        const data = await api.get('/api/sensors/temperature');
+        // temperature フィールドを sensors として渡す
+        const normalized = {...data, sensors: data.temperature};
+        renderSensorChips(normalized, loading, content);
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadFans() {
+    const loading = document.getElementById('fans-loading');
+    const content = document.getElementById('fans-content');
+    loading.style.display = ''; content.style.display = 'none';
+    loading.innerHTML = '<div class="text-center py-4 text-muted">読み込み中...</div>';
+    try {
+        const data = await api.get('/api/sensors/fans');
+        const normalized = {...data, sensors: data.fans};
+        renderSensorChips(normalized, loading, content);
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+async function loadVoltage() {
+    const loading = document.getElementById('voltage-loading');
+    const content = document.getElementById('voltage-content');
+    loading.style.display = ''; content.style.display = 'none';
+    loading.innerHTML = '<div class="text-center py-4 text-muted">読み込み中...</div>';
+    try {
+        const data = await api.get('/api/sensors/voltage');
+        const normalized = {...data, sensors: data.voltage};
+        renderSensorChips(normalized, loading, content);
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+    }
+}
+
+function refreshAll() { showTab(currentTab); }
+
+function startAutoRefresh() {
+    let remaining = REFRESH_INTERVAL;
+    const badge = document.getElementById('refresh-countdown');
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => {
+        remaining--;
+        badge.textContent = `次の更新まで ${remaining}秒`;
+        if (remaining <= 0) {
+            remaining = REFRESH_INTERVAL;
+            refreshAll();
+        }
+    }, 1000);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
+    api.setToken(token);
+    if (typeof initSidebar === 'function') initSidebar('sensors');
+    loadAll();
+    startAutoRefresh();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>
