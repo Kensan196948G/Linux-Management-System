@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-ALLOWED_SUBCOMMANDS=("status" "vhosts" "modules" "config-check")
+ALLOWED_SUBCOMMANDS=("status" "vhosts" "modules" "config-check" "config" "logs")
 
 error_json() {
     echo "{\"status\": \"error\", \"message\": \"$1\"}" >&2
@@ -141,6 +141,42 @@ case "$SUBCOMMAND" in
         CHECK_ESCAPED=$(echo "$CHECK_OUTPUT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo "\"${CHECK_OUTPUT}\"")
 
         echo "{\"status\": \"success\", \"syntax_ok\": ${SYNTAX_OK}, \"output\": ${CHECK_ESCAPED}, \"timestamp\": \"${TIMESTAMP}\"}"
+        ;;
+
+    config)
+        # /etc/apache2/apache2.conf の内容を取得
+        CONFIG_FILE="/etc/apache2/apache2.conf"
+        if [[ ! -f "$CONFIG_FILE" ]]; then
+            # httpd の場合
+            if [[ -f "/etc/httpd/conf/httpd.conf" ]]; then
+                CONFIG_FILE="/etc/httpd/conf/httpd.conf"
+            else
+                echo "{\"status\": \"unavailable\", \"message\": \"Apache config file not found\", \"timestamp\": \"${TIMESTAMP}\"}"
+                exit 0
+            fi
+        fi
+        CONFIG_CONTENT=$(cat "$CONFIG_FILE" 2>/dev/null || echo "")
+        CONFIG_ESCAPED=$(echo "$CONFIG_CONTENT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo "\"\"")
+        echo "{\"status\": \"success\", \"config\": ${CONFIG_ESCAPED}, \"config_file\": \"${CONFIG_FILE}\", \"timestamp\": \"${TIMESTAMP}\"}"
+        ;;
+
+    logs)
+        # /var/log/apache2/error.log の末尾N行
+        LINES="${2:-50}"
+        SAFE_LINES=$(python3 -c "n=int('$LINES') if '$LINES'.isdigit() else 50; print(max(1, min(200, n)))" 2>/dev/null || echo "50")
+        LOG_FILE="/var/log/apache2/error.log"
+        if [[ ! -f "$LOG_FILE" ]]; then
+            if [[ -f "/var/log/httpd/error_log" ]]; then
+                LOG_FILE="/var/log/httpd/error_log"
+            else
+                echo "{\"status\": \"success\", \"logs\": \"\", \"message\": \"Log file not found\", \"lines\": 0, \"timestamp\": \"${TIMESTAMP}\"}"
+                exit 0
+            fi
+        fi
+        LOG_CONTENT=$(tail -n "$SAFE_LINES" "$LOG_FILE" 2>/dev/null || echo "")
+        LOG_ESCAPED=$(echo "$LOG_CONTENT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo "\"\"")
+        LINE_COUNT=$(echo "$LOG_CONTENT" | wc -l)
+        echo "{\"status\": \"success\", \"logs\": ${LOG_ESCAPED}, \"lines\": ${LINE_COUNT}, \"timestamp\": \"${TIMESTAMP}\"}"
         ;;
 
     *)

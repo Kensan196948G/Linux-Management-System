@@ -2014,6 +2014,106 @@ class SudoWrapper:
         """
         return self._execute("adminui-sysconfig.sh", ["modules"], timeout=15)
 
+    # ------------------------------------------------------------------
+    # Nginx 管理
+    # ------------------------------------------------------------------
+
+    def get_nginx_status(self) -> Dict[str, Any]:
+        """
+        Nginx サービス状態を取得 (systemctl is-active nginx + nginx -v)
+
+        Returns:
+            Nginx サービス状態の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-nginx.sh", ["status"], timeout=15)
+
+    def get_nginx_config(self) -> Dict[str, Any]:
+        """
+        Nginx 設定をダンプ (nginx -T)
+
+        Returns:
+            設定内容の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-nginx.sh", ["config"], timeout=30)
+
+    def get_nginx_vhosts(self) -> Dict[str, Any]:
+        """
+        Nginx バーチャルホスト一覧を取得 (/etc/nginx/sites-enabled/)
+
+        Returns:
+            バーチャルホスト一覧の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-nginx.sh", ["vhosts"], timeout=15)
+
+    def get_nginx_connections(self) -> Dict[str, Any]:
+        """
+        Nginx 接続状況を取得 (ss -tnp | grep nginx)
+
+        Returns:
+            接続状況の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-nginx.sh", ["connections"], timeout=15)
+
+    def get_nginx_logs(self, lines: int = 50) -> Dict[str, Any]:
+        """
+        Nginx アクセスログの末尾N行を取得
+
+        Args:
+            lines: 取得行数 (1-200)
+
+        Returns:
+            ログ内容の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        safe_lines = max(1, min(200, lines))
+        return self._execute("adminui-nginx.sh", ["logs", str(safe_lines)], timeout=15)
+
+    # ------------------------------------------------------------------
+    # Apache 管理（拡張: config / logs）
+    # ------------------------------------------------------------------
+
+    def get_apache_config(self) -> Dict[str, Any]:
+        """
+        Apache 設定ファイル内容を取得 (/etc/apache2/apache2.conf)
+
+        Returns:
+            設定内容の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-apache.sh", ["config"], timeout=15)
+
+    def get_apache_logs(self, lines: int = 50) -> Dict[str, Any]:
+        """
+        Apache エラーログの末尾N行を取得
+
+        Args:
+            lines: 取得行数 (1-200)
+
+        Returns:
+            ログ内容の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        safe_lines = max(1, min(200, lines))
+        return self._execute("adminui-apache.sh", ["logs", str(safe_lines)], timeout=15)
+
 
 # グローバルインスタンス
 
