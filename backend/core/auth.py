@@ -105,6 +105,8 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # File Manager
+            "read:filemanager",
         ],
     ),
     "Operator": UserRole(
@@ -158,6 +160,8 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # File Manager
+            "read:filemanager",
         ],
     ),
     "Approver": UserRole(
@@ -218,6 +222,8 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # File Manager
+            "read:filemanager",
         ],
     ),
     "Admin": UserRole(
@@ -291,6 +297,8 @@ ROLES = {
             "read:ftp",
             # Squid Proxy
             "read:squid",
+            # File Manager
+            "read:filemanager",
         ],
     ),
 }
