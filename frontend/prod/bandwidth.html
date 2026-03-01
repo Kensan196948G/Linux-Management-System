@@ -306,6 +306,33 @@
                         <tbody id="top-tbody"></tbody>
                     </table>
                 </div>
+
+            <!-- 月次統計タブ -->
+            <div id="pane-monthly" style="display:none">
+                <div id="monthly-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="monthly-content" style="display:none">
+                    <pre id="monthly-data" class="small" style="max-height:300px;overflow-y:auto"></pre>
+                </div>
+            </div>
+
+            <!-- 履歴タブ -->
+            <div id="pane-history" style="display:none">
+                <div id="history-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="history-content" style="display:none">
+                    <pre id="history-data" class="small" style="max-height:300px;overflow-y:auto"></pre>
+                </div>
+            </div>
+
+            <!-- アラート設定タブ -->
+            <div id="pane-alert-config" style="display:none">
+                <div id="alert-config-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="alert-config-content" style="display:none">
+                    <table class="table table-sm table-compact">
+                        <tbody id="alert-config-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
     </main>
 </div>
@@ -396,7 +423,7 @@ function onIfaceChange() {
 // ===================================================================
 
 function showTab(tab) {
-    const tabs = ['summary', 'live', 'daily', 'top'];
+    const tabs = ['summary', 'live', 'daily', 'top', 'monthly', 'history', 'alert-config'];
     tabs.forEach(t => {
         document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
         document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
@@ -413,6 +440,9 @@ function showTab(tab) {
     else if (tab === 'live') startLive();
     else if (tab === 'daily') loadDaily();
     else if (tab === 'top') loadTop();
+    else if (tab === 'monthly') loadMonthly();
+    else if (tab === 'history') loadHistory();
+    else if (tab === 'alert-config') loadAlertConfig();
 }
 
 function refreshCurrentTab() {
@@ -619,6 +649,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初期タブ（サマリー）をロード
     loadSummary();
 });
+
+async function loadMonthly() {
+    const loading = document.getElementById('monthly-loading');
+    const content = document.getElementById('monthly-content');
+    loading.style.display = '';
+    content.style.display = 'none';
+    try {
+        const iface = selectedIface ? `?interface=${encodeURIComponent(selectedIface)}` : '';
+        const data = await api.get(`/api/bandwidth/monthly${iface}`);
+        document.getElementById('monthly-data').textContent = JSON.stringify(data.data || data, null, 2);
+        loading.style.display = 'none';
+        content.style.display = '';
+    } catch(e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadHistory() {
+    const loading = document.getElementById('history-loading');
+    const content = document.getElementById('history-content');
+    loading.style.display = '';
+    content.style.display = 'none';
+    try {
+        const iface = selectedIface ? `?interface=${encodeURIComponent(selectedIface)}` : '';
+        const data = await api.get(`/api/bandwidth/history${iface}`);
+        document.getElementById('history-data').textContent = JSON.stringify(data.data || data, null, 2);
+        loading.style.display = 'none';
+        content.style.display = '';
+    } catch(e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadAlertConfig() {
+    const loading = document.getElementById('alert-config-loading');
+    const content = document.getElementById('alert-config-content');
+    loading.style.display = '';
+    content.style.display = 'none';
+    try {
+        const data = await api.get('/api/bandwidth/alert-config');
+        const tbody = document.getElementById('alert-config-tbody');
+        tbody.innerHTML = `
+            <tr><th>閾値 (GB)</th><td>${escapeHtml(data.threshold_gb)}</td></tr>
+            <tr><th>通知先メール</th><td>${data.alert_email ? escapeHtml(data.alert_email) : '<span class="text-muted">未設定</span>'}</td></tr>
+            <tr><th>有効</th><td>${data.enabled ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>'}</td></tr>`;
+        loading.style.display = 'none';
+        content.style.display = '';
+    } catch(e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
 </script>
 <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>

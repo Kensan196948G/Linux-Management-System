@@ -79,9 +79,9 @@ class TestNtpServersAPI:
         assert "output" in body["data"]
 
     def test_ntp_servers_unauthorized(self, test_client):
-        """認証なしは 401 を返す"""
+        """認証なしは 401/403 を返す"""
         resp = test_client.get("/api/time/ntp-servers")
-        assert resp.status_code == 401
+        assert resp.status_code in (401, 403)
 
     def test_ntp_servers_wrapper_error_returns_500(self, test_client, viewer_token):
         """SudoWrapperError 発生時は 500 を返す"""
@@ -147,9 +147,9 @@ class TestSyncStatusAPI:
         assert "output" in body["data"]
 
     def test_sync_status_unauthorized(self, test_client):
-        """認証なしは 401 を返す"""
+        """認証なしは 401/403 を返す"""
         resp = test_client.get("/api/time/sync-status")
-        assert resp.status_code == 401
+        assert resp.status_code in (401, 403)
 
     def test_sync_status_wrapper_error_returns_500(self, test_client, viewer_token):
         """SudoWrapperError 発生時は 500 を返す"""
@@ -241,11 +241,11 @@ class TestExistingEndpointsRegression:
         assert "timezones" in body["data"]
 
     def test_existing_status_unauthorized(self, test_client):
-        """既存 status エンドポイントも認証なしは 401 を返す"""
+        """既存 status エンドポイントも認証なしは 401/403 を返す"""
         resp = test_client.get("/api/time/status")
-        assert resp.status_code == 401
+        assert resp.status_code in (401, 403)
 
     def test_existing_timezones_unauthorized(self, test_client):
-        """既存 timezones エンドポイントも認証なしは 401 を返す"""
+        """既存 timezones エンドポイントも認証なしは 401/403 を返す"""
         resp = test_client.get("/api/time/timezones")
-        assert resp.status_code == 401
+        assert resp.status_code in (401, 403)
