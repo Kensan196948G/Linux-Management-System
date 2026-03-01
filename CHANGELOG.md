@@ -11,6 +11,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.14.0] - 2026-03-01
+
+**v0.14.0 リリース** - HTTPS/TLS本番対応 + システム設定モジュール + UIテーマ管理
+
+### Added
+
+#### HTTPS/TLS 本番対応 (Step 10)
+- **scripts/generate-ssl-cert.sh**: RSA 4096bit / SHA256 / SAN付き自己署名証明書生成スクリプト
+  - `/etc/ssl/adminui/` に証明書を生成 (cert=644, key=600)
+  - ShellCheck 通過
+- **scripts/setup-https.sh**: nginx HTTPS 環境一括セットアップスクリプト
+  - 証明書生成 → nginx設定コピー → シンボリックリンク → `nginx -t` 検証
+- **config/nginx/adminui-http-only.conf**: 開発環境用 HTTP のみ nginx 設定
+- **docs/guides/https-setup.md**: Let's Encrypt / 自己署名証明書のセットアップガイド (日本語)
+- **tests/unit/test_ssl_config.py**: SSL 設定テスト 18 件
+
+#### System Configuration モジュール (Step 11)
+- **wrappers/adminui-sysconfig.sh**: `hostname`/`timezone`/`locale`/`kernel`/`uptime`/`modules` allowlist制御
+- **GET /api/sysconfig/hostname**: ホスト名情報
+- **GET /api/sysconfig/timezone**: タイムゾーン情報
+- **GET /api/sysconfig/locale**: ロケール情報
+- **GET /api/sysconfig/kernel**: カーネル情報
+- **GET /api/sysconfig/uptime**: システム稼働時間
+- **GET /api/sysconfig/modules**: カーネルモジュール一覧
+- **frontend/dev/sysconfig.html** / **frontend/prod/sysconfig.html**: システム設定UI + ライト/ダークテーマ切り替え
+
+### Tests
+- **1952 PASS / 0 FAIL / 41 SKIP**
+- カバレッジ: 95.46%
+
+---
+
+## [0.13.0] - 2026-02-29
+
+**v0.13.0 リリース** - FTP/Squid/DHCP/Sensors/Routing モジュール群
+
+### Added
+
+#### v0.13 モジュール (Step 7-9)
+- **FTP/ProFTPD 管理** (`GET /api/ftp/*`): status/users/config/logs
+- **Squid Proxy 管理** (`GET /api/squid/*`): status/cache/config/logs
+- **DHCP Server 管理** (`GET /api/dhcp/*`): status/leases/config/pools/logs
+- **lm-sensors 監視** (`GET /api/sensors/*`): all/temperature/fans/voltage
+- **Routing & Gateways** (`GET /api/routing/*`): routes/gateways/arp/interfaces
+- 各モジュールに wrappers/adminui-*.sh (allowlist制御), テスト20-25件
+
+### Tests
+- **1907 PASS / 0 FAIL / 41 SKIP**
+- カバレッジ: 95.43%
+
+---
+
+## [0.12.0] - 2026-02-28
+
+**v0.12.0 リリース** - SMART/Partitions/Netstat/BIND DNS モジュール群
+
+### Added
+- **SMART Drive Status** (`GET /api/smart/*`): disks/info/health/tests
+- **Disk Partitions** (`GET /api/partitions/*`): list/usage/detail
+- **Netstat** (`GET /api/netstat/*`): connections/listening/stats/routes
+- **BIND DNS Server** (`GET /api/bind/*`): status/zones/config/logs
+
+### Tests
+- **1798 PASS / 0 FAIL / 41 SKIP** / カバレッジ: 95.94%
+
+---
+
+## [0.11.0] - 2026-02-28
+
+**v0.11.0 リリース** - MySQL/MariaDB + PostgreSQL 管理モジュール
+
+### Added
+- **MySQL/MariaDB 管理** (`GET /api/mysql/*`): status/databases/users/processes/variables/logs
+- **PostgreSQL 管理** (`GET /api/postgresql/*`): status/databases/users/activity/config/logs
+
+### Tests
+- **1745 PASS / 0 FAIL / 41 SKIP** / カバレッジ: 96%
+
+---
+
 ## [0.10.1] - 2026-02-27
 
 **v0.10.1 リリース** - 本番環境準備完了・Systemd本番サービス稼働
