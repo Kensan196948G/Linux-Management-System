@@ -131,7 +131,7 @@ async def get_interfaces(
             from datetime import datetime as _dt
 
             proc = _sp.run(
-                ["ip", "-j", "addr", "show"],
+                ["/usr/sbin/ip", "-j", "addr", "show"],
                 capture_output=True, text=True, timeout=10
             )
             if proc.returncode == 0:

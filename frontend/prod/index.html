@@ -46,6 +46,11 @@
     <script src="../js/api.js"></script>
     <script src="../js/env-config.js"></script>
     <script>
+        function escapeHtml(str) {
+            if (typeof str !== 'string') return '';
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
         // DOMContentLoadedイベントを待つ（CRITICAL BUG FIX）
         document.addEventListener('DOMContentLoaded', () => {
             console.log('=== Login Page Initialized ===');
@@ -121,7 +126,7 @@
 
             } catch (error) {
                 console.error('Login failed:', error);
-                alertsEl.innerHTML = `<div class="alert alert-error">❌ ログインに失敗しました: ${error.message || 'ネットワークエラー'}</div>`;
+                alertsEl.innerHTML = `<div class="alert alert-error">ログインに失敗しました: ${escapeHtml(error.message || 'ネットワークエラー')}</div>`;
 
                 // ボタンを再度有効化
                 submitBtn.disabled = false;

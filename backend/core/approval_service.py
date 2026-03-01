@@ -213,8 +213,8 @@ class ApprovalService:
                 )
                 await db.commit()
                 logger.info("Migrated approval_requests: added executed_by column")
-            except Exception:
-                pass  # 既にカラムが存在する場合は無視
+            except Exception as e:
+                logger.debug("Column executed_by already exists or migration skipped: %s", e)
 
         logger.info("Approval workflow database initialized successfully")
 
@@ -1514,22 +1514,22 @@ class ApprovalService:
             where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
             # 総件数取得
-            count_query = (  # nosec B608
+            count_query = (
                 "SELECT COUNT(*) as total"
                 " FROM approval_history h"
                 " LEFT JOIN approval_requests r ON h.approval_request_id = r.id"
-                f" WHERE {where_sql}"
+                f" WHERE {where_sql}"  # nosec B608 - where_sql is built from fixed strings
             )
             async with db.execute(count_query, params) as cursor:
                 total = (await cursor.fetchone())["total"]
 
             # 履歴取得（ページネーション）
             offset = (page - 1) * per_page
-            query = (  # nosec B608
+            query = (
                 "SELECT h.*, r.request_type, r.requester_name"
                 " FROM approval_history h"
                 " LEFT JOIN approval_requests r ON h.approval_request_id = r.id"
-                f" WHERE {where_sql}"
+                f" WHERE {where_sql}"  # nosec B608 - where_sql is built from fixed strings
                 " ORDER BY h.timestamp DESC"
                 " LIMIT ? OFFSET ?"
             )

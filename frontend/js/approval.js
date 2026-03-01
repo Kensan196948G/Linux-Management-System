@@ -24,6 +24,15 @@ class ApprovalManager {
         this.currentRequestId = null; // 詳細表示中のリクエストID
         this.emergencyRejectRequestId = null; // 緊急拒否対象のリクエストID
 
+        // 履歴ページネーション
+        this.historyPage = 1;
+        this.historyPerPage = 20;
+        this.historyTotal = 0;
+        this.historyTotalPages = 1;
+
+        // 統計タブデータ
+        this.statsTabData = null;
+
         // モーダルインスタンス
         this.detailModal = null;
         this.approveModal = null;
@@ -268,7 +277,10 @@ class ApprovalManager {
 
         // タブ切り替え時の更新
         document.getElementById('history-tab')?.addEventListener('shown.bs.tab', () => {
-            this.refreshHistory();
+            this.refreshHistory(1);
+        });
+        document.getElementById('stats-tab')?.addEventListener('shown.bs.tab', () => {
+            this.loadStatsTab();
         });
     }
 
@@ -293,6 +305,8 @@ class ApprovalManager {
                     await this.refreshMyRequests();
                 } else if (tabId === 'history-tab') {
                     await this.refreshHistory();
+                } else if (tabId === 'stats-tab') {
+                    await this.loadStatsTab();
                 }
             }
 
@@ -372,7 +386,10 @@ class ApprovalManager {
     /**
      * 承認履歴更新
      */
-    async refreshHistory() {
+    async refreshHistory(page) {
+        if (typeof page === 'number') {
+            this.historyPage = page;
+        }
         try {
             // フィルタパラメータ取得
             const params = new URLSearchParams();
@@ -385,19 +402,89 @@ class ApprovalManager {
             if (endDate) params.append('end_date', endDate + 'T23:59:59Z');
             if (typeFilter) params.append('request_type', typeFilter);
             if (actionFilter) params.append('action', actionFilter);
+            params.append('page', String(this.historyPage));
+            params.append('per_page', String(this.historyPerPage));
 
             const response = await api.request('GET', `/api/approval/history?${params.toString()}`);
             if (response.status === 'success') {
-                this.historyEntries = response.history || [];
-                console.log('History entries loaded:', this.historyEntries.length);
+                this.historyEntries = response.items || response.history || [];
+                this.historyTotal = response.total || this.historyEntries.length;
+                this.historyTotalPages = response.total_pages || Math.ceil(this.historyTotal / this.historyPerPage) || 1;
+                console.log('History entries loaded:', this.historyEntries.length, 'total:', this.historyTotal);
 
                 // リスト描画
                 this.renderHistory();
+                this.renderHistoryPagination();
             }
         } catch (error) {
             console.error('Failed to load history:', error);
             this.showError('history-list', '承認履歴の読み込みに失敗しました');
         }
+    }
+
+    /**
+     * 履歴のフィルタクエリ文字列を構築（エクスポート共用）
+     */
+    buildHistoryFilterParams() {
+        const params = new URLSearchParams();
+        const startDate = document.getElementById('history-start-date')?.value;
+        const endDate = document.getElementById('history-end-date')?.value;
+        const typeFilter = document.getElementById('history-filter-type')?.value;
+
+        if (startDate) params.append('start_date', startDate + 'T00:00:00Z');
+        if (endDate) params.append('end_date', endDate + 'T23:59:59Z');
+        if (typeFilter) params.append('request_type', typeFilter);
+        return params;
+    }
+
+    /**
+     * 認証付きファイルダウンロード（fetch + Blob）
+     */
+    async downloadWithAuth(url) {
+        try {
+            const token = localStorage.getItem('access_token');
+            const baseURL = window.location.origin;
+            const fullUrl = baseURL + url;
+
+            const response = await fetch(fullUrl, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + (token || ''),
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('ダウンロードに失敗しました (HTTP ' + response.status + ')');
+            }
+
+            const blob = await response.blob();
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename=([^;]+)/);
+            const filename = filenameMatch ? filenameMatch[1].trim() : 'export';
+
+            const objectUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objectUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(objectUrl);
+
+            this.showNotification('ダウンロードを開始しました', 'success');
+        } catch (error) {
+            console.error('Download failed:', error);
+            this.showNotification('ダウンロードに失敗しました: ' + this.escapeHtml(String(error.message || error)), 'danger');
+        }
+    }
+
+    /**
+     * エクスポートボタンクリック
+     */
+    downloadExport(format) {
+        const params = this.buildHistoryFilterParams();
+        params.append('format', format);
+        this.downloadWithAuth('/api/approval/history/export?' + params.toString());
     }
 
     /**
@@ -592,31 +679,72 @@ class ApprovalManager {
             return;
         }
 
-        let html = '<div class="timeline">';
-        this.historyEntries.forEach(entry => {
-            html += `
-                <div class="timeline-item">
-                    <div class="timeline-time">${this.formatDateTime(entry.timestamp)}</div>
-                    <div class="timeline-content">
-                        <div class="timeline-actor">${this.escapeHtml(entry.actor_name)} (${this.escapeHtml(entry.actor_role)})</div>
-                        <div>
-                            <strong>${this.escapeHtml(entry.action)}</strong>:
-                            ${this.escapeHtml(entry.request_type)}
-                            <span class="badge bg-secondary">${this.escapeHtml(entry.approval_request_id.substring(0, 8))}</span>
-                            <button class="btn btn-outline-primary btn-sm ms-2" onclick="approvalManager.showRequestDetail('${this.escapeHtml(entry.approval_request_id)}')">
-                                詳細
-                            </button>
-                        </div>
-                        ${entry.previous_status ? `<div style="font-size: 12px; color: #6c757d; margin-top: 4px;">${this.escapeHtml(entry.previous_status)} → ${this.escapeHtml(entry.new_status)}</div>` : ''}
-                        ${entry.reason ? `<div style="font-size: 13px; color: #495057; margin-top: 4px; padding: 6px; background-color: #f0f0f0; border-radius: 4px;">${this.escapeHtml(entry.reason)}</div>` : ''}
-                        ${entry.signature_valid === false ? '<div style="color: #dc3545; font-weight: bold; margin-top: 4px;">署名検証失敗</div>' : ''}
-                    </div>
-                </div>
-            `;
-        });
-        html += '</div>';
+        let html = '<table class="table table-sm table-hover table-bordered">';
+        html += '<thead class="table-light"><tr>';
+        html += '<th>リクエストID</th><th>種別</th><th>アクション</th><th>実行者</th><th>日時</th><th>署名</th>';
+        html += '</tr></thead><tbody>';
 
+        this.historyEntries.forEach(entry => {
+            const shortId = entry.approval_request_id ? this.escapeHtml(entry.approval_request_id.substring(0, 8)) : '-';
+            const sigIcon = entry.signature_valid === false
+                ? '<span style="color: #dc3545; font-weight: bold;">無効</span>'
+                : '<span style="color: #28a745;">有効</span>';
+            html += '<tr style="cursor: pointer;" onclick="approvalManager.showRequestDetail(\'' + this.escapeHtml(entry.approval_request_id || '') + '\')">';
+            html += '<td><code>' + shortId + '</code></td>';
+            html += '<td>' + this.escapeHtml(entry.request_type || '-') + '</td>';
+            html += '<td><span class="status-badge status-' + this.escapeHtml(entry.action || '') + '">' + this.escapeHtml(entry.action || '-') + '</span></td>';
+            html += '<td>' + this.escapeHtml(entry.actor_name || '-') + '</td>';
+            html += '<td>' + this.formatDateTime(entry.timestamp) + '</td>';
+            html += '<td>' + sigIcon + '</td>';
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
         container.innerHTML = html;
+    }
+
+    /**
+     * 履歴ページネーション描画
+     */
+    renderHistoryPagination() {
+        const nav = document.getElementById('history-pagination');
+        const info = document.getElementById('history-page-info');
+        const buttons = document.getElementById('history-page-buttons');
+        if (!nav || !info || !buttons) return;
+
+        if (this.historyTotal <= this.historyPerPage) {
+            nav.style.display = 'none';
+            return;
+        }
+        nav.style.display = 'block';
+
+        const start = (this.historyPage - 1) * this.historyPerPage + 1;
+        const end = Math.min(this.historyPage * this.historyPerPage, this.historyTotal);
+        info.textContent = start + ' - ' + end + ' / ' + this.historyTotal + ' 件';
+
+        let btnHtml = '';
+        // 前へ
+        btnHtml += '<li class="page-item' + (this.historyPage <= 1 ? ' disabled' : '') + '">';
+        btnHtml += '<a class="page-link" href="#" onclick="event.preventDefault(); approvalManager.refreshHistory(' + (this.historyPage - 1) + ')">前</a></li>';
+
+        // ページ番号（最大5つ表示）
+        const maxVisible = 5;
+        let pageStart = Math.max(1, this.historyPage - Math.floor(maxVisible / 2));
+        let pageEnd = Math.min(this.historyTotalPages, pageStart + maxVisible - 1);
+        if (pageEnd - pageStart < maxVisible - 1) {
+            pageStart = Math.max(1, pageEnd - maxVisible + 1);
+        }
+
+        for (let p = pageStart; p <= pageEnd; p++) {
+            btnHtml += '<li class="page-item' + (p === this.historyPage ? ' active' : '') + '">';
+            btnHtml += '<a class="page-link" href="#" onclick="event.preventDefault(); approvalManager.refreshHistory(' + p + ')">' + p + '</a></li>';
+        }
+
+        // 次へ
+        btnHtml += '<li class="page-item' + (this.historyPage >= this.historyTotalPages ? ' disabled' : '') + '">';
+        btnHtml += '<a class="page-link" href="#" onclick="event.preventDefault(); approvalManager.refreshHistory(' + (this.historyPage + 1) + ')">次</a></li>';
+
+        buttons.innerHTML = btnHtml;
     }
 
     /**
@@ -1126,6 +1254,117 @@ class ApprovalManager {
             "'": '&#039;'
         };
         return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    /**
+     * 統計タブ読み込み
+     */
+    async loadStatsTab() {
+        const loading = document.getElementById('stats-loading');
+        const empty = document.getElementById('stats-empty');
+        const cards = document.getElementById('stats-cards');
+        const statusTable = document.getElementById('stats-status-table');
+        const typeTable = document.getElementById('stats-type-table');
+
+        // ローディング表示
+        if (loading) loading.style.display = 'block';
+        if (empty) empty.style.display = 'none';
+        if (cards) cards.style.display = 'none';
+        if (statusTable) statusTable.style.display = 'none';
+        if (typeTable) typeTable.style.display = 'none';
+
+        try {
+            const period = document.getElementById('stats-period')?.value || '30d';
+            const response = await api.request('GET', '/api/approval/stats?period=' + encodeURIComponent(period));
+
+            if (loading) loading.style.display = 'none';
+
+            if (response.status === 'success') {
+                this.statsTabData = response.stats || response;
+                this.renderStatsTab();
+            } else {
+                if (empty) empty.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Failed to load stats tab:', error);
+            if (loading) loading.style.display = 'none';
+            if (empty) empty.style.display = 'block';
+        }
+    }
+
+    /**
+     * 統計タブ描画
+     */
+    renderStatsTab() {
+        const data = this.statsTabData;
+        if (!data) return;
+
+        const cards = document.getElementById('stats-cards');
+        const statusTable = document.getElementById('stats-status-table');
+        const typeTable = document.getElementById('stats-type-table');
+        const empty = document.getElementById('stats-empty');
+
+        // カード表示
+        if (cards) {
+            cards.style.display = 'flex';
+            const approvedEl = document.getElementById('stats-total-approved');
+            const rejectedEl = document.getElementById('stats-total-rejected');
+            const todayEl = document.getElementById('stats-today');
+            const weekEl = document.getElementById('stats-this-week');
+
+            if (approvedEl) approvedEl.textContent = data.approved || data.total_approved || 0;
+            if (rejectedEl) rejectedEl.textContent = data.rejected || data.total_rejected || 0;
+            if (todayEl) todayEl.textContent = data.today || data.today_requests || 0;
+            if (weekEl) weekEl.textContent = data.this_week || data.week_requests || 0;
+        }
+
+        // ステータス別テーブル
+        const statusCounts = data.status_counts;
+        if (statusCounts && statusTable) {
+            statusTable.style.display = 'block';
+            const tbody = document.getElementById('stats-status-tbody');
+            if (tbody) {
+                let html = '';
+                if (Array.isArray(statusCounts)) {
+                    statusCounts.forEach(item => {
+                        html += '<tr><td>' + this.escapeHtml(String(item.status || item.name || '-')) + '</td><td>' + this.escapeHtml(String(item.count || 0)) + '</td></tr>';
+                    });
+                } else {
+                    Object.entries(statusCounts).forEach(([key, val]) => {
+                        html += '<tr><td>' + this.escapeHtml(key) + '</td><td>' + this.escapeHtml(String(val)) + '</td></tr>';
+                    });
+                }
+                tbody.innerHTML = html || '<tr><td colspan="2" class="text-muted text-center">データなし</td></tr>';
+            }
+        }
+
+        // 種別別テーブル
+        const typeCounts = data.type_counts;
+        if (typeCounts && typeTable) {
+            typeTable.style.display = 'block';
+            const tbody = document.getElementById('stats-type-tbody');
+            if (tbody) {
+                let html = '';
+                if (Array.isArray(typeCounts)) {
+                    typeCounts.forEach(item => {
+                        html += '<tr><td>' + this.escapeHtml(String(item.type || item.name || '-')) + '</td><td>' + this.escapeHtml(String(item.count || 0)) + '</td></tr>';
+                    });
+                } else {
+                    Object.entries(typeCounts).forEach(([key, val]) => {
+                        html += '<tr><td>' + this.escapeHtml(key) + '</td><td>' + this.escapeHtml(String(val)) + '</td></tr>';
+                    });
+                }
+                tbody.innerHTML = html || '<tr><td colspan="2" class="text-muted text-center">データなし</td></tr>';
+            }
+        }
+
+        // データが全くない場合
+        if (!statusCounts && !typeCounts && empty) {
+            const hasAnyData = (data.approved || data.total_approved || data.rejected || data.total_rejected || data.today || data.today_requests);
+            if (!hasAnyData) {
+                empty.style.display = 'block';
+            }
+        }
     }
 
     /**

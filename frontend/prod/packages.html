@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>パッケージ管理 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .table-compact td, .table-compact th { padding: 6px 10px; font-size: 13px; }
+        .approval-notice {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #1e40af;
+            margin-bottom: 16px;
+        }
+        .urgency-high { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .urgency-medium { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .urgency-low { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .urgency-unknown { background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .pkg-count { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+        .search-box { max-width: 350px; margin-bottom: 12px; }
+        .dryrun-summary {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .dryrun-summary .summary-item {
+            display: inline-block;
+            margin-right: 24px;
+            font-size: 14px;
+        }
+        .dryrun-summary .summary-value {
+            font-weight: bold;
+            font-size: 18px;
+            color: #2563eb;
+        }
+        .text-truncate-50 {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">Package Updates - パッケージ管理</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshCurrentTab()" id="refresh-btn">
+                更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-3" id="packages-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('installed')" id="tab-installed">
+                        インストール済み
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('updates')" id="tab-updates">
+                        更新可能
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('security')" id="tab-security">
+                        セキュリティ更新
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('dryrun')" id="tab-dryrun">
+                        ドライラン
+                    </a>
+                </li>
+            </ul>
+
+            <!-- タブ1: インストール済み -->
+            <div id="pane-installed">
+                <input type="text" class="form-control form-control-sm search-box" id="installed-search"
+                       placeholder="パッケージ名で検索..." oninput="filterInstalled()">
+                <div class="pkg-count" id="installed-count"></div>
+                <div id="installed-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="installed-content" style="display:none"></div>
+            </div>
+
+            <!-- タブ2: 更新可能 -->
+            <div id="pane-updates" style="display:none">
+                <div class="approval-notice">
+                    承認フロー経由: パッケージの更新申請は管理者の承認を経て適用されます。
+                </div>
+                <div class="pkg-count" id="updates-count"></div>
+                <div id="updates-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="updates-content" style="display:none"></div>
+            </div>
+
+            <!-- タブ3: セキュリティ更新 -->
+            <div id="pane-security" style="display:none">
+                <div class="pkg-count" id="security-count"></div>
+                <div id="security-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="security-content" style="display:none"></div>
+            </div>
+
+            <!-- タブ4: ドライラン -->
+            <div id="pane-dryrun" style="display:none">
+                <p class="text-muted" style="font-size:13px">
+                    実際にはインストールせず、アップグレード対象パッケージを事前確認します。
+                </p>
+                <button class="btn btn-sm btn-primary mb-3" id="dryrun-btn" onclick="executeDryrun()">
+                    ドライラン実行
+                </button>
+                <div id="dryrun-loading" class="text-center py-4 text-muted" style="display:none">実行中...</div>
+                <div id="dryrun-content" style="display:none"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 更新申請 Modal -->
+<div class="modal fade" id="upgradeModal" tabindex="-1" aria-labelledby="upgradeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="upgradeModalLabel">パッケージ更新申請</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <p>以下のパッケージの更新を申請します:</p>
+                <div id="upgradePackageDetail" class="p-2 bg-light rounded mb-3" style="font-size:13px;"></div>
+                <div class="mb-3">
+                    <label for="upgrade-reason" class="form-label">申請理由 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="upgrade-reason"
+                           placeholder="例: セキュリティパッチ適用のため" maxlength="200" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-sm btn-warning" id="confirmUpgradeBtn" onclick="executeUpgrade()">更新申請</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 全更新申請 Modal -->
+<div class="modal fade" id="upgradeAllModal" tabindex="-1" aria-labelledby="upgradeAllModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="upgradeAllModalLabel">全パッケージ更新申請</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <p>更新可能な<strong>全パッケージ</strong>の更新を申請します。</p>
+                <div class="text-danger" style="font-size:12px;">この操作は承認フローを経て適用されます。</div>
+                <div class="mb-3 mt-3">
+                    <label for="upgrade-all-reason" class="form-label">申請理由 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="upgrade-all-reason"
+                           placeholder="例: 定期メンテナンス" maxlength="200" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirmUpgradeAllBtn" onclick="executeUpgradeAll()">全て更新申請</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast 通知 -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index:1080;">
+    <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header" id="toastHeader">
+            <strong class="me-auto" id="toastTitle">通知</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="閉じる"></button>
+        </div>
+        <div class="toast-body" id="toastBody"></div>
+    </div>
+</div>
+
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('packages')):renderSidebar('packages');</script>
+<script>
+let currentTab = 'installed';
+let installedData = [];
+let pendingUpgradePackage = null;
+
+// ===================================================================
+// XSS対策
+// ===================================================================
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// ===================================================================
+// Toast通知
+// ===================================================================
+function showToast(msg, type) {
+    var toastEl = document.getElementById('liveToast');
+    var toastHeader = document.getElementById('toastHeader');
+    var toastTitle = document.getElementById('toastTitle');
+    var toastBody = document.getElementById('toastBody');
+    toastHeader.className = 'toast-header';
+    if (type === 'success') {
+        toastHeader.classList.add('text-bg-success');
+        toastTitle.textContent = '成功';
+    } else if (type === 'danger') {
+        toastHeader.classList.add('text-bg-danger');
+        toastTitle.textContent = 'エラー';
+    } else if (type === 'warning') {
+        toastHeader.classList.add('text-bg-warning');
+        toastTitle.textContent = '警告';
+    } else {
+        toastHeader.classList.add('text-bg-info');
+        toastTitle.textContent = '情報';
+    }
+    toastBody.textContent = msg;
+    var toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+    toast.show();
+}
+
+// ===================================================================
+// タブ制御
+// ===================================================================
+function showTab(tab) {
+    ['installed', 'updates', 'security', 'dryrun'].forEach(function(t) {
+        document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    });
+    currentTab = tab;
+    if (tab === 'installed') loadInstalled();
+    else if (tab === 'updates') loadUpdates();
+    else if (tab === 'security') loadSecurity();
+}
+
+function refreshCurrentTab() {
+    showTab(currentTab);
+    if (currentTab === 'dryrun') executeDryrun();
+}
+
+// ===================================================================
+// タブ1: インストール済み
+// ===================================================================
+async function loadInstalled() {
+    var loading = document.getElementById('installed-loading');
+    var content = document.getElementById('installed-content');
+    var countEl = document.getElementById('installed-count');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        var data = await api.request('GET', '/api/packages/installed');
+        installedData = data.packages || [];
+        countEl.textContent = installedData.length + ' パッケージ';
+        renderInstalledTable(installedData);
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = '<div class="alert alert-warning">取得失敗: ' + escapeHtml(e.message) + '</div>';
+    }
+}
+
+function renderInstalledTable(pkgs) {
+    var content = document.getElementById('installed-content');
+    if (!pkgs || pkgs.length === 0) {
+        content.innerHTML = '<div class="text-muted">パッケージが見つかりません</div>';
+        return;
+    }
+    var rows = pkgs.map(function(pkg) {
+        var desc = escapeHtml(truncate(pkg.description || pkg.status || '', 50));
+        return '<tr>' +
+            '<td>' + escapeHtml(pkg.name || '') + '</td>' +
+            '<td>' + escapeHtml(pkg.version || '') + '</td>' +
+            '<td>' + escapeHtml(pkg.arch || pkg.architecture || '') + '</td>' +
+            '<td class="text-truncate-50" title="' + escapeHtml(pkg.description || pkg.status || '') + '">' + desc + '</td>' +
+            '</tr>';
+    }).join('');
+    content.innerHTML =
+        '<table class="table table-sm table-hover table-compact">' +
+        '<thead class="table-dark"><tr><th>パッケージ名</th><th>バージョン</th><th>アーキテクチャ</th><th>説明</th></tr></thead>' +
+        '<tbody id="installed-tbody">' + rows + '</tbody></table>';
+}
+
+function filterInstalled() {
+    var query = document.getElementById('installed-search').value.toLowerCase();
+    var filtered = installedData.filter(function(pkg) {
+        return (pkg.name || '').toLowerCase().indexOf(query) !== -1;
+    });
+    document.getElementById('installed-count').textContent = filtered.length + ' / ' + installedData.length + ' パッケージ';
+    renderInstalledTable(filtered);
+}
+
+// ===================================================================
+// タブ2: 更新可能
+// ===================================================================
+async function loadUpdates() {
+    var loading = document.getElementById('updates-loading');
+    var content = document.getElementById('updates-content');
+    var countEl = document.getElementById('updates-count');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        var data = await api.request('GET', '/api/packages/updates');
+        var pkgs = data.updates || data.packages || [];
+        countEl.textContent = pkgs.length + ' 件の更新';
+        if (pkgs.length === 0) {
+            content.innerHTML = '<div class="text-muted">更新可能なパッケージはありません</div>';
+        } else {
+            var rows = pkgs.map(function(pkg) {
+                var desc = escapeHtml(truncate(pkg.description || '', 50));
+                var name = escapeHtml(pkg.name || '');
+                return '<tr>' +
+                    '<td>' + name + '</td>' +
+                    '<td>' + escapeHtml(pkg.current_version || '') + '</td>' +
+                    '<td>' + escapeHtml(pkg.new_version || '') + '</td>' +
+                    '<td class="text-truncate-50" title="' + escapeHtml(pkg.description || '') + '">' + desc + '</td>' +
+                    '<td><button class="btn btn-sm btn-outline-warning" style="font-size:11px;padding:1px 6px;" ' +
+                    'onclick="confirmUpgrade(\'' + escapeHtml(pkg.name || '') + '\', \'' + escapeHtml(pkg.current_version || '') + '\', \'' + escapeHtml(pkg.new_version || '') + '\')">更新申請</button></td>' +
+                    '</tr>';
+            }).join('');
+            content.innerHTML =
+                '<div class="mb-2"><button class="btn btn-sm btn-outline-danger" onclick="confirmUpgradeAll()">全て更新申請</button></div>' +
+                '<table class="table table-sm table-hover table-compact">' +
+                '<thead class="table-dark"><tr><th>パッケージ名</th><th>現バージョン</th><th>新バージョン</th><th>説明</th><th>操作</th></tr></thead>' +
+                '<tbody>' + rows + '</tbody></table>';
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = '<div class="alert alert-warning">取得失敗: ' + escapeHtml(e.message) + '</div>';
+    }
+}
+
+// ===================================================================
+// タブ3: セキュリティ更新
+// ===================================================================
+async function loadSecurity() {
+    var loading = document.getElementById('security-loading');
+    var content = document.getElementById('security-content');
+    var countEl = document.getElementById('security-count');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        var data = await api.request('GET', '/api/packages/security');
+        var pkgs = data.security_updates || data.packages || [];
+        countEl.textContent = pkgs.length + ' 件のセキュリティ更新';
+        if (pkgs.length === 0) {
+            content.innerHTML = '<div class="text-muted">セキュリティ更新はありません</div>';
+        } else {
+            var rows = pkgs.map(function(pkg) {
+                var urgency = (pkg.urgency || 'unknown').toLowerCase();
+                var urgencyClass = 'urgency-unknown';
+                if (urgency === 'high' || urgency === 'critical' || urgency === 'emergency') urgencyClass = 'urgency-high';
+                else if (urgency === 'medium') urgencyClass = 'urgency-medium';
+                else if (urgency === 'low') urgencyClass = 'urgency-low';
+                var desc = escapeHtml(truncate(pkg.description || '', 50));
+                return '<tr>' +
+                    '<td>' + escapeHtml(pkg.name || '') + '</td>' +
+                    '<td>' + escapeHtml(pkg.version || pkg.new_version || '') + '</td>' +
+                    '<td><span class="' + urgencyClass + '">' + escapeHtml(pkg.urgency || 'unknown') + '</span></td>' +
+                    '<td class="text-truncate-50" title="' + escapeHtml(pkg.description || '') + '">' + desc + '</td>' +
+                    '</tr>';
+            }).join('');
+            content.innerHTML =
+                '<table class="table table-sm table-hover table-compact">' +
+                '<thead class="table-dark"><tr><th>パッケージ名</th><th>バージョン</th><th>緊急度</th><th>説明</th></tr></thead>' +
+                '<tbody>' + rows + '</tbody></table>';
+        }
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = '<div class="alert alert-warning">取得失敗: ' + escapeHtml(e.message) + '</div>';
+    }
+}
+
+// ===================================================================
+// タブ4: ドライラン
+// ===================================================================
+async function executeDryrun() {
+    var loading = document.getElementById('dryrun-loading');
+    var content = document.getElementById('dryrun-content');
+    var btn = document.getElementById('dryrun-btn');
+    loading.style.display = ''; content.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = '実行中...';
+    try {
+        var data = await api.request('GET', '/api/packages/upgrade/dryrun');
+        var pkgs = data.packages || [];
+        var count = data.count || pkgs.length;
+        var msg = data.message || '';
+        var html = '<div class="dryrun-summary">' +
+            '<div class="summary-item">影響パッケージ数: <span class="summary-value">' + count + '</span></div>' +
+            (msg ? '<div class="summary-item">メッセージ: ' + escapeHtml(msg) + '</div>' : '') +
+            '</div>';
+        if (pkgs.length > 0) {
+            var rows = pkgs.map(function(pkg) {
+                return '<tr>' +
+                    '<td>' + escapeHtml(pkg.name || '') + '</td>' +
+                    '<td>' + escapeHtml(pkg.current_version || pkg.version || '') + '</td>' +
+                    '<td>' + escapeHtml(pkg.new_version || '') + '</td>' +
+                    '<td>' + escapeHtml(pkg.arch || '') + '</td>' +
+                    '</tr>';
+            }).join('');
+            html += '<table class="table table-sm table-hover table-compact">' +
+                '<thead class="table-dark"><tr><th>パッケージ名</th><th>現バージョン</th><th>新バージョン</th><th>アーキテクチャ</th></tr></thead>' +
+                '<tbody>' + rows + '</tbody></table>';
+        } else {
+            html += '<div class="text-muted">アップグレード対象パッケージはありません</div>';
+        }
+        content.innerHTML = html;
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = '<div class="alert alert-warning">ドライラン失敗: ' + escapeHtml(e.message) + '</div>';
+        loading.style.display = '';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'ドライラン実行';
+    }
+}
+
+// ===================================================================
+// 更新申請（単体）
+// ===================================================================
+function confirmUpgrade(name, currentVer, newVer) {
+    pendingUpgradePackage = name;
+    document.getElementById('upgradePackageDetail').innerHTML =
+        '<strong>' + escapeHtml(name) + '</strong> : ' +
+        escapeHtml(currentVer) + ' → ' + escapeHtml(newVer);
+    document.getElementById('upgrade-reason').value = '';
+    var modal = new bootstrap.Modal(document.getElementById('upgradeModal'));
+    modal.show();
+}
+
+async function executeUpgrade() {
+    if (!pendingUpgradePackage) return;
+    var reason = document.getElementById('upgrade-reason').value.trim();
+    if (!reason) {
+        showToast('申請理由を入力してください。', 'warning');
+        return;
+    }
+    var pkgName = pendingUpgradePackage;
+    pendingUpgradePackage = null;
+    var btn = document.getElementById('confirmUpgradeBtn');
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+    var modalEl = document.getElementById('upgradeModal');
+    var modal = bootstrap.Modal.getInstance(modalEl);
+    try {
+        await api.request('POST', '/api/packages/upgrade', { package_name: pkgName, reason: reason });
+        if (modal) modal.hide();
+        showToast(pkgName + ' の更新申請を送信しました。', 'success');
+        loadUpdates();
+    } catch (e) {
+        if (modal) modal.hide();
+        showToast('更新申請に失敗しました: ' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '更新申請';
+    }
+}
+
+// ===================================================================
+// 更新申請（全体）
+// ===================================================================
+function confirmUpgradeAll() {
+    document.getElementById('upgrade-all-reason').value = '';
+    var modal = new bootstrap.Modal(document.getElementById('upgradeAllModal'));
+    modal.show();
+}
+
+async function executeUpgradeAll() {
+    var reason = document.getElementById('upgrade-all-reason').value.trim();
+    if (!reason) {
+        showToast('申請理由を入力してください。', 'warning');
+        return;
+    }
+    var btn = document.getElementById('confirmUpgradeAllBtn');
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+    var modalEl = document.getElementById('upgradeAllModal');
+    var modal = bootstrap.Modal.getInstance(modalEl);
+    try {
+        await api.request('POST', '/api/packages/upgrade-all', { reason: reason });
+        if (modal) modal.hide();
+        showToast('全パッケージの更新申請を送信しました。', 'success');
+        loadUpdates();
+    } catch (e) {
+        if (modal) modal.hide();
+        showToast('全更新申請に失敗しました: ' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '全て更新申請';
+    }
+}
+
+// ===================================================================
+// ユーティリティ
+// ===================================================================
+function truncate(str, len) {
+    if (!str) return '';
+    return str.length > len ? str.substring(0, len) + '...' : str;
+}
+
+// ===================================================================
+// 初期化
+// ===================================================================
+document.addEventListener('DOMContentLoaded', async function() {
+    var token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+    api.setToken(token);
+    loadInstalled();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -75,6 +75,7 @@ function showPage(pageName) {
         'postfix': 'Postfix メール - メール管理',
         'smart-status': 'SMART Drive Status - ドライブ健全性',
         'sensors': 'Sensors - ハードウェアセンサー',
+        'packages': 'Package Updates - パッケージ管理',
     };
 
     document.getElementById('page-title').textContent = titles[pageName] || pageName;
@@ -158,6 +159,9 @@ function showPage(pageName) {
         case 'sensors':
             showSensorsPage(mainBody);
             break;
+        case 'packages':
+            location.href = 'packages.html';
+            return;
         default:
             mainBody.innerHTML = `
                 <div class="card">
@@ -287,7 +291,7 @@ function renderSidebar(activePage) {
             </div>
 
             <!-- システム カテゴリ -->
-            <div class="accordion-item ${['bootup','users','cron','processes','logs'].includes(activePage) ? 'open' : ''}">
+            <div class="accordion-item ${['bootup','users','cron','processes','logs','packages'].includes(activePage) ? 'open' : ''}">
                 <div class="accordion-header" onclick="toggleAccordion(this)">
                     <div class="accordion-title"><span>💻</span><span>システム</span></div>
                     <span class="accordion-icon">▼</span>
@@ -312,6 +316,10 @@ function renderSidebar(activePage) {
                         </div>
                         <div class="submenu-item${a('logs')}" onclick="location.href='logs.html'">
                             <div class="submenu-item-name">システムログ</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('packages')}" onclick="location.href='packages.html'">
+                            <div class="submenu-item-name">パッケージ管理</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
                     </div>

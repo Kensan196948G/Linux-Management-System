@@ -149,7 +149,7 @@ function switchTab(name, el) {
 }
 
 function renderUnavail(msg) {
-    return `<div class="unavail-notice">⚠️ ${msg || 'Apache がインストールされていないか、利用できません。'}</div>`;
+    return `<div class="unavail-notice">⚠️ ${escHtml(msg || 'Apache がインストールされていないか、利用できません。')}</div>`;
 }
 
 function renderRaw(text) {

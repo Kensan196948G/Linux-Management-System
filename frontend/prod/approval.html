@@ -462,6 +462,11 @@
                             承認履歴
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats-pane" type="button" role="tab">
+                            統計
+                        </button>
+                    </li>
                 </ul>
 
                 <div class="tab-content" id="approvalTabContent">
@@ -540,41 +545,147 @@
                         <!-- フィルタ -->
                         <div class="filter-controls">
                             <div class="filter-group">
-                                <label>期間（開始）</label>
-                                <input type="date" id="history-start-date" class="form-control form-control-sm">
-                            </div>
-                            <div class="filter-group">
-                                <label>期間（終了）</label>
-                                <input type="date" id="history-end-date" class="form-control form-control-sm">
-                            </div>
-                            <div class="filter-group">
-                                <label>操作種別</label>
-                                <select id="history-filter-type" class="form-select form-select-sm">
-                                    <option value="">全種別</option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
                                 <label>アクション</label>
                                 <select id="history-filter-action" class="form-select form-select-sm">
-                                    <option value="">全アクション</option>
-                                    <option value="created">作成</option>
+                                    <option value="">すべて</option>
                                     <option value="approved">承認</option>
                                     <option value="rejected">拒否</option>
-                                    <option value="expired">期限切れ</option>
-                                    <option value="executed">実行完了</option>
                                     <option value="cancelled">キャンセル</option>
                                 </select>
                             </div>
-                            <div class="filter-group" style="margin-left: auto;">
+                            <div class="filter-group">
+                                <label>操作種別</label>
+                                <input type="text" id="history-filter-type" class="form-control form-control-sm" placeholder="種別で検索">
+                            </div>
+                            <div class="filter-group">
+                                <label>開始日</label>
+                                <input type="date" id="history-start-date" class="form-control form-control-sm">
+                            </div>
+                            <div class="filter-group">
+                                <label>終了日</label>
+                                <input type="date" id="history-end-date" class="form-control form-control-sm">
+                            </div>
+                            <div class="filter-group">
                                 <label>&nbsp;</label>
-                                <button class="btn btn-primary btn-sm" onclick="approvalManager.refreshHistory()">
-                                    🔄 更新
+                                <button class="btn btn-primary btn-sm" onclick="approvalManager.refreshHistory(1)">
+                                    検索
+                                </button>
+                            </div>
+                            <div class="filter-group" style="margin-left: auto;">
+                                <label>エクスポート</label>
+                                <div style="display: flex; gap: 6px;">
+                                    <button class="btn btn-outline-success btn-sm" onclick="approvalManager.downloadExport('csv')">CSV</button>
+                                    <button class="btn btn-outline-info btn-sm" onclick="approvalManager.downloadExport('json')">JSON</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- テーブル -->
+                        <div id="history-list"></div>
+
+                        <!-- ページネーション -->
+                        <nav id="history-pagination" style="display: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                                <div id="history-page-info" style="font-size: 13px; color: #6c757d;"></div>
+                                <ul class="pagination pagination-sm mb-0" id="history-page-buttons"></ul>
+                            </div>
+                        </nav>
+                    </div>
+
+                    <!-- 統計タブ -->
+                    <div class="tab-pane fade" id="stats-pane" role="tabpanel">
+                        <!-- 期間セレクタ -->
+                        <div class="filter-controls">
+                            <div class="filter-group">
+                                <label>集計期間</label>
+                                <select id="stats-period" class="form-select form-select-sm">
+                                    <option value="7d">7日間</option>
+                                    <option value="30d" selected>30日間</option>
+                                    <option value="90d">90日間</option>
+                                    <option value="all">全期間</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>&nbsp;</label>
+                                <button class="btn btn-primary btn-sm" onclick="approvalManager.loadStatsTab()">
+                                    更新
                                 </button>
                             </div>
                         </div>
 
-                        <!-- リスト -->
-                        <div id="history-list"></div>
+                        <!-- 統計カード群 -->
+                        <div id="stats-cards" class="row mb-4" style="display: none;">
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="card text-center border-success">
+                                    <div class="card-body">
+                                        <div class="stat-label text-muted">総承認数</div>
+                                        <div class="stat-value text-success" id="stats-total-approved" style="font-size: 28px; font-weight: bold;">-</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="card text-center border-danger">
+                                    <div class="card-body">
+                                        <div class="stat-label text-muted">総却下数</div>
+                                        <div class="stat-value text-danger" id="stats-total-rejected" style="font-size: 28px; font-weight: bold;">-</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="card text-center border-primary">
+                                    <div class="card-body">
+                                        <div class="stat-label text-muted">今日の申請</div>
+                                        <div class="stat-value text-primary" id="stats-today" style="font-size: 28px; font-weight: bold;">-</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="card text-center border-info">
+                                    <div class="card-body">
+                                        <div class="stat-label text-muted">今週の申請</div>
+                                        <div class="stat-value text-info" id="stats-this-week" style="font-size: 28px; font-weight: bold;">-</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ステータス別テーブル -->
+                        <div id="stats-status-table" class="mb-4" style="display: none;">
+                            <h6>ステータス別集計</h6>
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr><th>ステータス</th><th>件数</th></tr>
+                                </thead>
+                                <tbody id="stats-status-tbody"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- 種別テーブル -->
+                        <div id="stats-type-table" class="mb-4" style="display: none;">
+                            <h6>種別別集計</h6>
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr><th>種別</th><th>件数</th></tr>
+                                </thead>
+                                <tbody id="stats-type-tbody"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- ローディング / 空状態 -->
+                        <div id="stats-loading" style="display: none;">
+                            <div class="loading-spinner">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">読み込み中...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="stats-empty" style="display: none;">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📊</div>
+                                <div class="empty-state-text">統計データがありません</div>
+                                <div class="empty-state-subtext">期間を変更して再度検索してください</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

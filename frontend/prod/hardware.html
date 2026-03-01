@@ -119,6 +119,11 @@ function showTab(tab) {
     else if (tab === 'sensors') loadSensors();
 }
 
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function formatBytes(bytes) {
     if (!bytes) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -213,7 +218,7 @@ async function loadMemory() {
         }
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
     }
 }
 
@@ -247,7 +252,7 @@ async function loadDisk() {
         }
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
     }
 }
 
@@ -292,7 +297,7 @@ async function loadSensors() {
         }
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
     }
 }
 

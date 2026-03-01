@@ -32,5 +32,8 @@ python-dateutil==2.9.0
 # セキュリティ
 cryptography==44.0.0
 
+# システム情報（SSEダッシュボード用）
+psutil>=5.9.0,<7.0.0
+
 # HTTP クライアント（将来使用）
 httpx==0.28.1

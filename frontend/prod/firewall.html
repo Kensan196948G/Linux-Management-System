@@ -260,7 +260,7 @@ async function loadStatus() {
         loading.style.display = 'none';
         bar.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="text-warning" style="font-size:13px">⚠️ ステータス取得失敗: ${e.message}</div>`;
+        loading.innerHTML = `<div class="text-warning" style="font-size:13px">⚠️ ステータス取得失敗: ${escapeHtml(e.message)}</div>`;
     }
 }
 
@@ -272,7 +272,7 @@ async function loadRules() {
     try {
         const data = await api.getFirewallRules();
         if (data.message && !data.tables && !data.ruleset && !data.raw_lines) {
-            content.innerHTML = `<div class="text-muted">${data.message}</div>`;
+            content.innerHTML = `<div class="text-muted">${escapeHtml(data.message)}</div>`;
         } else if (data.raw_lines && data.raw_lines.length > 0) {
             // iptables/nftables raw output
             content.innerHTML = `
@@ -288,7 +288,7 @@ async function loadRules() {
         }
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
     }
 }
 
@@ -346,7 +346,7 @@ async function loadPolicy() {
         }
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
     }
 }
 
@@ -396,7 +396,7 @@ async function submitAddRule(event) {
             </div>`;
             document.getElementById('add-rule-form').reset();
         } else {
-            result.innerHTML = `<div class="alert alert-success">✅ ${data.message || '申請が完了しました'}</div>`;
+            result.innerHTML = `<div class="alert alert-success">${escapeHtml(data.message || '申請が完了しました')}</div>`;
         }
         result.style.display = '';
     } catch (e) {

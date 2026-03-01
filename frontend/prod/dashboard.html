@@ -153,6 +153,29 @@
             animation: spin 0.6s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* SSE接続状態バッジ */
+        .sse-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .sse-badge-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .sse-connected { background: #d1fae5; color: #065f46; }
+        .sse-connected .sse-badge-dot { background: #059669; }
+        .sse-disconnected { background: #fee2e2; color: #991b1b; }
+        .sse-disconnected .sse-badge-dot { background: #dc2626; }
+        .sse-connecting { background: #fef3c7; color: #92400e; }
+        .sse-connecting .sse-badge-dot { background: #f59e0b; }
     </style>
 </head>
 <body>
@@ -164,6 +187,10 @@
             <div class="dashboard-header">
                 <h2 id="page-title">ダッシュボード</h2>
                 <div class="dashboard-header-right">
+                    <span id="sse-status" class="sse-badge sse-disconnected">
+                        <span class="sse-badge-dot"></span>
+                        <span id="sse-status-text">未接続</span>
+                    </span>
                     <span class="last-updated">最終更新: <span id="last-updated">--:--:--</span></span>
                     <button class="btn btn-sm btn-outline-secondary" onclick="refreshDashboard()" id="refresh-btn">
                         更新
@@ -432,6 +459,111 @@ async function refreshDashboard() {
     if (btn) btn.disabled = false;
 }
 
+// ===================================================================
+// SSE (Server-Sent Events) リアルタイム更新
+// ===================================================================
+
+var sseConnection = null;
+var sseReconnectTimer = null;
+
+/** SSE接続状態バッジを更新 */
+function updateSseBadge(state) {
+    var badge = document.getElementById('sse-status');
+    var text = document.getElementById('sse-status-text');
+    if (!badge || !text) return;
+    badge.className = 'sse-badge sse-' + state;
+    if (state === 'connected') text.textContent = 'Live';
+    else if (state === 'connecting') text.textContent = '接続中...';
+    else text.textContent = '未接続';
+}
+
+/** SSEストリームに接続 */
+function connectSSE() {
+    var token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    // 既存接続をクローズ
+    if (sseConnection) {
+        sseConnection.close();
+        sseConnection = null;
+    }
+    if (sseReconnectTimer) {
+        clearTimeout(sseReconnectTimer);
+        sseReconnectTimer = null;
+    }
+
+    updateSseBadge('connecting');
+
+    var streamUrl = window.location.origin + '/api/stream/system?token=' + encodeURIComponent(token);
+    sseConnection = new EventSource(streamUrl);
+
+    sseConnection.onopen = function() {
+        console.log('SSE: connected');
+        updateSseBadge('connected');
+    };
+
+    sseConnection.onmessage = function(event) {
+        try {
+            var data = JSON.parse(event.data);
+            // CPU カードをリアルタイム更新
+            if (data.cpu_percent !== undefined) {
+                var cpuCard = document.getElementById('card-cpu');
+                if (cpuCard) {
+                    var cpuPercent = data.cpu_percent;
+                    cpuCard.className = 'summary-card ' + getCardClass(cpuPercent);
+                    cpuCard.innerHTML =
+                        '<div class="summary-card-value">' + escapeHtml(String(cpuPercent)) + '%</div>' +
+                        '<div class="summary-card-label">CPU使用率</div>' +
+                        '<div class="summary-card-sub">Live</div>';
+                }
+            }
+            // メモリカードをリアルタイム更新
+            if (data.mem_percent !== undefined) {
+                var memCard = document.getElementById('card-memory');
+                if (memCard) {
+                    var memPercent = data.mem_percent;
+                    var memUsed = data.mem_used || '-';
+                    var memTotal = data.mem_total || '-';
+                    memCard.className = 'summary-card ' + getCardClass(memPercent);
+                    memCard.innerHTML =
+                        '<div class="summary-card-value">' + escapeHtml(String(memPercent)) + '%</div>' +
+                        '<div class="summary-card-label">メモリ使用率</div>' +
+                        '<div class="summary-card-sub">' + escapeHtml(String(memUsed)) + ' / ' + escapeHtml(String(memTotal)) + '</div>';
+                }
+            }
+            // 最終更新時刻を更新
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('ja-JP');
+            updateSseBadge('connected');
+        } catch (e) {
+            console.error('SSE: parse error', e);
+        }
+    };
+
+    sseConnection.onerror = function() {
+        console.warn('SSE: connection error, will retry in 5s');
+        updateSseBadge('disconnected');
+        if (sseConnection) {
+            sseConnection.close();
+            sseConnection = null;
+        }
+        // 5秒後に再接続
+        sseReconnectTimer = setTimeout(connectSSE, 5000);
+    };
+}
+
+/** SSE接続を切断 */
+function disconnectSSE() {
+    if (sseReconnectTimer) {
+        clearTimeout(sseReconnectTimer);
+        sseReconnectTimer = null;
+    }
+    if (sseConnection) {
+        sseConnection.close();
+        sseConnection = null;
+    }
+    updateSseBadge('disconnected');
+}
+
 /** 初期化 */
 document.addEventListener('DOMContentLoaded', async function() {
     var token = localStorage.getItem('access_token');
@@ -442,8 +574,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     api.setToken(token);
     if (typeof renderSidebar === 'function') renderSidebar('dashboard');
     await refreshDashboard();
+
+    // SSEリアルタイム更新を開始
+    connectSSE();
+
+    // SSEフォールバック: 30秒ポーリングは維持
     setInterval(refreshDashboard, 30000);
 });
+
+// ページ離脱時にSSE接続をクリーンアップ
+window.addEventListener('beforeunload', disconnectSSE);
 </script>
 <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
