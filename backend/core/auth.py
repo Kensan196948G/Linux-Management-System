@@ -93,6 +93,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # Sensors (lm-sensors)
+            "read:sensors",
+            # Routing & Gateways
+            "read:routing",
         ],
     ),
     "Operator": UserRole(
@@ -134,6 +138,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # Sensors (lm-sensors)
+            "read:sensors",
+            # Routing & Gateways
+            "read:routing",
         ],
     ),
     "Approver": UserRole(
@@ -182,6 +190,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # Sensors (lm-sensors)
+            "read:sensors",
+            # Routing & Gateways
+            "read:routing",
         ],
     ),
     "Admin": UserRole(
@@ -243,6 +255,10 @@ ROLES = {
             "read:smart",
             # Disk Partitions
             "read:partitions",
+            # Sensors (lm-sensors)
+            "read:sensors",
+            # Routing & Gateways
+            "read:routing",
         ],
     ),
 }

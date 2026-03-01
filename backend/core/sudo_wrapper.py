@@ -1668,6 +1668,110 @@ class SudoWrapper:
         """
         return self._execute("adminui-partitions.sh", ["detail"], timeout=15)
 
+    # ------------------------------------------------------------------
+    # センサー (lm-sensors)
+    # ------------------------------------------------------------------
+
+    def get_sensors_all(self) -> Dict[str, Any]:
+        """
+        全センサー情報を取得 (sensors -j)
+
+        Returns:
+            全センサー情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sensors.sh", ["all"], timeout=15)
+
+    def get_sensors_temperature(self) -> Dict[str, Any]:
+        """
+        温度センサー情報を取得
+
+        Returns:
+            温度センサー情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sensors.sh", ["temperature"], timeout=15)
+
+    def get_sensors_fans(self) -> Dict[str, Any]:
+        """
+        ファン速度情報を取得 (RPM)
+
+        Returns:
+            ファン速度情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sensors.sh", ["fans"], timeout=15)
+
+    def get_sensors_voltage(self) -> Dict[str, Any]:
+        """
+        電圧センサー情報を取得
+
+        Returns:
+            電圧センサー情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-sensors.sh", ["voltage"], timeout=15)
+
+    # ------------------------------------------------------------------
+    # ルーティング・ゲートウェイ
+    # ------------------------------------------------------------------
+
+    def get_routing_routes(self) -> Dict[str, Any]:
+        """
+        ルーティングテーブルを取得 (ip route show)
+
+        Returns:
+            ルーティングテーブルの辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-routing.sh", ["routes"], timeout=15)
+
+    def get_routing_gateways(self) -> Dict[str, Any]:
+        """
+        デフォルトゲートウェイ情報を取得 (ip route show default)
+
+        Returns:
+            ゲートウェイ情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-routing.sh", ["gateways"], timeout=15)
+
+    def get_routing_arp(self) -> Dict[str, Any]:
+        """
+        ARP テーブルを取得 (ip neigh show)
+
+        Returns:
+            ARP テーブルの辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-routing.sh", ["arp"], timeout=15)
+
+    def get_routing_interfaces(self) -> Dict[str, Any]:
+        """
+        インターフェース詳細を取得 (ip addr show)
+
+        Returns:
+            インターフェース情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-routing.sh", ["interfaces"], timeout=15)
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()

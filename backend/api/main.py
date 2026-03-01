@@ -16,8 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
-from .routes import approval, audit, auth, bandwidth, bind, bootup, cron, dbmonitor, filesystem, firewall, hardware, logs, mysql, netstat, network, packages, postfix, postgresql, processes, quotas, servers, services, ssh, stream, system, system_time, users, apache
-from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filesystem, firewall, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, ssh, stream, system, system_time, users, apache
+from .routes import approval, audit, auth, bandwidth, bind, bootup, cron, dbmonitor, filesystem, firewall, hardware, logs, mysql, netstat, network, packages, partitions, postfix, postgresql, processes, quotas, routing, sensors, servers, services, smart, ssh, stream, system, system_time, users, apache
 
 # ログ設定
 logging.basicConfig(
@@ -95,6 +94,8 @@ app.include_router(postgresql.router, prefix="/api")
 app.include_router(smart.router, prefix="/api")
 app.include_router(partitions.router, prefix="/api")
 app.include_router(stream.router, prefix="/api")
+app.include_router(sensors.router, prefix="/api")
+app.include_router(routing.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信

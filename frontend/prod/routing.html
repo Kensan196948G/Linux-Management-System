@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ルーティング - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .routing-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .routing-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+        }
+        table.routing-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        table.routing-table th { background: #f3f4f6; color: #374151; padding: 8px 12px; text-align: left; font-weight: 600; }
+        table.routing-table td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; color: #111827; }
+        table.routing-table tr:last-child td { border-bottom: none; }
+        table.routing-table tr:hover td { background: #f9fafb; }
+        .badge-state { font-size: 11px; padding: 2px 8px; border-radius: 12px; }
+        .state-REACHABLE { background: #d1fae5; color: #065f46; }
+        .state-STALE { background: #fef3c7; color: #92400e; }
+        .state-FAILED { background: #fee2e2; color: #991b1b; }
+        .state-default { background: #e5e7eb; color: #374151; }
+        .iface-card { background: #f9fafb; border-radius: 6px; padding: 12px 16px; margin-bottom: 10px; }
+        .iface-name { font-weight: bold; font-size: 14px; color: #111827; }
+        .iface-flag { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: #e0f2fe; color: #0369a1; margin-right: 4px; }
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">🌐 ルーティング &amp; ゲートウェイ</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <ul class="nav nav-tabs mb-3" id="routing-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('routes')" id="tab-routes">📋 ルーティングテーブル</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('gateways')" id="tab-gateways">🚪 ゲートウェイ</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('arp')" id="tab-arp">📡 ARP テーブル</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('interfaces')" id="tab-interfaces">🔌 インターフェース</a>
+                </li>
+            </ul>
+
+            <!-- ルーティングテーブル -->
+            <div id="pane-routes">
+                <div id="routes-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="routes-content" style="display:none"></div>
+            </div>
+
+            <!-- ゲートウェイ -->
+            <div id="pane-gateways" style="display:none">
+                <div id="gateways-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="gateways-content" style="display:none"></div>
+            </div>
+
+            <!-- ARP -->
+            <div id="pane-arp" style="display:none">
+                <div id="arp-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="arp-content" style="display:none"></div>
+            </div>
+
+            <!-- インターフェース -->
+            <div id="pane-interfaces" style="display:none">
+                <div id="interfaces-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="interfaces-content" style="display:none"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+</script>
+<script src="../js/sidebar.js"></script>
+<script>
+let currentTab = 'routes';
+
+function showTab(tab) {
+    ['routes', 'gateways', 'arp', 'interfaces'].forEach(t => {
+        document.getElementById('tab-' + t).classList.remove('active');
+        document.getElementById('pane-' + t).style.display = 'none';
+    });
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('pane-' + tab).style.display = '';
+    currentTab = tab;
+    if (tab === 'routes') loadRoutes();
+    else if (tab === 'gateways') loadGateways();
+    else if (tab === 'arp') loadArp();
+    else if (tab === 'interfaces') loadInterfaces();
+}
+
+async function loadRoutes() {
+    const loading = document.getElementById('routes-loading');
+    const content = document.getElementById('routes-content');
+    loading.style.display = ''; content.style.display = 'none';
+    loading.innerHTML = '<div class="text-center py-4 text-muted">読み込み中...</div>';
+    try {
+        const data = await api.get('/api/routing/routes');
+        loading.style.display = 'none'; content.style.display = '';
+        if (!data.routes || data.routes.length === 0) {
+            content.innerHTML = '<div class="alert alert-info">ルーティングエントリがありません</div>';
+            return;
+        }
+        content.innerHTML = `<div class="routing-card">
+            <div class="routing-title">ルーティングテーブル (${data.routes.length} エントリ)</div>
+            <table class="routing-table">
+                <thead><tr><th>宛先</th><th>ゲートウェイ</th><th>インターフェース</th><th>プロトコル</th><th>スコープ</th><th>メトリック</th></tr></thead>
+                <tbody>${data.routes.map(r => `<tr>
+                    <td>${r.destination || '-'}</td>
+                    <td>${r.via || '-'}</td>
+                    <td>${r.dev || '-'}</td>
+                    <td>${r.proto || '-'}</td>
+                    <td>${r.scope || '-'}</td>
+                    <td>${r.metric || '-'}</td>
+                </tr>`).join('')}</tbody>
+            </table>
+        </div>`;
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadGateways() {
+    const loading = document.getElementById('gateways-loading');
+    const content = document.getElementById('gateways-content');
+    loading.style.display = ''; content.style.display = 'none';
+    loading.innerHTML = '<div class="text-center py-4 text-muted">読み込み中...</div>';
+    try {
+        const data = await api.get('/api/routing/gateways');
+        loading.style.display = 'none'; content.style.display = '';
+        if (!data.gateways || data.gateways.length === 0) {
+            content.innerHTML = '<div class="alert alert-info">デフォルトゲートウェイが設定されていません</div>';
+            return;
+        }
+        content.innerHTML = `<div class="routing-card">
+            <div class="routing-title">デフォルトゲートウェイ</div>
+            <table class="routing-table">
+                <thead><tr><th>宛先</th><th>ゲートウェイ</th><th>インターフェース</th><th>プロトコル</th><th>メトリック</th></tr></thead>
+                <tbody>${data.gateways.map(g => `<tr>
+                    <td>${g.destination || 'default'}</td>
+                    <td><strong>${g.via || '-'}</strong></td>
+                    <td>${g.dev || '-'}</td>
+                    <td>${g.proto || '-'}</td>
+                    <td>${g.metric || '-'}</td>
+                </tr>`).join('')}</tbody>
+            </table>
+        </div>`;
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadArp() {
+    const loading = document.getElementById('arp-loading');
+    const content = document.getElementById('arp-content');
+    loading.style.display = ''; content.style.display = 'none';
+    loading.innerHTML = '<div class="text-center py-4 text-muted">読み込み中...</div>';
+    try {
+        const data = await api.get('/api/routing/arp');
+        loading.style.display = 'none'; content.style.display = '';
+        if (!data.arp || data.arp.length === 0) {
+            content.innerHTML = '<div class="alert alert-info">ARPエントリがありません</div>';
+            return;
+        }
+        content.innerHTML = `<div class="routing-card">
+            <div class="routing-title">ARP テーブル (${data.arp.length} エントリ)</div>
+            <table class="routing-table">
+                <thead><tr><th>IPアドレス</th><th>MACアドレス</th><th>インターフェース</th><th>状態</th></tr></thead>
+                <tbody>${data.arp.map(e => {
+                    const stateCls = 'state-' + (e.state || 'default');
+                    return `<tr>
+                        <td>${e.ip || '-'}</td>
+                        <td>${e.mac || '-'}</td>
+                        <td>${e.dev || '-'}</td>
+                        <td><span class="badge-state ${stateCls}">${e.state || '-'}</span></td>
+                    </tr>`;
+                }).join('')}</tbody>
+            </table>
+        </div>`;
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function loadInterfaces() {
+    const loading = document.getElementById('interfaces-loading');
+    const content = document.getElementById('interfaces-content');
+    loading.style.display = ''; content.style.display = 'none';
+    loading.innerHTML = '<div class="text-center py-4 text-muted">読み込み中...</div>';
+    try {
+        const data = await api.get('/api/routing/interfaces');
+        loading.style.display = 'none'; content.style.display = '';
+        if (!data.interfaces || data.interfaces.length === 0) {
+            content.innerHTML = '<div class="alert alert-info">インターフェース情報がありません</div>';
+            return;
+        }
+        content.innerHTML = data.interfaces.map(iface => {
+            const flags = (iface.flags || []).map(f => `<span class="iface-flag">${f}</span>`).join('');
+            const addrs = (iface.addr_info || []).map(a =>
+                `<div class="text-muted" style="font-size:13px;">${a.family}: ${a.local}/${a.prefixlen} <small>(${a.scope})</small></div>`
+            ).join('');
+            return `<div class="iface-card">
+                <div class="iface-name">${iface.ifname || iface.ifindex}</div>
+                <div class="mt-1">${flags}</div>
+                <div class="mt-2">${addrs || '<span class="text-muted">アドレスなし</span>'}</div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function refreshAll() { showTab(currentTab); }
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
+    api.setToken(token);
+    if (typeof initSidebar === 'function') initSidebar('routing');
+    loadRoutes();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>
