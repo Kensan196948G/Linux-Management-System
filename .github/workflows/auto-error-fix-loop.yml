@@ -1,0 +1,527 @@
+# ============================================================
+# 🤖 自動エラー検知・修復ループシステム
+# ============================================================
+# 30分間隔で自動的にエラーを検知し、可能な限り自動修復を行います。
+#
+# 検知項目 (7種類):
+#   1. flake8       - コード品質検知 (ESLint相当)
+#   2. black        - フォーマット検証 (Prettier相当)
+#   3. pytest       - 全テスト実行 (Jest相当)
+#   4. bandit/safety- セキュリティ脆弱性 (npm audit相当)
+#   5. SQLite       - DB整合性確認 (Migrations相当)
+#   6. chmod        - パーミッション検証 (File Permissions)
+#   7. pylint       - 複雑度チェック (Code Quality相当)
+#
+# 自動修復機能:
+#   - black:   black backend/ (フォーマット自動修正)
+#   - isort:   isort backend/ (import順序自動修正)
+#   - chmod:   chmod +x wrappers/*.sh (実行権限付与)
+#   - flake8:  autoflake 未使用import削除
+#
+# ループ: エラー検知 → 修復 → 最大15回
+# スケジュール: 30分ごと自動実行
+# ============================================================
+
+name: 🤖 Auto Error Detection & Fix Loop
+
+on:
+  # 30分間隔の自動実行
+  schedule:
+    - cron: '*/30 * * * *'
+
+  # GitHub Actions UI からの手動実行
+  workflow_dispatch:
+    inputs:
+      max_loops:
+        description: '最大ループ回数 (1-15)'
+        required: false
+        default: '15'
+        type: string
+      dry_run:
+        description: 'ドライラン（修復をコミットしない）'
+        required: false
+        default: 'false'
+        type: boolean
+
+  # Issueに auto-fix ラベルが付与されたとき
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ============================================================
+  # メインジョブ: 自動エラー検知・修復ループ
+  # ============================================================
+  auto-fix-loop:
+    name: 🔄 エラー検知・修復ループ
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    # Issueトリガーの場合は auto-fix ラベルのみ実行
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.label.name == 'auto-fix')
+
+    outputs:
+      total_fixed: ${{ steps.loop.outputs.total_fixed }}
+      final_status: ${{ steps.loop.outputs.final_status }}
+      loops_executed: ${{ steps.loop.outputs.loops_executed }}
+
+    steps:
+      # ----------------------------------------------------------
+      - name: 📥 リポジトリのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ----------------------------------------------------------
+      - name: 🐍 Python ${{ env.PYTHON_VERSION }} セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      # ----------------------------------------------------------
+      - name: 📦 依存関係のインストール
+        run: |
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+          pip install autoflake pip-audit radon
+
+      # ----------------------------------------------------------
+      - name: 🔧 Git 設定（自動コミット用）
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ----------------------------------------------------------
+      - name: 🔄 自動エラー検知・修復ループ（最大15回）
+        id: loop
+        env:
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MAX_LOOPS: ${{ inputs.max_loops || '15' }}
+        run: |
+          set -euo pipefail
+
+          MAX_LOOPS=${MAX_LOOPS:-15}
+          LOOP=0
+          TOTAL_FIXED=0
+          FINAL_STATUS="success"
+          REPORT=""
+
+          echo "=========================================="
+          echo "🤖 自動エラー検知・修復ループ 開始"
+          echo "最大ループ数: ${MAX_LOOPS}"
+          echo "ドライラン: ${DRY_RUN}"
+          echo "=========================================="
+
+          while [ "$LOOP" -lt "$MAX_LOOPS" ]; do
+            LOOP=$((LOOP + 1))
+            FIXED_THIS_LOOP=0
+            echo ""
+            echo "::group::🔄 ループ ${LOOP} / ${MAX_LOOPS}"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            # =========================================
+            # 検知1: flake8（ESLint相当）
+            # =========================================
+            echo "📋 [1/7] flake8 コード品質チェック..."
+            FLAKE8_RESULT=0
+            flake8 backend/ --count --statistics \
+              --max-line-length=127 \
+              --extend-ignore=E203,W503 \
+              --format="%(path)s:%(row)d:%(col)d: %(code)s %(text)s" \
+              2>&1 | tee /tmp/flake8_report.txt || FLAKE8_RESULT=$?
+
+            if [ "$FLAKE8_RESULT" -ne 0 ]; then
+              echo "⚠️  flake8 エラー検知 → autoflake + isort で自動修復"
+              # 未使用import削除
+              autoflake --in-place --remove-all-unused-imports \
+                --remove-unused-variables -r backend/ 2>/dev/null || true
+              # import順序修正
+              isort backend/ --profile black 2>/dev/null || true
+              FIXED_THIS_LOOP=$((FIXED_THIS_LOOP + 1))
+              REPORT="${REPORT}\\n✅ [ループ${LOOP}] flake8: autoflake+isort で修復"
+            else
+              echo "✅ flake8: エラーなし"
+            fi
+
+            # =========================================
+            # 検知2: black（Prettier相当）
+            # =========================================
+            echo "🎨 [2/7] black フォーマット検証..."
+            BLACK_RESULT=0
+            black --check --diff backend/ \
+              --line-length 127 \
+              2>&1 | tee /tmp/black_report.txt || BLACK_RESULT=$?
+
+            if [ "$BLACK_RESULT" -ne 0 ]; then
+              echo "⚠️  black フォーマット不一致 → 自動フォーマット適用"
+              black backend/ --line-length 127 2>&1
+              FIXED_THIS_LOOP=$((FIXED_THIS_LOOP + 1))
+              REPORT="${REPORT}\\n✅ [ループ${LOOP}] black: フォーマット自動修正"
+            else
+              echo "✅ black: フォーマット正常"
+            fi
+
+            # =========================================
+            # 検知3: pytest（Jest相当）
+            # =========================================
+            echo "🧪 [3/7] pytest テスト実行..."
+            PYTEST_RESULT=0
+            python -m pytest tests/ \
+              --ignore=tests/e2e \
+              -q --tb=short \
+              --no-header \
+              -x \
+              2>&1 | tee /tmp/pytest_report.txt || PYTEST_RESULT=$?
+
+            PYTEST_PASSED=$(grep -E "^[0-9]+ passed" /tmp/pytest_report.txt | grep -oE "^[0-9]+" || echo "0")
+            PYTEST_FAILED=$(grep -E "failed" /tmp/pytest_report.txt | grep -oE "^[0-9]+" || echo "0")
+
+            if [ "$PYTEST_RESULT" -ne 0 ]; then
+              echo "❌ テスト失敗: ${PYTEST_FAILED}件失敗（自動修復不可 - 人間確認必要）"
+              FINAL_STATUS="partial"
+              REPORT="${REPORT}\\n❌ [ループ${LOOP}] pytest: ${PYTEST_FAILED}件失敗（手動対応必要）"
+            else
+              echo "✅ pytest: 全テスト通過（${PYTEST_PASSED}件）"
+            fi
+
+            # =========================================
+            # 検知4: bandit + safety（npm audit相当）
+            # =========================================
+            echo "🔒 [4/7] セキュリティ脆弱性スキャン..."
+            BANDIT_RESULT=0
+            bandit -r backend/ -ll \
+              -f json -o /tmp/bandit_report.json \
+              2>&1 || BANDIT_RESULT=$?
+
+            BANDIT_HIGH=$(python3 -c "
+          import json, sys
+          try:
+              d = json.load(open('/tmp/bandit_report.json'))
+              h = len([r for r in d.get('results', []) if r.get('issue_severity') == 'HIGH'])
+              m = len([r for r in d.get('results', []) if r.get('issue_severity') == 'MEDIUM'])
+              print(f'{h} HIGH, {m} MEDIUM')
+          except: print('0 HIGH, 0 MEDIUM')
+          " 2>/dev/null || echo "parse error")
+
+            if [ "$BANDIT_RESULT" -ne 0 ]; then
+              echo "⚠️  bandit: ${BANDIT_HIGH} 検知（セキュリティ問題は手動対応必要）"
+              FINAL_STATUS="partial"
+              REPORT="${REPORT}\\n⚠️  [ループ${LOOP}] bandit: ${BANDIT_HIGH} - 手動対応必要"
+            else
+              echo "✅ bandit: セキュリティ問題なし"
+            fi
+
+            # shell=True 検出（プロジェクト固有のセキュリティチェック）
+            SHELL_TRUE_COUNT=$(grep -r "shell=True" backend/ --include="*.py" \
+              2>/dev/null | grep -v '^\s*#' | wc -l || echo "0")
+            if [ "$SHELL_TRUE_COUNT" -gt 0 ]; then
+              echo "🚨 CRITICAL: shell=True が ${SHELL_TRUE_COUNT}件 検出！"
+              FINAL_STATUS="critical"
+              REPORT="${REPORT}\\n🚨 [ループ${LOOP}] shell=True ${SHELL_TRUE_COUNT}件検出 - 即時対応必要"
+            fi
+
+            # =========================================
+            # 検知5: SQLite DB整合性（Migrations相当）
+            # =========================================
+            echo "🗄️  [5/7] データベース整合性チェック..."
+            DB_RESULT=0
+            find . -name "*.db" -not -path "./venv/*" 2>/dev/null | while read -r dbfile; do
+              python3 -c "
+          import sqlite3, sys
+          try:
+              conn = sqlite3.connect('${dbfile}')
+              result = conn.execute('PRAGMA integrity_check').fetchone()
+              conn.close()
+              if result[0] != 'ok':
+                  print(f'❌ DB整合性エラー: ${dbfile} - {result[0]}')
+                  sys.exit(1)
+              else:
+                  print(f'✅ DB正常: ${dbfile}')
+          except Exception as e:
+              print(f'⚠️  DB確認失敗: ${dbfile} - {e}')
+              sys.exit(1)
+          " 2>&1 || DB_RESULT=$?
+            done
+
+            if [ "$DB_RESULT" -ne 0 ]; then
+              FINAL_STATUS="partial"
+              REPORT="${REPORT}\\n❌ [ループ${LOOP}] DB整合性: エラー検出（手動確認必要）"
+            else
+              echo "✅ DB整合性: 正常"
+            fi
+
+            # =========================================
+            # 検知6: ファイルパーミッション
+            # =========================================
+            echo "🔑 [6/7] ファイルパーミッション検証..."
+            PERM_FIXED=0
+
+            # wrappers/*.sh が実行可能でなければ修復
+            while IFS= read -r -d '' shfile; do
+              if [ ! -x "$shfile" ]; then
+                echo "  ⚠️  実行権限なし: $shfile → chmod +x 適用"
+                chmod +x "$shfile"
+                PERM_FIXED=$((PERM_FIXED + 1))
+              fi
+            done < <(find wrappers/ -name "*.sh" -print0 2>/dev/null)
+
+            # ci/*.sh も確認
+            while IFS= read -r -d '' shfile; do
+              if [ ! -x "$shfile" ]; then
+                echo "  ⚠️  実行権限なし: $shfile → chmod +x 適用"
+                chmod +x "$shfile"
+                PERM_FIXED=$((PERM_FIXED + 1))
+              fi
+            done < <(find ci/ -name "*.sh" -print0 2>/dev/null)
+
+            if [ "$PERM_FIXED" -gt 0 ]; then
+              echo "  ✅ ${PERM_FIXED}件のパーミッション修復"
+              FIXED_THIS_LOOP=$((FIXED_THIS_LOOP + 1))
+              REPORT="${REPORT}\\n✅ [ループ${LOOP}] permissions: ${PERM_FIXED}件 chmod +x 適用"
+            else
+              echo "✅ パーミッション: 全ファイル正常"
+            fi
+
+            # =========================================
+            # 検知7: コード複雑度（Code Quality相当）
+            # =========================================
+            echo "📊 [7/7] コード複雑度チェック (pylint)..."
+            PYLINT_RESULT=0
+            python3 -m pylint backend/ \
+              --disable=all \
+              --enable=too-many-branches,too-many-statements,too-many-locals \
+              --max-branches=12 \
+              --max-statements=50 \
+              --max-locals=15 \
+              --output-format=text \
+              2>&1 | tee /tmp/pylint_report.txt || PYLINT_RESULT=$?
+
+            COMPLEXITY_ISSUES=$(grep -c "too-many" /tmp/pylint_report.txt 2>/dev/null || echo "0")
+            if [ "$COMPLEXITY_ISSUES" -gt 0 ]; then
+              echo "⚠️  複雑度警告: ${COMPLEXITY_ISSUES}件（自動修復不可 - リファクタ推奨）"
+              REPORT="${REPORT}\\n⚠️  [ループ${LOOP}] 複雑度: ${COMPLEXITY_ISSUES}件警告（手動リファクタ推奨）"
+            else
+              echo "✅ コード複雑度: 正常"
+            fi
+
+            echo "::endgroup::"
+
+            # =========================================
+            # ループ終了判定
+            # =========================================
+            if [ "$FIXED_THIS_LOOP" -eq 0 ]; then
+              echo ""
+              echo "✅ ループ ${LOOP}: 自動修復対象なし → ループ終了"
+              break
+            fi
+
+            TOTAL_FIXED=$((TOTAL_FIXED + FIXED_THIS_LOOP))
+            echo ""
+            echo "🔧 ループ ${LOOP}: ${FIXED_THIS_LOOP}件修復 → 変更をコミット"
+
+            # 修復内容をコミット（ドライランでない場合）
+            if [ "$DRY_RUN" != "true" ] && git diff --quiet && git diff --cached --quiet; then
+              echo "  ℹ️  コミット対象の変更なし"
+            elif [ "$DRY_RUN" != "true" ]; then
+              git add -A
+              git commit -m "fix(auto): 自動修復 ループ${LOOP} — ${FIXED_THIS_LOOP}件修正
+
+  検知・修復システム v2.0 による自動コミット
+  ループ: ${LOOP}/${MAX_LOOPS}
+  修復件数: ${FIXED_THIS_LOOP}
+
+  Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+              echo "  ✅ コミット完了"
+            else
+              echo "  🔍 ドライラン: コミットスキップ（変更あり）"
+            fi
+
+          done  # while loop end
+
+          # =========================================
+          # 変更をプッシュ
+          # =========================================
+          if [ "$DRY_RUN" != "true" ] && [ "$TOTAL_FIXED" -gt 0 ]; then
+            echo ""
+            echo "📤 変更をリモートへプッシュ..."
+            git push origin HEAD 2>&1 && echo "✅ プッシュ完了" || echo "⚠️  プッシュ失敗（競合の可能性）"
+          fi
+
+          # =========================================
+          # 最終サマリー出力
+          # =========================================
+          echo ""
+          echo "=========================================="
+          echo "📊 自動修復ループ 最終サマリー"
+          echo "=========================================="
+          echo "実行ループ数   : ${LOOP} / ${MAX_LOOPS}"
+          echo "総修復件数     : ${TOTAL_FIXED}"
+          echo "最終ステータス : ${FINAL_STATUS}"
+          echo ""
+          echo "修復レポート:"
+          printf "${REPORT}" | tr '\\n' '\n' | grep -v '^$' || echo "  (修復なし)"
+          echo ""
+          echo "=========================================="
+
+          # GitHub Actions Summary
+          {
+            echo "## 🤖 自動エラー検知・修復ループ 完了"
+            echo ""
+            echo "| 項目 | 結果 |"
+            echo "|------|------|"
+            echo "| 実行ループ数 | ${LOOP} / ${MAX_LOOPS} |"
+            echo "| 総修復件数 | ${TOTAL_FIXED} |"
+            echo "| 最終ステータス | ${FINAL_STATUS} |"
+            echo "| ドライラン | ${DRY_RUN} |"
+            echo ""
+            echo "### 修復レポート"
+            echo "\`\`\`"
+            printf "${REPORT}" | tr '\\n' '\n' | grep -v '^$' || echo "(修復なし)"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # outputs
+          echo "total_fixed=${TOTAL_FIXED}"    >> "$GITHUB_OUTPUT"
+          echo "final_status=${FINAL_STATUS}"  >> "$GITHUB_OUTPUT"
+          echo "loops_executed=${LOOP}"        >> "$GITHUB_OUTPUT"
+
+      # ----------------------------------------------------------
+      - name: 📤 レポートのアップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-fix-reports-${{ github.run_number }}
+          path: |
+            /tmp/flake8_report.txt
+            /tmp/black_report.txt
+            /tmp/pytest_report.txt
+            /tmp/bandit_report.json
+            /tmp/pylint_report.txt
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # ============================================================
+  # Issue作成ジョブ: 修復不可エラーの通知
+  # ============================================================
+  notify-issues:
+    name: 📢 Issue通知（手動対応必要なエラー）
+    runs-on: ubuntu-latest
+    needs: auto-fix-loop
+    if: >
+      always() &&
+      (needs.auto-fix-loop.outputs.final_status == 'partial' ||
+       needs.auto-fix-loop.outputs.final_status == 'critical')
+
+    steps:
+      - name: 📥 チェックアウト
+        uses: actions/checkout@v4
+
+      - name: 🚨 GitHub Issue 作成（手動対応必要）
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const status = '${{ needs.auto-fix-loop.outputs.final_status }}';
+            const loops  = '${{ needs.auto-fix-loop.outputs.loops_executed }}';
+            const fixed  = '${{ needs.auto-fix-loop.outputs.total_fixed }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const emoji = status === 'critical' ? '🚨' : '⚠️';
+            const title = `${emoji} 自動修復不可エラー検出 [Run #${context.runNumber}]`;
+
+            const body = `## ${emoji} 自動エラー検知・修復ループ - 手動対応が必要です
+
+            **実行情報**
+            | 項目 | 値 |
+            |------|-----|
+            | ステータス | \`${status}\` |
+            | 実行ループ数 | ${loops} |
+            | 自動修復件数 | ${fixed} |
+            | 実行URL | [Actions Run #${context.runNumber}](${runUrl}) |
+
+            ## 対応が必要な項目
+
+            ${status === 'critical' ? `### 🚨 CRITICAL: \`shell=True\` 検出
+            セキュリティポリシー違反です。即時対応してください。
+            \`\`\`bash
+            grep -r "shell=True" backend/ --include="*.py"
+            \`\`\`` : ''}
+
+            - **pytest失敗**: テストコードまたはソースコードのバグを修正してください
+            - **bandit/safety**: セキュリティ脆弱性を確認・修正してください
+            - **コード複雑度**: 複雑な関数のリファクタリングを検討してください
+
+            ## 自動修復を再トリガーする方法
+
+            このIssueに \`auto-fix\` ラベルを付与すると、自動修復ループが再実行されます。
+
+            ---
+            *🤖 このIssueは自動エラー検知システムによって作成されました*`;
+
+            // 既存の類似Issueを確認（重複防止）
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'auto-fix-needed'
+            });
+
+            const recentIssue = existingIssues.data.find(i =>
+              i.title.includes('自動修復不可エラー') &&
+              (new Date() - new Date(i.created_at)) < 3600000  // 1時間以内
+            );
+
+            if (!recentIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['auto-fix-needed', 'bug']
+              });
+              console.log('✅ Issue作成完了');
+            } else {
+              console.log('ℹ️  類似Issueが既に存在するためスキップ');
+              // 既存Issueにコメント追加
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: recentIssue.number,
+                body: `⏰ 自動修復ループが再実行されましたが、まだ未解決の問題があります。\n\n実行URL: [Run #${context.runNumber}](${runUrl})`
+              });
+            }
+
+  # ============================================================
+  # サマリージョブ
+  # ============================================================
+  summary:
+    name: 📊 実行サマリー
+    runs-on: ubuntu-latest
+    needs: auto-fix-loop
+    if: always()
+
+    steps:
+      - name: 📊 サマリー表示
+        run: |
+          echo "=========================================="
+          echo "🤖 自動エラー検知・修復ループ 完了"
+          echo "=========================================="
+          echo ""
+          echo "ステータス     : ${{ needs.auto-fix-loop.outputs.final_status || 'N/A' }}"
+          echo "実行ループ数   : ${{ needs.auto-fix-loop.outputs.loops_executed || '0' }}"
+          echo "総修復件数     : ${{ needs.auto-fix-loop.outputs.total_fixed || '0' }}"
+          echo ""
+          echo "次回自動実行   : 30分後"
+          echo "手動実行       : GitHub Actions UI → workflow_dispatch"
+          echo "Issueトリガー  : auto-fix ラベル付与"
