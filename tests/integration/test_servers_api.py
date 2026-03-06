@@ -330,3 +330,22 @@ class TestServerConfigInfo:
             response = test_client.get("/api/servers/nginx/config", headers=auth_headers)
 
         assert response.status_code == 503
+
+
+# ==============================================================================
+# servers.py _validate_server_name (lines 93-94)
+# ==============================================================================
+
+
+class TestServersValidateServerName:
+    """_validate_server_name の許可リスト外サーバー名拒否パスをカバー"""
+
+    def test_invalid_server_name_raises_http_exception(self):
+        """許可リスト外のサーバー名 → HTTPException(400) (lines 93-94)"""
+        import pytest
+        from fastapi import HTTPException
+        from backend.api.routes.servers import _validate_server_name
+
+        with pytest.raises(HTTPException) as exc_info:
+            _validate_server_name("unknownserver")
+        assert exc_info.value.status_code == 400

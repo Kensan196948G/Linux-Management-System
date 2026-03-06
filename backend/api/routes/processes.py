@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from ...core import get_current_user, require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
-from ...core.auth import TokenData, decode_token
+from ...core.auth import ROLES, TokenData, decode_token
 from ...core.sudo_wrapper import SudoWrapperError
 
 logger = logging.getLogger(__name__)
@@ -200,7 +200,9 @@ async def stream_processes(
 
     # read:processes 権限チェック
     required_perm = "read:processes"
-    if required_perm not in (user_data.permissions or []):
+    role_obj = ROLES.get(user_data.role)
+    user_perms = role_obj.permissions if role_obj else []
+    if required_perm not in user_perms:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
 
     async def event_generator():

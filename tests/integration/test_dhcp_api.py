@@ -280,3 +280,57 @@ class TestDhcpLogsValidation:
                 headers={"Authorization": f"Bearer {admin_token}"},
             )
         assert resp.status_code == 503
+
+
+# ==============================================================================
+# SudoWrapperError パスのカバレッジ (lines 69-72, 88-91, 108-111)
+# ==============================================================================
+
+
+class TestDhcpSudoWrapperErrors:
+    """DHCP エンドポイントの SudoWrapperError パスをカバー"""
+
+    def test_config_sudo_wrapper_error_returns_503(self, test_client, admin_token):
+        """get_dhcp_config SudoWrapperError → 503 (lines 69-72)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.dhcp.sudo_wrapper.get_dhcp_config",
+            side_effect=SudoWrapperError("config read failed"),
+        ):
+            resp = test_client.get(
+                "/api/dhcp/config",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_pools_sudo_wrapper_error_returns_503(self, test_client, admin_token):
+        """get_dhcp_pools SudoWrapperError → 503 (lines 88-91)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.dhcp.sudo_wrapper.get_dhcp_pools",
+            side_effect=SudoWrapperError("pools read failed"),
+        ):
+            resp = test_client.get(
+                "/api/dhcp/pools",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503
+
+    def test_logs_sudo_wrapper_error_returns_503(self, test_client, admin_token):
+        """get_dhcp_logs SudoWrapperError → 503 (lines 108-111)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.dhcp.sudo_wrapper.get_dhcp_logs",
+            side_effect=SudoWrapperError("logs read failed"),
+        ):
+            resp = test_client.get(
+                "/api/dhcp/logs",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503

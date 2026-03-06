@@ -574,3 +574,98 @@ class TestProcessesPerformance:
 
         for r in results:
             assert r.status_code == 200
+
+
+# ==============================================================================
+# SSE ストリームエンドポイント（lines 196-231）
+# ==============================================================================
+
+
+class TestProcessesStreamEndpoint:
+    """GET /api/processes/stream SSEストリームエンドポイントテスト"""
+
+    def test_stream_no_token_returns_422(self, test_client):
+        """token パラメータなし → 422"""
+        resp = test_client.get("/api/processes/stream")
+        assert resp.status_code == 422
+
+    def test_stream_invalid_token_returns_401(self, test_client):
+        """不正トークン → 401 (lines 196-199)"""
+        resp = test_client.get("/api/processes/stream?token=bad.tok.en")
+        assert resp.status_code == 401
+
+    def test_stream_valid_token_starts_sse(self, test_client, auth_token):
+        """有効トークンで SSE connected イベントが配信される (lines 206-224)"""
+        import asyncio
+        from unittest.mock import patch
+
+        async def mock_sleep(_delay):
+            raise asyncio.CancelledError()
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_processes",
+            return_value=SAMPLE_PROCESSES_RESPONSE,
+        ):
+            with patch("asyncio.sleep", side_effect=mock_sleep):
+                with test_client.stream(
+                    "GET", f"/api/processes/stream?token={auth_token}"
+                ) as resp:
+                    assert resp.status_code == 200
+                    assert "text/event-stream" in resp.headers.get("content-type", "")
+                    chunks = b""
+                    for c in resp.iter_bytes():
+                        chunks += c
+        assert b"connected" in chunks
+
+    def test_stream_yields_update_event(self, test_client, auth_token):
+        """プロセスデータが update イベントとして配信される (lines 219-224)"""
+        import asyncio
+        from unittest.mock import patch
+
+        async def mock_sleep(_delay):
+            raise asyncio.CancelledError()
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_processes",
+            return_value=SAMPLE_PROCESSES_RESPONSE,
+        ):
+            with patch("asyncio.sleep", side_effect=mock_sleep):
+                with test_client.stream(
+                    "GET", f"/api/processes/stream?token={auth_token}"
+                ) as resp:
+                    chunks = b""
+                    for c in resp.iter_bytes():
+                        chunks += c
+        assert b'"type": "update"' in chunks
+
+    def test_stream_error_in_get_processes(self, test_client, auth_token):
+        """get_processes 失敗時に error イベントが配信される (lines 225-226)"""
+        import asyncio
+        from unittest.mock import patch
+
+        call_count = [0]
+
+        async def mock_sleep(_delay):
+            call_count[0] += 1
+            if call_count[0] >= 1:
+                raise asyncio.CancelledError()
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_processes",
+            side_effect=RuntimeError("ps command failed"),
+        ):
+            with patch("asyncio.sleep", side_effect=mock_sleep):
+                with test_client.stream(
+                    "GET", f"/api/processes/stream?token={auth_token}"
+                ) as resp:
+                    chunks = b""
+                    for c in resp.iter_bytes():
+                        chunks += c
+        assert b"error" in chunks
+
+    def test_stream_interval_out_of_range_returns_422(self, test_client, auth_token):
+        """interval が範囲外 (< 1.0) → 422"""
+        resp = test_client.get(
+            f"/api/processes/stream?token={auth_token}&interval=0.5"
+        )
+        assert resp.status_code == 422

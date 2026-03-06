@@ -293,3 +293,72 @@ class TestPathTraversal:
             headers=viewer_headers,
         )
         assert response.status_code == 400
+
+
+# ==============================================================================
+# SudoWrapperError パスのカバレッジ (lines 85, 113-115, 135-137, 158-160, 187-189)
+# ==============================================================================
+
+
+class TestFilemanagerSudoWrapperErrors:
+    """各 filemanager エンドポイントの SudoWrapperError パスをカバー"""
+
+    def test_list_sudo_wrapper_error_returns_500(self, test_client, viewer_headers):
+        """list_files SudoWrapperError → 500 (lines 113-115)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.filemanager.sudo_wrapper.list_files",
+            side_effect=SudoWrapperError("list failed"),
+        ):
+            resp = test_client.get(
+                "/api/files/list?path=/var/log",
+                headers=viewer_headers,
+            )
+        assert resp.status_code == 500
+
+    def test_stat_sudo_wrapper_error_returns_500(self, test_client, viewer_headers):
+        """stat_file SudoWrapperError → 500 (lines 135-137)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.filemanager.sudo_wrapper.stat_file",
+            side_effect=SudoWrapperError("stat failed"),
+        ):
+            resp = test_client.get(
+                "/api/files/stat?path=/var/log",
+                headers=viewer_headers,
+            )
+        assert resp.status_code == 500
+
+    def test_read_sudo_wrapper_error_returns_500(self, test_client, viewer_headers):
+        """read_file SudoWrapperError → 500 (lines 158-160)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.filemanager.sudo_wrapper.read_file",
+            side_effect=SudoWrapperError("read failed"),
+        ):
+            resp = test_client.get(
+                "/api/files/read?path=/var/log",
+                headers=viewer_headers,
+            )
+        assert resp.status_code == 500
+
+    def test_search_sudo_wrapper_error_returns_500(self, test_client, viewer_headers):
+        """search_files SudoWrapperError → 500 (lines 187-189)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.filemanager.sudo_wrapper.search_files",
+            side_effect=SudoWrapperError("search failed"),
+        ):
+            resp = test_client.get(
+                "/api/files/search?directory=/var/log&pattern=*.log",
+                headers=viewer_headers,
+            )
+        assert resp.status_code == 500

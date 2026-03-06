@@ -1,8 +1,11 @@
 """システムリソースアラート管理APIルーター"""
-from datetime import datetime, timezone
+import asyncio
+import json
 import os
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 
 from ...core import require_permission
 from ...core.auth import TokenData
@@ -149,3 +152,78 @@ async def get_alerts_summary(current_user: TokenData = Depends(require_permissio
         raise
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/stream")
+async def stream_alerts(
+    interval: float = Query(default=10.0, ge=5.0, le=60.0, description="チェック間隔（秒）"),
+    token: str = Query(..., description="JWT認証トークン"),
+):
+    """アラート状態をSSEでリアルタイム配信する。
+
+    EventSource API 向け（Authorization ヘッダー非対応のためクエリパラメータ認証）。
+    接続時に connected イベントを送出し、以後 interval 秒ごとにアラート状態を配信する。
+    """
+    from ...core.auth import decode_token
+
+    user_data = decode_token(token)
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    async def event_generator():
+        try:
+            yield f"data: {json.dumps({'type': 'connected', 'interval': interval})}\n\n"
+            while True:
+                try:
+                    cpu = get_current_cpu_usage()
+                    mem = get_current_memory_usage()
+                    load = get_load_average()
+                    disk_root = get_disk_usage_pct("/")
+                    disk_home = get_disk_usage_pct("/home")
+
+                    current_values = {
+                        "cpu": cpu,
+                        "memory": mem,
+                        "load": load,
+                        "disk:/": disk_root,
+                        "disk:/home": disk_home,
+                    }
+
+                    active = []
+                    for rule in DEFAULT_RULES:
+                        if not rule.get("enabled"):
+                            continue
+                        resource = rule["resource"]
+                        val = current_values.get(resource)
+                        if val is None:
+                            continue
+                        triggered = (
+                            (rule["comparison"] == "gte" and val >= rule["threshold"])
+                            or (rule["comparison"] == "lte" and val <= rule["threshold"])
+                        )
+                        if triggered:
+                            active.append({
+                                "id": rule["id"],
+                                "description": rule["description"],
+                                "value": round(val, 1),
+                                "threshold": rule["threshold"],
+                            })
+
+                    payload = json.dumps({
+                        "type": "update",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "active_alerts": active,
+                        "metrics": {k: round(v, 1) for k, v in current_values.items()},
+                    })
+                    yield f"data: {payload}\n\n"
+                except Exception as e:
+                    yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

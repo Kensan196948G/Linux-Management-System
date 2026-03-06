@@ -323,3 +323,215 @@ class TestLogsearchTailEndpoint:
         """認証なし → 401"""
         resp = test_client.get("/api/logsearch/tail")
         assert resp.status_code in (401, 403)
+
+
+# ==============================================================================
+# HTTPException 再送出パス（lines 49, 86, 88, 108, 140）
+# ==============================================================================
+
+
+class TestLogsearchHTTPExceptionReraise:
+    """各エンドポイントの except HTTPException: raise パスをカバー"""
+
+    def test_list_files_reraises_http_exception(self, test_client, auth_headers):
+        """list_log_files: 内部で HTTPException が発生した場合に再送出 (line 49)"""
+        from fastapi import HTTPException
+        from unittest.mock import patch
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.list_log_files",
+            side_effect=HTTPException(status_code=503, detail="upstream down"),
+        ):
+            resp = test_client.get("/api/logsearch/files", headers=auth_headers)
+        assert resp.status_code == 503
+
+    def test_search_raises_value_error_returns_400(self, test_client, auth_headers):
+        """search_logs: ValueError → 400 (line 86)"""
+        from unittest.mock import patch
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.search_logs",
+            side_effect=ValueError("bad value"),
+        ):
+            resp = test_client.get("/api/logsearch/search?pattern=test", headers=auth_headers)
+        assert resp.status_code == 400
+
+    def test_search_reraises_http_exception(self, test_client, auth_headers):
+        """search_logs: 内部で HTTPException → 再送出 (line 88)"""
+        from fastapi import HTTPException
+        from unittest.mock import patch
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.search_logs",
+            side_effect=HTTPException(status_code=429, detail="rate limited"),
+        ):
+            resp = test_client.get("/api/logsearch/search?pattern=test", headers=auth_headers)
+        assert resp.status_code == 429
+
+    def test_recent_errors_reraises_http_exception(self, test_client, auth_headers):
+        """get_recent_errors: 内部で HTTPException → 再送出 (line 108)"""
+        from fastapi import HTTPException
+        from unittest.mock import patch
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_recent_errors",
+            side_effect=HTTPException(status_code=503, detail="svc down"),
+        ):
+            resp = test_client.get("/api/logsearch/recent-errors", headers=auth_headers)
+        assert resp.status_code == 503
+
+    def test_tail_reraises_http_exception(self, test_client, auth_headers):
+        """get_log_tail_multi: 内部で HTTPException → 再送出 (line 140)"""
+        from fastapi import HTTPException
+        from unittest.mock import patch
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_log_tail_multi",
+            side_effect=HTTPException(status_code=503, detail="tail svc down"),
+        ):
+            resp = test_client.get("/api/logsearch/tail", headers=auth_headers)
+        assert resp.status_code == 503
+
+
+# ==============================================================================
+# SSE ストリームエンドポイント（lines 159-227）
+# ==============================================================================
+
+
+class TestLogsearchStreamEndpoint:
+    """GET /api/logsearch/stream SSEエンドポイントテスト"""
+
+    def test_stream_no_token_returns_422(self, test_client):
+        """tokenパラメータなし → 422"""
+        resp = test_client.get("/api/logsearch/stream?logfile=syslog")
+        assert resp.status_code == 422
+
+    def test_stream_invalid_token_returns_401(self, test_client):
+        """不正トークン → 401 (lines 165-167)"""
+        resp = test_client.get("/api/logsearch/stream?logfile=syslog&token=bad.tok.en")
+        assert resp.status_code == 401
+
+    def test_stream_forbidden_char_in_logfile_returns_400(self, test_client, auth_token):
+        """禁止文字を含む logfile → 400 (line 169)"""
+        resp = test_client.get(f"/api/logsearch/stream?logfile=sys%3Blog&token={auth_token}")
+        assert resp.status_code == 400
+
+    def test_stream_invalid_logfile_pattern_returns_400(self, test_client, auth_token):
+        """英数字以外の logfile → 400 (lines 170-171)"""
+        resp = test_client.get(f"/api/logsearch/stream?logfile=sys+log&token={auth_token}")
+        assert resp.status_code == 400
+
+    def test_stream_disallowed_logfile_returns_400(self, test_client, auth_token):
+        """許可リスト外の logfile → 400 (lines 174-175)"""
+        resp = test_client.get(f"/api/logsearch/stream?logfile=shadow&token={auth_token}")
+        assert resp.status_code == 400
+
+    def test_stream_valid_logfile_returns_event_stream(self, test_client, auth_token):
+        """有効 logfile で SSE 接続開始 → connected イベント (lines 177-227)"""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        mock_proc = AsyncMock()
+        mock_proc.returncode = None
+        mock_proc.stdout.readline = AsyncMock(return_value=b"")
+        mock_proc.terminate = AsyncMock()
+        mock_proc.wait = AsyncMock(return_value=0)
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            with test_client.stream(
+                "GET", f"/api/logsearch/stream?logfile=syslog&token={auth_token}"
+            ) as resp:
+                assert resp.status_code == 200
+                assert "text/event-stream" in resp.headers.get("content-type", "")
+                chunks = b""
+                for c in resp.iter_bytes():
+                    chunks += c
+        assert b"connected" in chunks
+
+    def test_stream_yields_log_line(self, test_client, auth_token):
+        """ログ行が SSE data イベントとして配信される (lines 200-210)"""
+        from unittest.mock import AsyncMock, patch
+
+        mock_proc = AsyncMock()
+        mock_proc.returncode = None
+        mock_proc.stdout.readline = AsyncMock(
+            side_effect=[b"Jan 01 00:00:00 host sshd: session opened\n", b""]
+        )
+        mock_proc.terminate = AsyncMock()
+        mock_proc.wait = AsyncMock(return_value=0)
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            with test_client.stream(
+                "GET", f"/api/logsearch/stream?logfile=syslog&token={auth_token}"
+            ) as resp:
+                chunks = b""
+                for c in resp.iter_bytes():
+                    chunks += c
+        assert b'"type": "log"' in chunks
+
+    def test_stream_yields_heartbeat_on_timeout(self, test_client, auth_token):
+        """readline タイムアウトで heartbeat イベントを配信する (line 213)"""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        mock_proc = AsyncMock()
+        mock_proc.returncode = None
+        mock_proc.stdout.readline = AsyncMock(return_value=b"")
+        mock_proc.terminate = AsyncMock()
+        mock_proc.wait = AsyncMock(return_value=0)
+
+        first_call = [True]
+
+        async def patched_wait_for(coro, timeout=None):
+            if first_call[0]:
+                first_call[0] = False
+                try:
+                    coro.close()
+                except Exception:
+                    pass
+                raise asyncio.TimeoutError()
+            return await coro
+
+        with patch("asyncio.wait_for", side_effect=patched_wait_for):
+            with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+                with test_client.stream(
+                    "GET", f"/api/logsearch/stream?logfile=syslog&token={auth_token}"
+                ) as resp:
+                    chunks = b""
+                    for c in resp.iter_bytes():
+                        chunks += c
+        assert b"heartbeat" in chunks
+
+    def test_stream_subprocess_exception_yields_error_event(self, test_client, auth_token):
+        """subprocess 起動失敗時に error イベントを配信する (lines 216-218)"""
+        from unittest.mock import patch
+
+        with patch(
+            "asyncio.create_subprocess_exec", side_effect=OSError("exec spawn failed")
+        ):
+            with test_client.stream(
+                "GET", f"/api/logsearch/stream?logfile=syslog&token={auth_token}"
+            ) as resp:
+                assert resp.status_code == 200
+                chunks = b""
+                for c in resp.iter_bytes():
+                    chunks += c
+        assert b"error" in chunks
+
+    def test_stream_proc_terminated_in_finally(self, test_client, auth_token):
+        """正常終了後に proc.terminate() が呼ばれる (lines 220-225)"""
+        from unittest.mock import AsyncMock, patch, call
+
+        mock_proc = AsyncMock()
+        mock_proc.returncode = None
+        mock_proc.stdout.readline = AsyncMock(return_value=b"")
+        mock_proc.terminate = AsyncMock()
+        mock_proc.wait = AsyncMock(return_value=0)
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            with test_client.stream(
+                "GET", f"/api/logsearch/stream?logfile=syslog&token={auth_token}"
+            ) as resp:
+                for _ in resp.iter_bytes():
+                    pass
+        mock_proc.terminate.assert_called_once()

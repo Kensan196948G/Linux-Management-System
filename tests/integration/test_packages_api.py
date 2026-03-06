@@ -650,3 +650,23 @@ class TestSecurityUpdatesV2Endpoint:
         with patch("backend.api.routes.packages.sudo_wrapper.get_packages_security_updates", side_effect=Exception("error")):
             resp = client.get("/api/packages/security-updates", headers=auth_headers)
         assert resp.status_code == 503
+
+
+# ==============================================================================
+# packages info ValueError パス (line 440)
+# ==============================================================================
+
+
+class TestPackagesInfoValueError:
+    """get_package_info_endpoint の ValueError パスをカバー"""
+
+    def test_info_value_error_returns_400(self, client, auth_headers):
+        """get_package_info ValueError → 400 (line 440)"""
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.packages.sudo_wrapper.get_package_info",
+            side_effect=ValueError("invalid package"),
+        ):
+            resp = client.get("/api/packages/info/nginx", headers=auth_headers)
+        assert resp.status_code == 400

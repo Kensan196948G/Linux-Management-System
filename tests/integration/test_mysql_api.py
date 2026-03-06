@@ -235,3 +235,27 @@ class TestMysqlAuth:
                 headers={"Authorization": f"Bearer {admin_token}"},
             )
         assert resp.status_code == 503
+
+
+# ==============================================================================
+# MySQL logs SudoWrapperError (lines 103-106)
+# ==============================================================================
+
+
+class TestMysqlLogsError:
+    """MySQL logs エンドポイントの SudoWrapperError パスをカバー"""
+
+    def test_logs_sudo_wrapper_error_returns_503(self, test_client, admin_token):
+        """get_mysql_logs SudoWrapperError → 503 (lines 103-106)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.mysql.sudo_wrapper.get_mysql_logs",
+            side_effect=SudoWrapperError("logs failed"),
+        ):
+            resp = test_client.get(
+                "/api/mysql/logs",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503

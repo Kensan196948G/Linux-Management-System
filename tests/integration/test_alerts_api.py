@@ -253,3 +253,157 @@ class TestAlerts503:
         with patch.object(alerts_module, "get_current_cpu_usage", side_effect=RuntimeError("proc error")):
             response = test_client.get("/api/alerts/summary", headers=auth_headers)
         assert response.status_code == 503
+
+
+# ==============================================================================
+# ヘルパー関数の正常パスカバレッジ (lines 34-35, 43, 60-61, 71, 82-83)
+# ==============================================================================
+
+
+class TestAlertsHelperCoverage:
+    """ヘルパー関数の正常パスを明示的にカバーするテスト"""
+
+    def test_get_cpu_usage_reads_proc_stat(self):
+        """get_current_cpu_usage が /proc/stat を読み取り float を返す (lines 34-35, 43)"""
+        from unittest.mock import mock_open, patch
+        import backend.api.routes.alerts as alerts_module
+
+        fake_stat = (
+            "cpu  100 0 50 200 0 0 0 0 0 0\n"
+            "cpu0 50 0 25 100 0 0 0 0 0 0\n"
+        )
+        with patch("builtins.open", mock_open(read_data=fake_stat)):
+            with patch("time.sleep"):
+                result = alerts_module.get_current_cpu_usage()
+        assert isinstance(result, float)
+        assert 0.0 <= result <= 100.0
+
+    def test_get_memory_usage_reads_proc_meminfo(self):
+        """get_current_memory_usage が /proc/meminfo を読み取る (lines 60-61)"""
+        from unittest.mock import mock_open, patch
+        import backend.api.routes.alerts as alerts_module
+
+        fake_meminfo = (
+            "MemTotal:       8192000 kB\n"
+            "MemFree:        1024000 kB\n"
+            "MemAvailable:   2048000 kB\n"
+        )
+        with patch("builtins.open", mock_open(read_data=fake_meminfo)):
+            result = alerts_module.get_current_memory_usage()
+        assert isinstance(result, float)
+        assert 0.0 < result <= 100.0
+
+    def test_get_disk_usage_pct_returns_nonzero(self):
+        """get_disk_usage_pct('/') が正の float を返す (line 71)"""
+        from unittest.mock import MagicMock, patch
+        import backend.api.routes.alerts as alerts_module
+
+        mock_stat = MagicMock()
+        mock_stat.f_blocks = 1000
+        mock_stat.f_bfree = 200
+        mock_stat.f_frsize = 4096
+        with patch("os.statvfs", return_value=mock_stat):
+            result = alerts_module.get_disk_usage_pct("/fake/path")
+        assert isinstance(result, float)
+        assert result > 0.0
+
+    def test_get_load_average_reads_proc_loadavg(self):
+        """get_load_average が /proc/loadavg を読み取る (lines 82-83)"""
+        from unittest.mock import mock_open, patch
+        import backend.api.routes.alerts as alerts_module
+
+        with patch("builtins.open", mock_open(read_data="0.75 0.80 0.85 1/500 12345\n")):
+            result = alerts_module.get_load_average()
+        assert result == 0.75
+
+    def test_active_alerts_list_initialized(self, test_client, auth_headers):
+        """get_active_alerts でアラートリストが初期化される (line 110)"""
+        import backend.api.routes.alerts as m
+        from unittest.mock import patch
+
+        with patch.object(m, "get_current_cpu_usage", return_value=0.0):
+            with patch.object(m, "get_current_memory_usage", return_value=0.0):
+                with patch.object(m, "get_load_average", return_value=0.0):
+                    with patch.object(m, "get_disk_usage_pct", return_value=0.0):
+                        resp = test_client.get("/api/alerts/active", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["count"] == 0
+
+
+# ==============================================================================
+# HTTPException 再送出パス (lines 128, 149)
+# ==============================================================================
+
+
+class TestAlertsHTTPExceptionReraise:
+    """HTTPException が内部で発生した場合の再送出テスト"""
+
+    def test_active_reraises_http_exception(self, test_client, auth_headers):
+        """get_active_alerts: HTTPException が発生した場合に再送出 (line 128)"""
+        import backend.api.routes.alerts as m
+        from fastapi import HTTPException
+        from unittest.mock import patch
+
+        with patch.object(
+            m,
+            "get_current_cpu_usage",
+            side_effect=HTTPException(status_code=503, detail="upstream"),
+        ):
+            resp = test_client.get("/api/alerts/active", headers=auth_headers)
+        assert resp.status_code == 503
+
+    def test_summary_reraises_http_exception(self, test_client, auth_headers):
+        """get_alerts_summary: HTTPException が発生した場合に再送出 (line 149)"""
+        import backend.api.routes.alerts as m
+        from fastapi import HTTPException
+        from unittest.mock import patch
+
+        with patch.object(
+            m,
+            "get_current_cpu_usage",
+            side_effect=HTTPException(status_code=503, detail="upstream"),
+        ):
+            resp = test_client.get("/api/alerts/summary", headers=auth_headers)
+        assert resp.status_code == 503
+
+
+class TestAlertsStreamEndpoint:
+    """GET /api/alerts/stream（SSE）テスト"""
+
+    def test_stream_no_token_returns_422(self, test_client):
+        """token クエリパラメータなしで422を返す"""
+        resp = test_client.get("/api/alerts/stream")
+        assert resp.status_code == 422
+
+    def test_stream_invalid_token_returns_401(self, test_client):
+        """無効なトークンで401を返す"""
+        resp = test_client.get("/api/alerts/stream?token=invalid_token")
+        assert resp.status_code == 401
+
+    def test_stream_valid_token_returns_200(self, test_client, auth_headers):
+        """有効なトークンで200とSSEメディアタイプを返す（asyncio.sleepをモック）"""
+        from unittest.mock import patch
+        import asyncio
+
+        token = auth_headers["Authorization"].split(" ")[1]
+
+        async def _instant_sleep(_):
+            raise asyncio.CancelledError()
+
+        with patch("backend.api.routes.alerts.asyncio.sleep", side_effect=_instant_sleep):
+            resp = test_client.get(f"/api/alerts/stream?token={token}&interval=5")
+        assert resp.status_code == 200
+        assert "text/event-stream" in resp.headers.get("content-type", "")
+        assert "connected" in resp.text
+
+    def test_stream_interval_too_small_returns_422(self, test_client, auth_headers):
+        """interval が最小値未満（4.9）の場合は422を返す"""
+        token = auth_headers["Authorization"].split(" ")[1]
+        resp = test_client.get(f"/api/alerts/stream?token={token}&interval=4.9")
+        assert resp.status_code == 422
+
+    def test_stream_interval_too_large_returns_422(self, test_client, auth_headers):
+        """interval が最大値超過（61）の場合は422を返す"""
+        token = auth_headers["Authorization"].split(" ")[1]
+        resp = test_client.get(f"/api/alerts/stream?token={token}&interval=61")
+        assert resp.status_code == 422

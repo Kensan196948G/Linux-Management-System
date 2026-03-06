@@ -397,3 +397,20 @@ class TestDBMonitorErrorPaths:
                 headers={"Authorization": f"Bearer {viewer_token}"},
             )
         assert resp.status_code == 503
+
+
+# ==============================================================================
+# _validate_db_type invalid db_type (lines 34-39)
+# ==============================================================================
+
+
+class TestDbmonitorValidateDbType:
+    """_validate_db_type の無効 db_type パスをカバー"""
+
+    def test_invalid_db_type_returns_422(self, test_client, viewer_token):
+        """許可されていない db_type → 422 (lines 34-39)"""
+        resp = test_client.get(
+            "/api/dbmonitor/oracle/status",
+            headers={"Authorization": f"Bearer {viewer_token}"},
+        )
+        assert resp.status_code == 422

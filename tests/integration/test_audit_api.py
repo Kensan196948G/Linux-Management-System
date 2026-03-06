@@ -535,3 +535,97 @@ class TestAuditStats:
         ):
             resp = client.get("/api/audit/stats", headers=admin_headers)
         assert resp.status_code == 500
+
+
+# ==============================================================================
+# エクスポート例外パス（lines 296-303）
+# ==============================================================================
+
+
+class TestAuditExportExceptions:
+    """エクスポートエンドポイントの PermissionError / Exception パス"""
+
+    def test_export_permission_error_returns_403(self, client, admin_headers):
+        """PermissionError 発生時に 403 を返す (lines 296-300)"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            side_effect=PermissionError("access denied"),
+        ):
+            resp = client.get(
+                "/api/audit/logs/export?format=json",
+                headers=admin_headers,
+            )
+        assert resp.status_code == 403
+
+    def test_export_generic_exception_returns_500(self, client, admin_headers):
+        """予期せぬ例外発生時に 500 を返す (lines 301-305)"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            side_effect=RuntimeError("DB connection lost"),
+        ):
+            resp = client.get(
+                "/api/audit/logs/export?format=csv",
+                headers=admin_headers,
+            )
+        assert resp.status_code == 500
+
+
+class TestAuditExceptionPaths:
+    """例外パスのカバレッジ向上テスト（lines 88, 121, 130-132, 156, 206, 250, 252）"""
+
+    def test_list_logs_permission_error_returns_403(self, client, admin_headers):
+        """audit_log.query() が PermissionError → 403 (line 121)"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            side_effect=PermissionError("access denied"),
+        ):
+            resp = client.get("/api/audit/logs", headers=admin_headers)
+        assert resp.status_code == 403
+
+    def test_list_logs_generic_exception_returns_500(self, client, admin_headers):
+        """audit_log.query() が Exception → 500 (lines 130-132)"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            side_effect=RuntimeError("DB error"),
+        ):
+            resp = client.get("/api/audit/logs", headers=admin_headers)
+        assert resp.status_code == 500
+
+    def test_list_logs_invalid_date_returns_400(self, client, admin_headers):
+        """不正な日時フォーマットで 400 (line 88 + ValueError path)"""
+        resp = client.get("/api/audit/logs?start_date=not-a-date", headers=admin_headers)
+        assert resp.status_code == 400
+
+    def test_list_operations_permission_error_returns_403(self, client, admin_headers):
+        """list_audit_operations の PermissionError → 403 (line 156)"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            side_effect=PermissionError("access denied"),
+        ):
+            resp = client.get("/api/audit/operations", headers=admin_headers)
+        assert resp.status_code == 403
+
+    def test_get_stats_permission_error_returns_403(self, client, admin_headers):
+        """get_audit_stats の PermissionError → 403 (line 206)"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            side_effect=PermissionError("access denied"),
+        ):
+            resp = client.get("/api/audit/stats", headers=admin_headers)
+        assert resp.status_code == 403
+
+    def test_export_with_start_date(self, client, admin_headers):
+        """export で start_date パラメータを指定 (lines 250, 252)"""
+        resp = client.get(
+            "/api/audit/logs/export?format=json&start_date=2025-01-01T00:00:00Z",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200
+
+    def test_export_with_end_date(self, client, admin_headers):
+        """export で end_date パラメータを指定"""
+        resp = client.get(
+            "/api/audit/logs/export?format=json&end_date=2099-12-31T23:59:59Z",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200

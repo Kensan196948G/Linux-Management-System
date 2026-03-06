@@ -249,3 +249,28 @@ class TestSudoWrapperFilesystemMethods:
     def test_get_filesystem_mounts_method_exists(self):
         from backend.core.sudo_wrapper import SudoWrapper
         assert hasattr(SudoWrapper, "get_filesystem_mounts")
+
+
+# ==============================================================================
+# ValueError/AttributeError パスのカバレッジ (lines 46-47)
+# ==============================================================================
+
+
+class TestFilesystemValueErrorPath:
+    """use_pct 変換で ValueError/AttributeError が発生した場合の pass パス"""
+
+    def test_usage_with_non_numeric_use_pct(self, test_client, auth_headers):
+        """use_pct が変換できない値でも 200 を返す (lines 46-47)"""
+        import json
+        from unittest.mock import patch
+
+        # use_pct が非数値のデータ
+        fake_data = json.dumps(
+            [{"mount": "/data", "use_pct": "N/A", "size": "10G", "used": "5G", "avail": "5G"}]
+        )
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_filesystem_usage",
+            return_value={"stdout": fake_data, "returncode": 0},
+        ):
+            resp = test_client.get("/api/filesystem/usage", headers=auth_headers)
+        assert resp.status_code == 200

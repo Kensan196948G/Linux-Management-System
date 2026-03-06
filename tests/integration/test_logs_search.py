@@ -130,3 +130,135 @@ class TestRecentErrors:
         """認証なしで 403 を返すこと"""
         response = test_client.get("/api/logs/recent-errors")
         assert response.status_code == 403
+
+
+# ==============================================================================
+# エラーパスのカバレッジ (logs.py uncovered lines)
+# ==============================================================================
+
+
+class TestLogSearchErrorPaths:
+    """search_logs エンドポイントのエラーパスをカバー"""
+
+    def test_search_returns_error_status_raises_400(self, test_client, auth_headers):
+        """result に status='error' が返された場合 → 400 (lines 104-111)"""
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.logs.sudo_wrapper.search_logs",
+            return_value={"status": "error", "message": "access denied"},
+        ):
+            resp = test_client.get("/api/logs/search?q=test", headers=auth_headers)
+        assert resp.status_code == 400
+        assert "access denied" in resp.json().get("message", "")
+
+    def test_search_sudo_wrapper_error_forbidden_char_returns_400(
+        self, test_client, auth_headers
+    ):
+        """SudoWrapperError に 'Forbidden character' が含まれる → 400 (lines 126-130)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.logs.sudo_wrapper.search_logs",
+            side_effect=SudoWrapperError("Forbidden character: ;"),
+        ):
+            resp = test_client.get("/api/logs/search?q=test", headers=auth_headers)
+        assert resp.status_code == 400
+
+    def test_search_sudo_wrapper_error_returns_500(self, test_client, auth_headers):
+        """SudoWrapperError（その他）→ 500 (lines 132-143)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.logs.sudo_wrapper.search_logs",
+            side_effect=SudoWrapperError("execution failed"),
+        ):
+            resp = test_client.get("/api/logs/search?q=test", headers=auth_headers)
+        assert resp.status_code == 500
+
+
+class TestLogFilesErrorPaths:
+    """list_log_files エンドポイントのエラーパスをカバー"""
+
+    def test_list_files_error_status_returns_500(self, test_client, auth_headers):
+        """result に status='error' → 500 (line 175)"""
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.logs.sudo_wrapper.list_log_files",
+            return_value={"status": "error", "message": "cannot list files"},
+        ):
+            resp = test_client.get("/api/logs/files", headers=auth_headers)
+        assert resp.status_code == 500
+
+    def test_list_files_sudo_wrapper_error_returns_500(self, test_client, auth_headers):
+        """SudoWrapperError → 500 (lines 190-192)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.logs.sudo_wrapper.list_log_files",
+            side_effect=SudoWrapperError("list failed"),
+        ):
+            resp = test_client.get("/api/logs/files", headers=auth_headers)
+        assert resp.status_code == 500
+
+
+class TestRecentErrorsErrorPaths:
+    """get_recent_errors エンドポイントのエラーパスをカバー"""
+
+    def test_recent_errors_error_status_returns_500(self, test_client, auth_headers):
+        """result に status='error' → 500 (line 227)"""
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.logs.sudo_wrapper.get_recent_errors",
+            return_value={"status": "error", "message": "cannot fetch errors"},
+        ):
+            resp = test_client.get("/api/logs/recent-errors", headers=auth_headers)
+        assert resp.status_code == 500
+
+    def test_recent_errors_sudo_wrapper_error_returns_500(
+        self, test_client, auth_headers
+    ):
+        """SudoWrapperError → 500 (lines 242-244)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.logs.sudo_wrapper.get_recent_errors",
+            side_effect=SudoWrapperError("fetch errors failed"),
+        ):
+            resp = test_client.get("/api/logs/recent-errors", headers=auth_headers)
+        assert resp.status_code == 500
+
+
+class TestServiceLogsErrorPaths:
+    """get_service_logs エンドポイントのエラーパスをカバー"""
+
+    def test_service_logs_denied_status_returns_403(self, test_client, auth_headers):
+        """result に status='error' (denied) → 403 (lines 292-300)"""
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.logs.sudo_wrapper.get_logs",
+            return_value={"status": "error", "message": "permission denied"},
+        ):
+            resp = test_client.get("/api/logs/nginx", headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_service_logs_sudo_wrapper_error_returns_500(
+        self, test_client, auth_headers
+    ):
+        """SudoWrapperError → 500 (lines 318-330)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.api.routes.logs.sudo_wrapper.get_logs",
+            side_effect=SudoWrapperError("logs retrieval failed"),
+        ):
+            resp = test_client.get("/api/logs/nginx", headers=auth_headers)
+        assert resp.status_code == 500

@@ -414,3 +414,46 @@ class TestQuotaSetAPI:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 422
+
+
+# ==============================================================================
+# quotas alerts の list data パス (lines 381-382)
+# ==============================================================================
+
+
+class TestQuotaAlertsListData:
+    """get_quota_alerts の data が list 型の場合のパスをカバー"""
+
+    def test_alerts_with_list_data(self, test_client, admin_token):
+        """parse_wrapper_result が list を返す場合 (lines 381-382)"""
+        from unittest.mock import patch
+
+        list_data = [
+            {
+                "username": "testuser",
+                "filesystem": "/",
+                "used_kb": 900000,
+                "soft_limit_kb": 1000000,
+                "hard_limit_kb": 1000000,
+                "grace_period": "-",
+                "inodes_used": 100,
+                "inode_soft": 200,
+                "inode_hard": 200,
+            }
+        ]
+        # parse_wrapper_result が {"data": list_data} を返すようモック
+        # これにより get_quota_alerts 内で data = parsed.get("data") or parsed が list になる
+        with patch(
+            "backend.api.routes.quotas.sudo_wrapper.get_all_user_quotas",
+            return_value={"stdout": "ok", "returncode": 0},
+        ):
+            with patch(
+                "backend.api.routes.quotas.parse_wrapper_result",
+                return_value={"data": list_data},
+            ):
+                # data が list になるよう、parsed.get("data") が list_data を返す
+                resp = test_client.get(
+                    "/api/quotas/alerts",
+                    headers={"Authorization": f"Bearer {admin_token}"},
+                )
+        assert resp.status_code == 200

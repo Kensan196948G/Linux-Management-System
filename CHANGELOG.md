@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-03-06
+
+### Added
+- **Dark Mode**: `frontend/js/theme.js` 新規作成（CSS変数15個・`[data-theme="dark"]`セレクタ・localStorage保存・prefers-color-scheme自動検出）。全44 HTMLページに追加
+- **Disk UI**: `frontend/dev/disk.html` 新規作成（274行・3タブ: FS/パーティション/使用率グラフ）
+- **System詳細API**: `/api/system/detailed` 追加（CPU温度・メモリ詳細・NIC統計・アップタイム）
+- **Alerts SSEストリーム**: `/api/alerts/stream` 追加（JWT tokenクエリパラメータ認証・interval 5〜60秒）
+- **Dashboard NICウィジェット**: `frontend/dev/dashboard.html` にネットワーク統計ウィジェット追加
+- **Alerts SSEボタン**: `frontend/dev/alerts.html` にSSEトグルボタン追加
+- **テスト追加**: `test_system_api.py` 新規作成（11件）・`test_alerts_api.py` +5件（SSE）・`test_audit_api.py` +7件・`test_backup_api.py` +4件・`test_journal_api.py` +6件
+
+### Fixed
+- `/api/system/detailed` の権限を `read:system`（未定義）→ `read:status` に修正
+
+### Improved
+- **audit.py**: 92.24% → **100%**（PermissionError/Exception 例外パス・日時フォーマットエラー）
+- **backup.py**: 90.91% → **100%**（HTTPException 再送出パス）
+- **journal.py**: 91.89% → **100%**（全エンドポイントの HTTPException 再送出パス）
+- **alerts.py**: 68.42% → **90.23%**（SSEエンドポイントテスト追加）
+- **system.py**: 27.63% → **94.74%**（/api/system/detailed 全パステスト）
+- **総カバレッジ**: 96.03% → **98.83%**（2739テスト PASS）
+
 ## [0.30.0] - 2026-03-06
 
 ### Added

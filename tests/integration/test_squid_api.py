@@ -244,3 +244,27 @@ class TestSquidConfigCheck:
         with patch("backend.core.sudo_wrapper.sudo_wrapper.get_squid_config_check", side_effect=SudoWrapperError("exec failed")):
             resp = test_client.get("/api/squid/config-check", headers={"Authorization": f"Bearer {admin_token}"})
         assert resp.status_code == 503
+
+
+# ==============================================================================
+# Squid logs SudoWrapperError (lines 174-176)
+# ==============================================================================
+
+
+class TestSquidLogsError:
+    """Squid logs エンドポイントの SudoWrapperError パスをカバー"""
+
+    def test_logs_sudo_wrapper_error_returns_503(self, test_client, admin_token):
+        """get_squid_logs SudoWrapperError → 503 (lines 174-176)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_squid_logs",
+            side_effect=SudoWrapperError("logs failed"),
+        ):
+            resp = test_client.get(
+                "/api/squid/logs",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503

@@ -214,3 +214,40 @@ def test_backup_recent_logs_response_structure(mock_run):
     assert isinstance(data["logs"], list)
     assert isinstance(data["count"], int)
     assert data["count"] == len(data["logs"])
+
+
+# ===== HTTPException再送出テスト（lines 23, 37, 51, 66）=====
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_backup_list",
+       side_effect=__import__("fastapi").HTTPException(status_code=404, detail="not found"))
+def test_list_reraises_http_exception(mock_method):
+    """get_backup_list が HTTPException を投げた場合に再送出する（line 23）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/backup/list", headers=headers)
+    assert resp.status_code == 404
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_backup_status",
+       side_effect=__import__("fastapi").HTTPException(status_code=503, detail="service unavailable"))
+def test_status_reraises_http_exception(mock_method):
+    """get_backup_status が HTTPException を投げた場合に再送出する（line 37）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/backup/status", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_backup_disk_usage",
+       side_effect=__import__("fastapi").HTTPException(status_code=503, detail="disk error"))
+def test_disk_usage_reraises_http_exception(mock_method):
+    """get_backup_disk_usage が HTTPException を投げた場合に再送出する（line 51）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/backup/disk-usage", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_backup_recent_logs",
+       side_effect=__import__("fastapi").HTTPException(status_code=503, detail="logs error"))
+def test_recent_logs_reraises_http_exception(mock_method):
+    """get_backup_recent_logs が HTTPException を投げた場合に再送出する（line 66）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/backup/recent-logs", headers=headers)
+    assert resp.status_code == 503

@@ -248,3 +248,27 @@ class TestFtpLogs:
         with patch("backend.core.sudo_wrapper.sudo_wrapper.get_ftp_logs", side_effect=SudoWrapperError("exec failed")):
             resp = test_client.get("/api/ftp/logs", headers={"Authorization": f"Bearer {admin_token}"})
         assert resp.status_code == 503
+
+
+# ==============================================================================
+# FTP sessions SudoWrapperError (lines 170-172)
+# ==============================================================================
+
+
+class TestFtpSessionsError:
+    """FTP sessions エンドポイントの SudoWrapperError パスをカバー"""
+
+    def test_sessions_sudo_wrapper_error_returns_503(self, test_client, admin_token):
+        """get_ftp_sessions SudoWrapperError → 503 (lines 170-172)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_ftp_sessions",
+            side_effect=SudoWrapperError("sessions failed"),
+        ):
+            resp = test_client.get(
+                "/api/ftp/sessions",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503

@@ -67,12 +67,12 @@ async def get_system_status(
 
 @router.get("/detailed")
 async def get_detailed_system_info(
-    current_user: TokenData = Depends(require_permission("read:system")),
+    current_user: TokenData = Depends(require_permission("read:status")),
 ) -> dict:
     """詳細なシステム情報を取得する（CPU温度/メモリ詳細/NIC統計/アップタイム）。
 
     Args:
-        current_user: 現在のユーザー（read:system 権限必須）
+        current_user: 現在のユーザー（read:status 権限必須）
 
     Returns:
         CPU温度・メモリ詳細・NICネットワーク統計・アップタイムの辞書

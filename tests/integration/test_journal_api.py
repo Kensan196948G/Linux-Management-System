@@ -207,3 +207,131 @@ def test_journal_priority_logs_invalid_400():
     headers = get_auth_headers()
     resp = client.get("/api/journal/priority-logs?priority=invalid", headers=headers)
     assert resp.status_code == 400
+
+
+# ─── 例外パス カバレッジ ──────────────────────────────────────────────────
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_list")
+def test_journal_list_exception_503(mock_method):
+    """get_journal_list で Exception → 503 (line 25)"""
+    mock_method.side_effect = Exception("journalctl failed")
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/list", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_units")
+def test_journal_units_exception_503(mock_method):
+    """get_journal_units で Exception → 503 (line 40)"""
+    mock_method.side_effect = Exception("unit list failed")
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/units", headers=headers)
+    assert resp.status_code == 503
+
+
+def test_journal_unit_logs_invalid_name_400():
+    """単位名が不正 → 400 (line 52)"""
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/unit-logs/nginx;rm", headers=headers)
+    assert resp.status_code == 400
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_unit_logs")
+def test_journal_unit_logs_value_error_400(mock_method):
+    """get_journal_unit_logs で ValueError → 400 (lines 57-58)"""
+    mock_method.side_effect = ValueError("unknown unit")
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/unit-logs/nginx", headers=headers)
+    assert resp.status_code == 400
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_unit_logs")
+def test_journal_unit_logs_exception_503(mock_method):
+    """get_journal_unit_logs で Exception → 503 (lines 59-62)"""
+    mock_method.side_effect = Exception("unit logs failed")
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/unit-logs/nginx", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_boot_logs")
+def test_journal_boot_logs_exception_503(mock_method):
+    """get_journal_boot_logs で Exception → 503 (lines 74-77)"""
+    mock_method.side_effect = Exception("boot logs failed")
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/boot-logs", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_kernel_logs")
+def test_journal_kernel_logs_exception_503(mock_method):
+    """get_journal_kernel_logs で Exception → 503 (lines 89-92)"""
+    mock_method.side_effect = Exception("kernel logs failed")
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/kernel-logs", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_priority_logs")
+def test_journal_priority_logs_exception_503(mock_method):
+    """get_journal_priority_logs で Exception → 503 (lines 108-111)"""
+    mock_method.side_effect = Exception("priority logs failed")
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/priority-logs?priority=err", headers=headers)
+    assert resp.status_code == 503
+
+
+# ===== HTTPException再送出テスト（lines 25, 40, 60, 75, 90, 109）=====
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_list",
+       side_effect=__import__("fastapi").HTTPException(status_code=503, detail="upstream"))
+def test_journal_list_reraises_http_exception(mock_method):
+    """get_journal_list が HTTPException を投げた場合に再送出する（line 25）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/list", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_units",
+       side_effect=__import__("fastapi").HTTPException(status_code=503, detail="upstream"))
+def test_journal_units_reraises_http_exception(mock_method):
+    """get_journal_units が HTTPException を投げた場合に再送出する（line 40）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/units", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_unit_logs",
+       side_effect=__import__("fastapi").HTTPException(status_code=503, detail="upstream"))
+def test_journal_unit_logs_reraises_http_exception(mock_method):
+    """get_journal_unit_logs が HTTPException を投げた場合に再送出する（line 60）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/unit-logs/nginx.service", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_boot_logs",
+       side_effect=__import__("fastapi").HTTPException(status_code=503, detail="upstream"))
+def test_journal_boot_logs_reraises_http_exception(mock_method):
+    """get_journal_boot_logs が HTTPException を投げた場合に再送出する（line 75）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/boot-logs", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_kernel_logs",
+       side_effect=__import__("fastapi").HTTPException(status_code=503, detail="upstream"))
+def test_journal_kernel_logs_reraises_http_exception(mock_method):
+    """get_journal_kernel_logs が HTTPException を投げた場合に再送出する（line 90）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/kernel-logs", headers=headers)
+    assert resp.status_code == 503
+
+
+@patch("backend.core.sudo_wrapper.sudo_wrapper.get_journal_priority_logs",
+       side_effect=__import__("fastapi").HTTPException(status_code=503, detail="upstream"))
+def test_journal_priority_logs_reraises_http_exception(mock_method):
+    """get_journal_priority_logs が HTTPException を投げた場合に再送出する（line 109）"""
+    headers = get_auth_headers()
+    resp = client.get("/api/journal/priority-logs?priority=err", headers=headers)
+    assert resp.status_code == 503

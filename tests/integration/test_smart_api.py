@@ -250,3 +250,27 @@ class TestSmartTests:
         with patch("backend.core.sudo_wrapper.sudo_wrapper.get_smart_tests", side_effect=SudoWrapperError("exec failed")):
             resp = test_client.get("/api/smart/tests", headers={"Authorization": f"Bearer {admin_token}"})
         assert resp.status_code == 503
+
+
+# ==============================================================================
+# SMART health SudoWrapperError (lines 210-212)
+# ==============================================================================
+
+
+class TestSmartHealthError:
+    """SMART health エンドポイントの SudoWrapperError パスをカバー"""
+
+    def test_health_sudo_wrapper_error_returns_503(self, test_client, admin_token):
+        """get_smart_health SudoWrapperError → 503 (lines 210-212)"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+        from unittest.mock import patch
+
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_smart_health",
+            side_effect=SudoWrapperError("smart health failed"),
+        ):
+            resp = test_client.get(
+                "/api/smart/health/dev/sda",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert resp.status_code == 503
