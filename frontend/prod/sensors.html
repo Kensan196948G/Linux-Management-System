@@ -101,13 +101,6 @@
 </div>
 
 <script src="../js/api.js"></script>
-<script>
-function escapeHtml(str) {
-    if (typeof str !== 'string') return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-</script>
 <script src="../js/sidebar.js"></script>
 <script>
 let currentTab = 'all';
@@ -192,7 +185,7 @@ async function loadAll() {
         const data = await api.get('/api/sensors/all');
         renderSensorChips(data, loading, content);
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -207,7 +200,7 @@ async function loadTemperature() {
         const normalized = {...data, sensors: data.temperature};
         renderSensorChips(normalized, loading, content);
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -221,7 +214,7 @@ async function loadFans() {
         const normalized = {...data, sensors: data.fans};
         renderSensorChips(normalized, loading, content);
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -235,7 +228,7 @@ async function loadVoltage() {
         const normalized = {...data, sensors: data.voltage};
         renderSensorChips(normalized, loading, content);
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 

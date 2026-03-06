@@ -6,6 +6,7 @@ import os
 os.environ["ENV"] = "dev"
 
 from unittest.mock import patch, MagicMock
+from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.testclient import TestClient
 from backend.api.main import app
 
@@ -175,3 +176,48 @@ class TestWtmpSummary:
         with patch("backend.core.sudo_wrapper.subprocess.run", side_effect=Exception("command failed")):
             resp = client.get("/api/sessions/wtmp-summary", headers=headers)
         assert resp.status_code == 503
+
+
+# ------------------------------------------------------------------ HTTPException passthrough
+class TestSessionsHttpExceptionPassthrough:
+    """except HTTPException: raise のパスをカバー（sessions.py 22, 37, 52, 67行目）"""
+
+    def test_active_http_exception_passthrough(self):
+        """get_active_sessions が HTTPException を送出した場合にそのまま再送出する"""
+        headers = get_auth_headers()
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_active_sessions",
+            side_effect=FastAPIHTTPException(status_code=404, detail="not found"),
+        ):
+            resp = client.get("/api/sessions/active", headers=headers)
+        assert resp.status_code == 404
+
+    def test_history_http_exception_passthrough(self):
+        """get_session_history が HTTPException を送出した場合にそのまま再送出する"""
+        headers = get_auth_headers()
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_session_history",
+            side_effect=FastAPIHTTPException(status_code=404, detail="not found"),
+        ):
+            resp = client.get("/api/sessions/history", headers=headers)
+        assert resp.status_code == 404
+
+    def test_failed_http_exception_passthrough(self):
+        """get_failed_sessions が HTTPException を送出した場合にそのまま再送出する"""
+        headers = get_auth_headers()
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_failed_sessions",
+            side_effect=FastAPIHTTPException(status_code=404, detail="not found"),
+        ):
+            resp = client.get("/api/sessions/failed", headers=headers)
+        assert resp.status_code == 404
+
+    def test_wtmp_http_exception_passthrough(self):
+        """get_wtmp_summary が HTTPException を送出した場合にそのまま再送出する"""
+        headers = get_auth_headers()
+        with patch(
+            "backend.core.sudo_wrapper.sudo_wrapper.get_wtmp_summary",
+            side_effect=FastAPIHTTPException(status_code=404, detail="not found"),
+        ):
+            resp = client.get("/api/sessions/wtmp-summary", headers=headers)
+        assert resp.status_code == 404

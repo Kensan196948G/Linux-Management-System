@@ -3,250 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ダッシュボード - Linux Management System</title>
+    <title>【開発】ダッシュボード - Linux Management System</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
-    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .dashboard-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .dashboard-header-right {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .last-updated {
-            font-size: 12px;
-            color: #6b7280;
-        }
-
-        /* サマリーカード */
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        .summary-card {
-            background: white;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-            padding: 20px;
-            text-align: center;
-            transition: box-shadow 0.2s;
-        }
-        .summary-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .summary-card-value {
-            font-size: 32px;
-            font-weight: bold;
-            color: #111827;
-            line-height: 1.2;
-        }
-        .summary-card-label {
-            font-size: 13px;
-            color: #6b7280;
-            margin-top: 4px;
-        }
-        .summary-card-sub {
-            font-size: 11px;
-            color: #9ca3af;
-            margin-top: 2px;
-        }
-        .card-normal { background: #ffffff; }
-        .card-warning { background: #fffbeb; border-color: #f59e0b; }
-        .card-danger { background: #fef2f2; border-color: #ef4444; }
-
-        /* サービス状態 */
-        .section-title {
-            font-size: 16px;
-            font-weight: bold;
-            color: #111827;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .services-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 10px;
-            margin-bottom: 24px;
-        }
-        .service-item {
-            background: white;
-            border-radius: 6px;
-            border: 1px solid #e5e7eb;
-            padding: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .service-name { font-size: 13px; font-weight: 600; color: #374151; }
-        .status-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: bold;
-        }
-        .status-active { background: #d1fae5; color: #065f46; }
-        .status-inactive { background: #f3f4f6; color: #6b7280; }
-        .status-failed { background: #fee2e2; color: #991b1b; }
-        .status-unknown { background: #fef3c7; color: #92400e; }
-
-        /* 監査ログ */
-        .audit-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-        .audit-table th {
-            background: #f9fafb;
-            padding: 8px 12px;
-            text-align: left;
-            border-bottom: 2px solid #e5e7eb;
-            font-weight: 600;
-            color: #374151;
-        }
-        .audit-table td {
-            padding: 8px 12px;
-            border-bottom: 1px solid #f3f4f6;
-            color: #4b5563;
-        }
-        .audit-table tr:hover { background: #f9fafb; }
-        .result-success { color: #059669; font-weight: 600; }
-        .result-fail { color: #dc2626; font-weight: 600; }
-        .audit-link {
-            display: inline-block;
-            margin-top: 8px;
-            font-size: 13px;
-            color: #2563eb;
-            text-decoration: none;
-        }
-        .audit-link:hover { text-decoration: underline; }
-
-        /* ローディング */
-        .section-loading {
-            text-align: center;
-            padding: 24px;
-            color: #9ca3af;
-        }
-        .section-error {
-            padding: 12px;
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 6px;
-            color: #991b1b;
-            font-size: 13px;
-        }
-        .spinner-sm {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #e5e7eb;
-            border-top-color: #2563eb;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* SSE接続状態バッジ */
-        .sse-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        .sse-badge-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-        .sse-connected { background: #d1fae5; color: #065f46; }
-        .sse-connected .sse-badge-dot { background: #059669; }
-        .sse-disconnected { background: #fee2e2; color: #991b1b; }
-        .sse-disconnected .sse-badge-dot { background: #dc2626; }
-        .sse-connecting { background: #fef3c7; color: #92400e; }
-        .sse-connecting .sse-badge-dot { background: #f59e0b; }
+        .db-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+        .db-header-right { display:flex; align-items:center; gap:10px; }
+        .sse-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600; }
+        .sse-badge-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+        .sse-connected { background:#d1fae5; color:#065f46; }
+        .sse-connected .sse-badge-dot { background:#059669; }
+        .sse-disconnected { background:#fee2e2; color:#991b1b; }
+        .sse-disconnected .sse-badge-dot { background:#dc2626; }
+        .sse-connecting { background:#fef3c7; color:#92400e; }
+        .sse-connecting .sse-badge-dot { background:#f59e0b; }
+        .last-updated { font-size:12px; color:#6b7280; }
+        .charts-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-top:16px; }
+        .chart-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:16px; }
+        .chart-card h3 { font-size:13px; font-weight:600; color:#374151; margin:0 0 8px; }
+        .chart-canvas-wrap { position:relative; height:200px; }
+        .chart-canvas-wrap canvas { width:100% !important; height:100% !important; }
+        .metric-value { font-size:28px; font-weight:bold; color:#111827; text-align:center; margin-bottom:4px; }
+        .metric-label { font-size:11px; color:#6b7280; text-align:center; }
+        .ring-wrap { display:flex; flex-direction:column; align-items:center; }
+        .ring-canvas-wrap { position:relative; width:140px; height:140px; }
+        .ring-canvas-wrap canvas { width:100% !important; height:100% !important; }
     </style>
 </head>
 <body>
 <div class="app-layout">
     <aside class="sidebar" id="sidebar-container"></aside>
-
     <main class="main-content">
         <div class="main-header">
-            <div class="dashboard-header">
-                <h2 id="page-title">ダッシュボード</h2>
-                <div class="dashboard-header-right">
+            <div class="db-header">
+                <h2 id="page-title">ダッシュボード（リアルタイム）</h2>
+                <div class="db-header-right">
                     <span id="sse-status" class="sse-badge sse-disconnected">
                         <span class="sse-badge-dot"></span>
                         <span id="sse-status-text">未接続</span>
                     </span>
                     <span class="last-updated">最終更新: <span id="last-updated">--:--:--</span></span>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshDashboard()" id="refresh-btn">
-                        更新
-                    </button>
                 </div>
             </div>
         </div>
-
         <div class="main-body">
-            <div id="alert-area"></div>
-
-            <!-- システムサマリー（上部4カード） -->
-            <div class="summary-cards" id="summary-cards">
-                <div class="summary-card" id="card-cpu">
-                    <div class="section-loading"><span class="spinner-sm"></span></div>
+            <div class="charts-grid">
+                <!-- CPU リングチャート -->
+                <div class="chart-card">
+                    <h3>CPU 使用率</h3>
+                    <div class="ring-wrap">
+                        <div class="ring-canvas-wrap"><canvas id="cpuRing"></canvas></div>
+                        <div class="metric-value" id="cpuValue">--%</div>
+                        <div class="metric-label">現在値</div>
+                    </div>
                 </div>
-                <div class="summary-card" id="card-memory">
-                    <div class="section-loading"><span class="spinner-sm"></span></div>
+                <!-- CPU 折れ線グラフ (過去60秒) -->
+                <div class="chart-card">
+                    <h3>CPU 推移（過去60秒）</h3>
+                    <div class="chart-canvas-wrap"><canvas id="cpuLine"></canvas></div>
                 </div>
-                <div class="summary-card" id="card-disk">
-                    <div class="section-loading"><span class="spinner-sm"></span></div>
+                <!-- メモリ バーチャート -->
+                <div class="chart-card">
+                    <h3>メモリ使用率</h3>
+                    <div class="chart-canvas-wrap"><canvas id="memBar"></canvas></div>
                 </div>
-                <div class="summary-card" id="card-services">
-                    <div class="section-loading"><span class="spinner-sm"></span></div>
+                <!-- ネットワーク IN/OUT 折れ線グラフ -->
+                <div class="chart-card" style="grid-column:1/-1">
+                    <h3>ネットワーク IN/OUT（過去60秒, bytes/s）</h3>
+                    <div class="chart-canvas-wrap"><canvas id="netLine"></canvas></div>
                 </div>
-            </div>
-
-            <!-- リアルタイムグラフ（Chart.js SSE連携） -->
-            <div class="section-title" style="margin-top: 24px;">リアルタイム監視グラフ</div>
-            <div id="realtime-charts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px;">
-                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;">
-                    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">CPU 使用率（過去60秒）</div>
-                    <div style="position:relative;height:160px;"><canvas id="rt-cpu-line"></canvas></div>
-                </div>
-                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;">
-                    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">メモリ使用率（過去60秒）</div>
-                    <div style="position:relative;height:160px;"><canvas id="rt-mem-line"></canvas></div>
-                </div>
-                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;grid-column:1/-1;">
-                    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">ネットワーク IN/OUT（過去60秒, bytes/s）</div>
-                    <div style="position:relative;height:160px;"><canvas id="rt-net-line"></canvas></div>
-                </div>
-            </div>
-
-            <!-- サービス状態一覧（中段） -->
-            <div class="section-title">サービス状態</div>
-            <div id="services-section">
-                <div class="section-loading"><span class="spinner-sm"></span> 読み込み中...</div>
-            </div>
-
-            <!-- 最近の監査ログ（下部） -->
-            <div class="section-title" style="margin-top: 24px;">最近の監査ログ</div>
-            <div id="audit-section">
-                <div class="section-loading"><span class="spinner-sm"></span> 読み込み中...</div>
             </div>
         </div>
     </main>
@@ -257,417 +84,148 @@
 <script src="../js/sidebar.js"></script>
 <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('dashboard')):renderSidebar('dashboard');</script>
 <script>
-/** XSS防止: 全動的コンテンツに適用 */
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+// ── 定数 ────────────────────────────────────────────────
+var MAX_POINTS = 60;
+
+// ── ラベル生成ヘルパー ───────────────────────────────────
+function makeLabels() {
+    var labels = [];
+    for (var i = MAX_POINTS; i >= 1; i--) { labels.push('-' + i + 's'); }
+    return labels;
+}
+function makeZeros() {
+    var a = [];
+    for (var i = 0; i < MAX_POINTS; i++) a.push(0);
+    return a;
+}
+function pushPoint(arr, val) {
+    arr.push(val);
+    if (arr.length > MAX_POINTS) arr.shift();
 }
 
-/** 使用率に応じたカードクラスを返す */
-function getCardClass(percent) {
-    if (percent >= 90) return 'card-danger';
-    if (percent >= 80) return 'card-warning';
-    return 'card-normal';
-}
+// ── Chart.js インスタンス ────────────────────────────────
+var cpuRingChart, cpuLineChart, memBarChart, netLineChart;
+var cpuHistory = makeZeros();
+var netInHistory = makeZeros();
+var netOutHistory = makeZeros();
 
-/** ステータスバッジHTML */
-function getStatusBadge(status) {
-    if (!status) return '<span class="status-badge status-unknown">-</span>';
-    const s = status.toLowerCase();
-    if (s === 'active' || s.includes('active')) return '<span class="status-badge status-active">active</span>';
-    if (s === 'inactive' || s === 'stopped') return '<span class="status-badge status-inactive">inactive</span>';
-    if (s === 'failed' || s === 'error') return '<span class="status-badge status-failed">failed</span>';
-    return '<span class="status-badge status-unknown">' + escapeHtml(status) + '</span>';
-}
-
-/** CPUカード更新 */
-function renderCpuCard(data) {
-    const card = document.getElementById('card-cpu');
-    if (!data) {
-        card.innerHTML = '<div class="section-error">CPU情報の取得に失敗</div>';
-        return;
-    }
-    const cpuPercent = data.cpu_percent || 0;
-    card.className = 'summary-card ' + getCardClass(cpuPercent);
-    card.innerHTML =
-        '<div class="summary-card-value">' + escapeHtml(String(cpuPercent)) + '%</div>' +
-        '<div class="summary-card-label">CPU使用率</div>' +
-        '<div class="summary-card-sub">' + escapeHtml(String(data.cpu_count || '-')) + ' コア</div>';
-}
-
-/** メモリカード更新 */
-function renderMemoryCard(data) {
-    const card = document.getElementById('card-memory');
-    if (!data) {
-        card.innerHTML = '<div class="section-error">メモリ情報の取得に失敗</div>';
-        return;
-    }
-    var memPercent = 0;
-    var totalStr = '-';
-    var usedStr = '-';
-    if (data.virtual) {
-        memPercent = data.virtual.percent || 0;
-        totalStr = data.virtual.total || '-';
-        usedStr = data.virtual.used || '-';
-    } else {
-        memPercent = data.percent || 0;
-        totalStr = data.total || '-';
-        usedStr = data.used || '-';
-    }
-    card.className = 'summary-card ' + getCardClass(memPercent);
-    card.innerHTML =
-        '<div class="summary-card-value">' + escapeHtml(String(memPercent)) + '%</div>' +
-        '<div class="summary-card-label">メモリ使用率</div>' +
-        '<div class="summary-card-sub">' + escapeHtml(String(usedStr)) + ' / ' + escapeHtml(String(totalStr)) + '</div>';
-}
-
-/** ディスクカード更新 */
-function renderDiskCard(data) {
-    const card = document.getElementById('card-disk');
-    if (!data) {
-        card.innerHTML = '<div class="section-error">ディスク情報の取得に失敗</div>';
-        return;
-    }
-    var diskPercent = 0;
-    var totalStr = '-';
-    var usedStr = '-';
-    if (Array.isArray(data.partitions) && data.partitions.length > 0) {
-        var root = data.partitions.find(function(p) { return p.mountpoint === '/'; }) || data.partitions[0];
-        diskPercent = root.percent || root.use_percent || 0;
-        totalStr = root.total || root.size || '-';
-        usedStr = root.used || '-';
-    } else if (Array.isArray(data) && data.length > 0) {
-        var root = data.find(function(p) { return p.mountpoint === '/'; }) || data[0];
-        diskPercent = root.percent || root.use_percent || 0;
-        totalStr = root.total || root.size || '-';
-        usedStr = root.used || '-';
-    } else if (data.percent !== undefined) {
-        diskPercent = data.percent;
-        totalStr = data.total || '-';
-        usedStr = data.used || '-';
-    }
-    card.className = 'summary-card ' + getCardClass(diskPercent);
-    card.innerHTML =
-        '<div class="summary-card-value">' + escapeHtml(String(diskPercent)) + '%</div>' +
-        '<div class="summary-card-label">ディスク使用率</div>' +
-        '<div class="summary-card-sub">' + escapeHtml(String(usedStr)) + ' / ' + escapeHtml(String(totalStr)) + '</div>';
-}
-
-/** サービスカード更新 */
-function renderServicesCard(servers) {
-    const card = document.getElementById('card-services');
-    if (!servers) {
-        card.innerHTML = '<div class="section-error">サービス情報の取得に失敗</div>';
-        return;
-    }
-    var list = servers.servers || servers;
-    if (!Array.isArray(list)) list = [];
-    var active = 0;
-    list.forEach(function(s) {
-        var st = (s.status || '').toLowerCase();
-        if (st === 'active' || st.includes('active')) active++;
+function initCharts() {
+    // CPU リング
+    cpuRingChart = new Chart(document.getElementById('cpuRing'), {
+        type: 'doughnut',
+        data: {
+            datasets: [{ data: [0, 100], backgroundColor: ['#3b82f6', '#e5e7eb'], borderWidth: 0 }]
+        },
+        options: { cutout: '75%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 300 } }
     });
-    var total = list.length;
-    var percent = total > 0 ? Math.round((active / total) * 100) : 0;
-    card.className = 'summary-card ' + (active < total ? 'card-warning' : 'card-normal');
-    card.innerHTML =
-        '<div class="summary-card-value">' + escapeHtml(String(active)) + ' / ' + escapeHtml(String(total)) + '</div>' +
-        '<div class="summary-card-label">稼働サービス</div>' +
-        '<div class="summary-card-sub">' + escapeHtml(String(percent)) + '% 稼働中</div>';
-}
 
-/** サービス一覧描画 */
-function renderServicesList(servers) {
-    const section = document.getElementById('services-section');
-    if (!servers) {
-        section.innerHTML = '<div class="section-error">サービス情報の取得に失敗しました</div>';
-        return;
-    }
-    var list = servers.servers || servers;
-    if (!Array.isArray(list) || list.length === 0) {
-        section.innerHTML = '<p style="color:#6b7280;font-size:13px;">サービス情報がありません</p>';
-        return;
-    }
-    var html = '<div class="services-grid">';
-    list.forEach(function(s) {
-        html += '<div class="service-item">' +
-            '<span class="service-name">' + escapeHtml(s.service || s.name || '-') + '</span>' +
-            getStatusBadge(s.status) +
-            '</div>';
+    // CPU 折れ線
+    cpuLineChart = new Chart(document.getElementById('cpuLine'), {
+        type: 'line',
+        data: {
+            labels: makeLabels(),
+            datasets: [{ label: 'CPU%', data: cpuHistory.slice(), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: 0 }]
+        },
+        options: { scales: { y: { min: 0, max: 100 } }, plugins: { legend: { display: false } }, animation: { duration: 200 } }
     });
-    html += '</div>';
-    section.innerHTML = html;
-}
 
-/** 監査ログ描画 */
-function renderAuditLogs(data) {
-    const section = document.getElementById('audit-section');
-    if (!data) {
-        section.innerHTML = '<div class="section-error">監査ログの取得に失敗しました</div>';
-        return;
-    }
-    var logs = data.logs || data.items || data;
-    if (!Array.isArray(logs) || logs.length === 0) {
-        section.innerHTML = '<p style="color:#6b7280;font-size:13px;">監査ログがありません</p>';
-        return;
-    }
-    var html = '<div style="overflow-x:auto;"><table class="audit-table"><thead><tr>' +
-        '<th>時刻</th><th>ユーザー</th><th>操作</th><th>対象</th><th>結果</th>' +
-        '</tr></thead><tbody>';
-    logs.forEach(function(log) {
-        var ts = log.timestamp || log.created_at || '-';
-        if (ts !== '-') {
-            try {
-                var d = new Date(ts);
-                ts = d.toLocaleString('ja-JP', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
-            } catch(e) { /* keep original */ }
-        }
-        var resultClass = '';
-        var result = log.result || log.status || '-';
-        if (result === 'success') resultClass = 'result-success';
-        else if (result === 'fail' || result === 'error' || result === 'denied') resultClass = 'result-fail';
-        html += '<tr>' +
-            '<td>' + escapeHtml(ts) + '</td>' +
-            '<td>' + escapeHtml(log.user || log.username || log.user_id || '-') + '</td>' +
-            '<td>' + escapeHtml(log.operation || log.action || '-') + '</td>' +
-            '<td>' + escapeHtml(log.target || log.resource || '-') + '</td>' +
-            '<td class="' + resultClass + '">' + escapeHtml(result) + '</td>' +
-            '</tr>';
+    // メモリ バー
+    memBarChart = new Chart(document.getElementById('memBar'), {
+        type: 'bar',
+        data: {
+            labels: ['使用中', '空き'],
+            datasets: [{ data: [0, 100], backgroundColor: ['#f59e0b', '#e5e7eb'] }]
+        },
+        options: { indexAxis: 'y', scales: { x: { min: 0, max: 100 } }, plugins: { legend: { display: false } }, animation: { duration: 300 } }
     });
-    html += '</tbody></table></div>';
-    html += '<a href="audit.html" class="audit-link">全件表示 &rarr;</a>';
-    section.innerHTML = html;
+
+    // ネットワーク 折れ線
+    netLineChart = new Chart(document.getElementById('netLine'), {
+        type: 'line',
+        data: {
+            labels: makeLabels(),
+            datasets: [
+                { label: 'IN', data: netInHistory.slice(), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3, pointRadius: 0 },
+                { label: 'OUT', data: netOutHistory.slice(), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3, pointRadius: 0 }
+            ]
+        },
+        options: { scales: { y: { min: 0 } }, plugins: { legend: { display: true } }, animation: { duration: 200 } }
+    });
 }
 
-/** ダッシュボード全体を更新 */
-async function refreshDashboard() {
-    var btn = document.getElementById('refresh-btn');
-    if (btn) btn.disabled = true;
+// ── チャート更新 ─────────────────────────────────────────
+function updateCharts(cpu, mem, netIn, netOut) {
+    // CPU リング
+    cpuRingChart.data.datasets[0].data = [cpu, Math.max(0, 100 - cpu)];
+    cpuRingChart.update();
+    document.getElementById('cpuValue').textContent = cpu.toFixed(1) + '%';
 
-    document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('ja-JP');
+    // CPU 折れ線
+    pushPoint(cpuHistory, cpu);
+    cpuLineChart.data.datasets[0].data = cpuHistory.slice();
+    cpuLineChart.update();
 
-    var [sysResult, memResult, diskResult, serverResult, auditResult] = await Promise.allSettled([
-        api.getSystemStatus(),
-        api.getHardwareMemory(),
-        api.getHardwareDiskUsage(),
-        api.getAllServerStatus(),
-        api.getAuditLogs(1, 10)
-    ]);
+    // メモリ バー
+    memBarChart.data.datasets[0].data = [mem, Math.max(0, 100 - mem)];
+    memBarChart.update();
 
-    // CPU (from system status)
-    renderCpuCard(sysResult.status === 'fulfilled' ? sysResult.value : null);
-
-    // メモリ
-    renderMemoryCard(memResult.status === 'fulfilled' ? memResult.value : null);
-
-    // ディスク
-    renderDiskCard(diskResult.status === 'fulfilled' ? diskResult.value : null);
-
-    // サービス数カード + サービス一覧
-    var serverData = serverResult.status === 'fulfilled' ? serverResult.value : null;
-    renderServicesCard(serverData);
-    renderServicesList(serverData);
-
-    // 監査ログ
-    renderAuditLogs(auditResult.status === 'fulfilled' ? auditResult.value : null);
-
-    if (btn) btn.disabled = false;
+    // ネットワーク
+    pushPoint(netInHistory, netIn);
+    pushPoint(netOutHistory, netOut);
+    netLineChart.data.datasets[0].data = netInHistory.slice();
+    netLineChart.data.datasets[1].data = netOutHistory.slice();
+    netLineChart.update();
 }
 
-// ===================================================================
-// SSE (Server-Sent Events) リアルタイム更新
-// ===================================================================
+// ── SSE ─────────────────────────────────────────────────
+var sseConn = null;
+var sseRetryTimer = null;
 
-var sseConnection = null;
-var sseReconnectTimer = null;
-
-/** SSE接続状態バッジを更新 */
-function updateSseBadge(state) {
+function setSseBadge(state) {
     var badge = document.getElementById('sse-status');
     var text = document.getElementById('sse-status-text');
-    if (!badge || !text) return;
     badge.className = 'sse-badge sse-' + state;
-    if (state === 'connected') text.textContent = 'Live';
-    else if (state === 'connecting') text.textContent = '接続中...';
-    else text.textContent = '未接続';
+    text.textContent = state === 'connected' ? 'Live' : state === 'connecting' ? '接続中...' : '未接続';
 }
 
-/** SSEストリームに接続 */
 function connectSSE() {
     var token = localStorage.getItem('access_token');
     if (!token) return;
+    if (sseConn) { sseConn.close(); sseConn = null; }
+    if (sseRetryTimer) { clearTimeout(sseRetryTimer); sseRetryTimer = null; }
+    setSseBadge('connecting');
 
-    // 既存接続をクローズ
-    if (sseConnection) {
-        sseConnection.close();
-        sseConnection = null;
-    }
-    if (sseReconnectTimer) {
-        clearTimeout(sseReconnectTimer);
-        sseReconnectTimer = null;
-    }
+    var url = window.location.origin + '/api/stream/dashboard?token=' + encodeURIComponent(token);
+    sseConn = new EventSource(url);
 
-    updateSseBadge('connecting');
+    sseConn.onopen = function() { setSseBadge('connected'); };
 
-    var streamUrl = window.location.origin + '/api/stream/dashboard?token=' + encodeURIComponent(token);
-    sseConnection = new EventSource(streamUrl);
-
-    sseConnection.onopen = function() {
-        console.log('SSE: connected');
-        updateSseBadge('connected');
-    };
-
-    sseConnection.onmessage = function(event) {
+    sseConn.onmessage = function(e) {
         try {
-            var data = JSON.parse(event.data);
-            // CPU カードをリアルタイム更新 (dashboard endpoint uses "cpu" key)
-            var cpuPercent = data.cpu !== undefined ? data.cpu : data.cpu_percent;
-            var memPercent = data.mem !== undefined ? data.mem : data.mem_percent;
-            if (cpuPercent !== undefined) {
-                var cpuCard = document.getElementById('card-cpu');
-                if (cpuCard) {
-                    cpuCard.className = 'summary-card ' + getCardClass(cpuPercent);
-                    cpuCard.innerHTML =
-                        '<div class="summary-card-value">' + escapeHtml(String(cpuPercent)) + '%</div>' +
-                        '<div class="summary-card-label">CPU使用率</div>' +
-                        '<div class="summary-card-sub">Live</div>';
-                }
-                if (typeof rtPushCpu === 'function') rtPushCpu(cpuPercent);
-            }
-            // メモリカードをリアルタイム更新
-            if (memPercent !== undefined) {
-                var memCard = document.getElementById('card-memory');
-                if (memCard) {
-                    var memUsed = data.mem_used || '-';
-                    var memTotal = data.mem_total || '-';
-                    memCard.className = 'summary-card ' + getCardClass(memPercent);
-                    memCard.innerHTML =
-                        '<div class="summary-card-value">' + escapeHtml(String(memPercent)) + '%</div>' +
-                        '<div class="summary-card-label">メモリ使用率</div>' +
-                        '<div class="summary-card-sub">' + escapeHtml(String(memUsed)) + ' / ' + escapeHtml(String(memTotal)) + '</div>';
-                }
-                if (typeof rtPushMem === 'function') rtPushMem(memPercent);
-            }
-            // ネットワークチャート更新
-            if (data.net_in !== undefined && typeof rtPushNet === 'function') {
-                rtPushNet(data.net_in, data.net_out || 0);
-            }
-            // 最終更新時刻を更新
+            var d = JSON.parse(e.data);
+            updateCharts(d.cpu || 0, d.mem || 0, d.net_in || 0, d.net_out || 0);
             document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('ja-JP');
-            updateSseBadge('connected');
-        } catch (e) {
-            console.error('SSE: parse error', e);
-        }
+            setSseBadge('connected');
+        } catch(err) { console.error('SSE parse error', err); }
     };
 
-    sseConnection.onerror = function() {
-        console.warn('SSE: connection error, will retry in 5s');
-        updateSseBadge('disconnected');
-        if (sseConnection) {
-            sseConnection.close();
-            sseConnection = null;
-        }
-        // 5秒後に再接続
-        sseReconnectTimer = setTimeout(connectSSE, 5000);
+    sseConn.onerror = function() {
+        setSseBadge('disconnected');
+        if (sseConn) { sseConn.close(); sseConn = null; }
+        sseRetryTimer = setTimeout(connectSSE, 5000);
     };
 }
 
-/** SSE接続を切断 */
-function disconnectSSE() {
-    if (sseReconnectTimer) {
-        clearTimeout(sseReconnectTimer);
-        sseReconnectTimer = null;
-    }
-    if (sseConnection) {
-        sseConnection.close();
-        sseConnection = null;
-    }
-    updateSseBadge('disconnected');
-}
+window.addEventListener('beforeunload', function() { if (sseConn) sseConn.close(); });
 
-/** 初期化 */
-document.addEventListener('DOMContentLoaded', async function() {
+// ── 起動 ─────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
     var token = localStorage.getItem('access_token');
-    if (!token) {
-        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
-        return;
-    }
-    api.setToken(token);
-    if (typeof renderSidebar === 'function') renderSidebar('dashboard');
-    await refreshDashboard();
-
-    // SSEリアルタイム更新を開始
+    if (!token) { window.location.href = 'index.html'; return; }
+    if (typeof api !== 'undefined') api.setToken(token);
+    initCharts();
     connectSSE();
-
-    // SSEフォールバック: 30秒ポーリングは維持
-    setInterval(refreshDashboard, 30000);
 });
-
-// ページ離脱時にSSE接続をクリーンアップ
-window.addEventListener('beforeunload', disconnectSSE);
-
-// ── リアルタイムグラフ (Chart.js) ──────────────────────────
-var RT_MAX = 60;
-var rtCpuData = [], rtMemData = [], rtNetInData = [], rtNetOutData = [];
-for (var _i = 0; _i < RT_MAX; _i++) { rtCpuData.push(0); rtMemData.push(0); rtNetInData.push(0); rtNetOutData.push(0); }
-var rtCpuChart, rtMemChart, rtNetChart;
-
-function rtMakeLabels() {
-    var a = [];
-    for (var i = RT_MAX; i >= 1; i--) a.push('-' + i + 's');
-    return a;
-}
-function rtPush(arr, val) { arr.push(val); if (arr.length > RT_MAX) arr.shift(); }
-
-function rtPushCpu(v) {
-    rtPush(rtCpuData, v);
-    if (rtCpuChart) { rtCpuChart.data.datasets[0].data = rtCpuData.slice(); rtCpuChart.update(); }
-}
-function rtPushMem(v) {
-    rtPush(rtMemData, v);
-    if (rtMemChart) { rtMemChart.data.datasets[0].data = rtMemData.slice(); rtMemChart.update(); }
-}
-function rtPushNet(inn, out) {
-    rtPush(rtNetInData, inn);
-    rtPush(rtNetOutData, out);
-    if (rtNetChart) {
-        rtNetChart.data.datasets[0].data = rtNetInData.slice();
-        rtNetChart.data.datasets[1].data = rtNetOutData.slice();
-        rtNetChart.update();
-    }
-}
-
-function initRtCharts() {
-    if (!window.Chart) return;
-    var labels = rtMakeLabels();
-    var lineOpts = { scales: { y: { min: 0 } }, plugins: { legend: { display: false } }, animation: { duration: 200 }, elements: { point: { radius: 0 } } };
-
-    rtCpuChart = new Chart(document.getElementById('rt-cpu-line'), {
-        type: 'line',
-        data: { labels: labels, datasets: [{ label: 'CPU%', data: rtCpuData.slice(), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 }] },
-        options: Object.assign({}, lineOpts, { scales: { y: { min: 0, max: 100 } } })
-    });
-    rtMemChart = new Chart(document.getElementById('rt-mem-line'), {
-        type: 'line',
-        data: { labels: labels, datasets: [{ label: 'MEM%', data: rtMemData.slice(), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }] },
-        options: Object.assign({}, lineOpts, { scales: { y: { min: 0, max: 100 } } })
-    });
-    rtNetChart = new Chart(document.getElementById('rt-net-line'), {
-        type: 'line',
-        data: { labels: labels, datasets: [
-            { label: 'IN', data: rtNetInData.slice(), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 },
-            { label: 'OUT', data: rtNetOutData.slice(), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3 }
-        ] },
-        options: Object.assign({}, lineOpts, { plugins: { legend: { display: true } } })
-    });
-}
-
-document.addEventListener('DOMContentLoaded', function() { initRtCharts(); });
 </script>
-<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
 </html>

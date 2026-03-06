@@ -110,11 +110,6 @@
 <script src="../js/sidebar.js"></script>
 <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('servers')):renderSidebar('servers');</script>
 <script>
-function escapeHtml(str) {
-    if (typeof str !== 'string') return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 const SERVER_ICONS = {
     nginx: '🌐',
     apache2: '🔴',
@@ -189,13 +184,13 @@ async function loadServers() {
                         ${s.uptime ? `<div class="server-meta-item">⏱️ 稼働時間: ${s.uptime}</div>` : ''}
                         ${s.port ? `<div class="server-meta-item">🔌 ポート: ${s.port}</div>` : ''}
                     </div>
-                    ${s.error ? `<div class="mt-2 text-danger" style="font-size:12px">⚠️ ${escapeHtml(s.error)}</div>` : ''}
+                    ${s.error ? `<div class="mt-2 text-danger" style="font-size:12px">⚠️ ${s.error}</div>` : ''}
                 </div>`;
             }).join('');
         }
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">サーバー情報の取得に失敗しました: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">サーバー情報の取得に失敗しました: ${e.message}</div>`;
     }
 }
 

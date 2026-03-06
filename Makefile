@@ -1,4 +1,4 @@
-.PHONY: test test-e2e lint security-check coverage clean help
+.PHONY: test test-e2e lint security-check coverage clean build-frontend help
 
 ## デフォルトターゲット
 help:
@@ -8,6 +8,7 @@ help:
 	@echo "  make lint            - コードフォーマット・Lint チェック"
 	@echo "  make security-check  - セキュリティチェック (bandit + shell=True 検出)"
 	@echo "  make coverage        - カバレッジレポート生成 (80%以上で合格)"
+	@echo "  make build-frontend  - frontend/dev/ → frontend/prod/ へ全HTMLをコピー"
 	@echo "  make clean           - __pycache__ と *.pyc を削除"
 
 ## ユニット/統合テスト
@@ -36,6 +37,11 @@ security-check:
 ## カバレッジレポート生成
 coverage:
 	pytest tests/ --ignore=tests/e2e --cov=backend --cov-report=html --cov-report=term-missing --cov-fail-under=80
+
+## frontend/dev/ → frontend/prod/ へ全HTMLをコピー
+build-frontend:
+	cp frontend/dev/*.html frontend/prod/
+	@echo "✅ frontend/prod/ を frontend/dev/ から更新しました"
 
 ## キャッシュ削除
 clean:

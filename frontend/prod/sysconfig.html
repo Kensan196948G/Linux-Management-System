@@ -132,18 +132,8 @@
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
 <script>
-function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
 function row(label, value) {
-    return `<div class="config-row"><span class="config-label">${escapeHtml(label)}</span><span class="config-value">${value !== undefined && value !== null ? escapeHtml(String(value)) : '—'}</span></div>`;
+    return `<div class="config-row"><span class="config-label">${label}</span><span class="config-value">${value || '—'}</span></div>`;
 }
 
 async function loadHostname() {
@@ -152,7 +142,7 @@ async function loadHostname() {
         const d = await api.get('/api/sysconfig/hostname');
         el.innerHTML = row('ホスト名', d.hostname) + row('FQDN', d.fqdn) + row('短縮名', d.short);
     } catch (e) {
-        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -162,7 +152,7 @@ async function loadTimezone() {
         const d = await api.get('/api/sysconfig/timezone');
         el.innerHTML = row('タイムゾーン', d.timezone) + row('/etc/timezone', d.timezone_file) + row('NTP 有効', d.ntp_enabled) + row('ローカル RTC', d.local_rtc);
     } catch (e) {
-        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -172,7 +162,7 @@ async function loadLocale() {
         const d = await api.get('/api/sysconfig/locale');
         el.innerHTML = row('LANG', d.lang) + row('LC_CTYPE', d.lc_ctype) + row('LC_MESSAGES', d.lc_messages) + row('文字コード', d.charmap);
     } catch (e) {
-        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -180,9 +170,9 @@ async function loadKernel() {
     const el = document.getElementById('kernel-content');
     try {
         const d = await api.get('/api/sysconfig/kernel');
-        el.innerHTML = row('カーネル名', d.kernel_name) + row('リリース', d.kernel_release) + row('アーキテクチャ', d.machine) + row('uname -a', d.uname);
+        el.innerHTML = row('カーネル名', d.kernel_name) + row('リリース', d.kernel_release) + row('アーキテクチャ', d.machine) + row('uname -a', `<small>${d.uname}</small>`);
     } catch (e) {
-        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -200,7 +190,7 @@ async function loadUptime() {
         }
         el.innerHTML = row('稼働時間', uptimeHuman) + row('Load 1分', d.load_1min) + row('Load 5分', d.load_5min) + row('Load 15分', d.load_15min);
     } catch (e) {
-        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -213,15 +203,12 @@ async function loadModules() {
             el.innerHTML = '<div class="text-muted">モジュールが見つかりません</div>';
             return;
         }
-        const rows = mods.map(m =>
-            `<tr><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.size)}</td><td>${escapeHtml(m.used)}</td></tr>`
-        ).join('');
         el.innerHTML = `<div class="table-responsive"><table class="table table-sm module-table mb-0">
             <thead><tr><th>モジュール名</th><th>サイズ</th><th>使用数</th></tr></thead>
-            <tbody>${rows}</tbody>
+            <tbody>${mods.map(m => `<tr><td>${m.name}</td><td>${m.size}</td><td>${m.used}</td></tr>`).join('')}</tbody>
         </table></div>`;
     } catch (e) {
-        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${escapeHtml(e.message)}</div>`;
+        el.innerHTML = `<div class="alert alert-warning py-2 mb-0">取得失敗: ${e.message}</div>`;
     }
 }
 

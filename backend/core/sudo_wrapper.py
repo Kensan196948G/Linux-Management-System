@@ -2452,6 +2452,20 @@ class SudoWrapper:
         """
         return self._execute("adminui-logsearch.sh", ["recent-errors"], timeout=15)
 
+    def get_log_tail_multi(self, lines: int = 30) -> Dict[str, Any]:
+        """複数ログファイルの末尾を連結して取得する。
+
+        Args:
+            lines: 各ファイルから取得する末尾行数（デフォルト: 30）
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        return self._execute("adminui-logsearch.sh", ["tail-multi", str(lines)], timeout=15)
+
     def get_network_interfaces_detail(self) -> Dict[str, Any]:
         """ネットワークインターフェース詳細を取得 (ip -j addr show)
 

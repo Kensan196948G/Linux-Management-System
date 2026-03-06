@@ -340,3 +340,40 @@ class TestSSHKnownHostsCount:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data["count"], int)
+
+
+# ==============================================================================
+# 内部エラー（500）テスト - 未カバー行 122-124, 157-159, 192-194, 227-229
+# ==============================================================================
+
+
+class TestSSHKeysInternalError:
+    """予期しない例外（Exception）発生時の 500 レスポンステスト"""
+
+    def test_get_ssh_keys_internal_error(self, test_client, auth_headers):
+        """get_ssh_keys で RuntimeError → 500"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_ssh_keys") as mock:
+            mock.side_effect = RuntimeError("unexpected internal error")
+            response = test_client.get("/api/ssh/keys", headers=auth_headers)
+        assert response.status_code == 500
+
+    def test_get_sshd_config_internal_error(self, test_client, auth_headers):
+        """get_sshd_config で RuntimeError → 500"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_sshd_config") as mock:
+            mock.side_effect = RuntimeError("unexpected internal error")
+            response = test_client.get("/api/ssh/sshd-config", headers=auth_headers)
+        assert response.status_code == 500
+
+    def test_get_ssh_host_keys_internal_error(self, test_client, auth_headers):
+        """get_ssh_host_keys で RuntimeError → 500"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_ssh_host_keys") as mock:
+            mock.side_effect = RuntimeError("unexpected internal error")
+            response = test_client.get("/api/ssh/host-keys", headers=auth_headers)
+        assert response.status_code == 500
+
+    def test_get_known_hosts_count_internal_error(self, test_client, auth_headers):
+        """get_known_hosts_count で RuntimeError → 500"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_known_hosts_count") as mock:
+            mock.side_effect = RuntimeError("unexpected internal error")
+            response = test_client.get("/api/ssh/known-hosts-count", headers=auth_headers)
+        assert response.status_code == 500

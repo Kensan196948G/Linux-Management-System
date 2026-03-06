@@ -3606,6 +3606,21 @@ class TestLogSearchMethods:
             wrapper.get_recent_errors()
         assert "recent-errors" in mock_run.call_args[0][0]
 
+    def test_get_log_tail_multi(self, tmp_path):
+        """get_log_tail_multi が tail-multi サブコマンドを呼び出す"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_log_tail_multi(20)
+        assert "tail-multi" in mock_run.call_args[0][0]
+        assert "20" in mock_run.call_args[0][0]
+
+    def test_get_log_tail_multi_default_lines(self, tmp_path):
+        """get_log_tail_multi のデフォルト lines=30 を確認"""
+        wrapper = self._make_wrapper(tmp_path)
+        with patch("subprocess.run", return_value=self._mock_result()) as mock_run:
+            wrapper.get_log_tail_multi()
+        assert "30" in mock_run.call_args[0][0]
+
 
 # ===========================================================================
 # TestNetworkMethods: ネットワーク詳細メソッドのテスト

@@ -465,11 +465,6 @@
                             承認履歴
                         </button>
                     </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats-pane" type="button" role="tab">
-                            統計
-                        </button>
-                    </li>
                 </ul>
 
                 <div class="tab-content" id="approvalTabContent">
@@ -548,147 +543,41 @@
                         <!-- フィルタ -->
                         <div class="filter-controls">
                             <div class="filter-group">
-                                <label>アクション</label>
-                                <select id="history-filter-action" class="form-select form-select-sm">
-                                    <option value="">すべて</option>
-                                    <option value="approved">承認</option>
-                                    <option value="rejected">拒否</option>
-                                    <option value="cancelled">キャンセル</option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
-                                <label>操作種別</label>
-                                <input type="text" id="history-filter-type" class="form-control form-control-sm" placeholder="種別で検索">
-                            </div>
-                            <div class="filter-group">
-                                <label>開始日</label>
+                                <label>期間（開始）</label>
                                 <input type="date" id="history-start-date" class="form-control form-control-sm">
                             </div>
                             <div class="filter-group">
-                                <label>終了日</label>
+                                <label>期間（終了）</label>
                                 <input type="date" id="history-end-date" class="form-control form-control-sm">
                             </div>
                             <div class="filter-group">
-                                <label>&nbsp;</label>
-                                <button class="btn btn-primary btn-sm" onclick="approvalManager.refreshHistory(1)">
-                                    検索
-                                </button>
-                            </div>
-                            <div class="filter-group" style="margin-left: auto;">
-                                <label>エクスポート</label>
-                                <div style="display: flex; gap: 6px;">
-                                    <button class="btn btn-outline-success btn-sm" onclick="approvalManager.downloadExport('csv')">CSV</button>
-                                    <button class="btn btn-outline-info btn-sm" onclick="approvalManager.downloadExport('json')">JSON</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- テーブル -->
-                        <div id="history-list"></div>
-
-                        <!-- ページネーション -->
-                        <nav id="history-pagination" style="display: none;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
-                                <div id="history-page-info" style="font-size: 13px; color: #6c757d;"></div>
-                                <ul class="pagination pagination-sm mb-0" id="history-page-buttons"></ul>
-                            </div>
-                        </nav>
-                    </div>
-
-                    <!-- 統計タブ -->
-                    <div class="tab-pane fade" id="stats-pane" role="tabpanel">
-                        <!-- 期間セレクタ -->
-                        <div class="filter-controls">
-                            <div class="filter-group">
-                                <label>集計期間</label>
-                                <select id="stats-period" class="form-select form-select-sm">
-                                    <option value="7d">7日間</option>
-                                    <option value="30d" selected>30日間</option>
-                                    <option value="90d">90日間</option>
-                                    <option value="all">全期間</option>
+                                <label>操作種別</label>
+                                <select id="history-filter-type" class="form-select form-select-sm">
+                                    <option value="">全種別</option>
                                 </select>
                             </div>
                             <div class="filter-group">
+                                <label>アクション</label>
+                                <select id="history-filter-action" class="form-select form-select-sm">
+                                    <option value="">全アクション</option>
+                                    <option value="created">作成</option>
+                                    <option value="approved">承認</option>
+                                    <option value="rejected">拒否</option>
+                                    <option value="expired">期限切れ</option>
+                                    <option value="executed">実行完了</option>
+                                    <option value="cancelled">キャンセル</option>
+                                </select>
+                            </div>
+                            <div class="filter-group" style="margin-left: auto;">
                                 <label>&nbsp;</label>
-                                <button class="btn btn-primary btn-sm" onclick="approvalManager.loadStatsTab()">
-                                    更新
+                                <button class="btn btn-primary btn-sm" onclick="approvalManager.refreshHistory()">
+                                    🔄 更新
                                 </button>
                             </div>
                         </div>
 
-                        <!-- 統計カード群 -->
-                        <div id="stats-cards" class="row mb-4" style="display: none;">
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <div class="card text-center border-success">
-                                    <div class="card-body">
-                                        <div class="stat-label text-muted">総承認数</div>
-                                        <div class="stat-value text-success" id="stats-total-approved" style="font-size: 28px; font-weight: bold;">-</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <div class="card text-center border-danger">
-                                    <div class="card-body">
-                                        <div class="stat-label text-muted">総却下数</div>
-                                        <div class="stat-value text-danger" id="stats-total-rejected" style="font-size: 28px; font-weight: bold;">-</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <div class="card text-center border-primary">
-                                    <div class="card-body">
-                                        <div class="stat-label text-muted">今日の申請</div>
-                                        <div class="stat-value text-primary" id="stats-today" style="font-size: 28px; font-weight: bold;">-</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <div class="card text-center border-info">
-                                    <div class="card-body">
-                                        <div class="stat-label text-muted">今週の申請</div>
-                                        <div class="stat-value text-info" id="stats-this-week" style="font-size: 28px; font-weight: bold;">-</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- ステータス別テーブル -->
-                        <div id="stats-status-table" class="mb-4" style="display: none;">
-                            <h6>ステータス別集計</h6>
-                            <table class="table table-sm table-bordered">
-                                <thead class="table-light">
-                                    <tr><th>ステータス</th><th>件数</th></tr>
-                                </thead>
-                                <tbody id="stats-status-tbody"></tbody>
-                            </table>
-                        </div>
-
-                        <!-- 種別テーブル -->
-                        <div id="stats-type-table" class="mb-4" style="display: none;">
-                            <h6>種別別集計</h6>
-                            <table class="table table-sm table-bordered">
-                                <thead class="table-light">
-                                    <tr><th>種別</th><th>件数</th></tr>
-                                </thead>
-                                <tbody id="stats-type-tbody"></tbody>
-                            </table>
-                        </div>
-
-                        <!-- ローディング / 空状態 -->
-                        <div id="stats-loading" style="display: none;">
-                            <div class="loading-spinner">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">読み込み中...</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="stats-empty" style="display: none;">
-                            <div class="empty-state">
-                                <div class="empty-state-icon">📊</div>
-                                <div class="empty-state-text">統計データがありません</div>
-                                <div class="empty-state-subtext">期間を変更して再度検索してください</div>
-                            </div>
-                        </div>
+                        <!-- リスト -->
+                        <div id="history-list"></div>
                     </div>
                 </div>
             </div>
@@ -717,7 +606,7 @@
         </div>
     </div>
 
-    <!-- 承認モーダル（理由必須） -->
+    <!-- 承認モーダル -->
     <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -726,18 +615,15 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="approve-request-summary" class="mb-3 p-3 bg-light rounded border">
-                        <!-- 操作内容サマリーが動的に挿入される -->
-                    </div>
+                    <p>このリクエストを承認しますか?</p>
                     <div class="mb-3">
-                        <label for="approve-reason" class="form-label">承認理由（必須）<span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="approve-reason" rows="3" required maxlength="500" placeholder="承認理由を入力してください"></textarea>
-                        <div class="form-text"><span id="approve-reason-count">0</span>/500 文字</div>
+                        <label for="approve-comment" class="form-label">コメント（任意）</label>
+                        <textarea class="form-control" id="approve-comment" rows="3" maxlength="500"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="button" class="btn btn-success" id="confirm-approve-btn" disabled>承認する</button>
+                    <button type="button" class="btn btn-success" id="confirm-approve-btn">承認する</button>
                 </div>
             </div>
         </div>
@@ -755,74 +641,13 @@
                     <p>このリクエストを拒否しますか?</p>
                     <div class="mb-3">
                         <label for="reject-reason" class="form-label">拒否理由（必須）<span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="reject-reason" rows="3" required maxlength="1000" placeholder="拒否理由を入力してください"></textarea>
-                        <div class="form-text"><span id="reject-reason-count">0</span>/1000 文字</div>
+                        <textarea class="form-control" id="reject-reason" rows="3" required maxlength="1000"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="button" class="btn btn-danger" id="confirm-reject-btn" disabled>拒否する</button>
+                    <button type="button" class="btn btn-danger" id="confirm-reject-btn">拒否する</button>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 緊急拒否モーダル -->
-    <div class="modal fade" id="emergencyRejectModal" tabindex="-1" aria-labelledby="emergencyRejectModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title" id="emergencyRejectModalLabel">緊急拒否</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-danger">
-                        <strong>緊急拒否</strong>: この操作は即座にリクエストを拒否します。
-                    </div>
-                    <div id="emergency-reject-summary" class="mb-3 p-3 bg-light rounded border">
-                        <!-- 操作内容サマリーが動的に挿入される -->
-                    </div>
-                    <div class="mb-3">
-                        <label for="emergency-reject-reason" class="form-label">緊急拒否理由（必須）<span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="emergency-reject-reason" rows="3" required maxlength="1000" placeholder="緊急拒否の理由を入力してください"></textarea>
-                        <div class="form-text"><span id="emergency-reject-reason-count">0</span>/1000 文字</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="button" class="btn btn-danger" id="confirm-emergency-reject-btn" disabled>緊急拒否する</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- キャンセル確認モーダル -->
-    <div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-warning">
-                    <h5 class="modal-title" id="cancelModalLabel">キャンセル確認</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>この申請をキャンセルしますか?</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">戻る</button>
-                    <button type="button" class="btn btn-warning" id="confirm-cancel-btn">キャンセルする</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 通知トースト -->
-    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
-        <div id="notificationToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header" id="toastHeader">
-                <strong class="me-auto" id="toastTitle">通知</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-            <div class="toast-body" id="toastBody">
             </div>
         </div>
     </div>

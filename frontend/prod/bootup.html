@@ -3,90 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ブート管理 - Linux Management System</title>
+    <title>起動・シャットダウン管理 - Linux Management System</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <style>
-        .status-badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .status-active   { background: #d1fae5; color: #065f46; }
-        .status-inactive { background: #f3f4f6; color: #6b7280; }
-        .status-failed   { background: #fee2e2; color: #991b1b; }
-        .status-enabled  { background: #d1fae5; color: #065f46; }
-        .status-disabled { background: #f3f4f6; color: #6b7280; }
-        .status-unknown  { background: #fef3c7; color: #92400e; }
-
-        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
-        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
-
-        .info-card {
+        .status-card {
             background: white;
             border-radius: 8px;
             border: 1px solid #e5e7eb;
-            padding: 16px;
+            padding: 20px;
             margin-bottom: 16px;
         }
-        .info-card-title { font-size: 14px; font-weight: bold; color: #374151; margin-bottom: 12px; }
-
-        .info-grid {
+        .status-title { font-size: 16px; font-weight: bold; color: #111827; margin-bottom: 14px; }
+        .metric-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 12px;
         }
-        .info-item {
+        .metric-item {
             background: #f9fafb;
             border-radius: 6px;
-            padding: 10px 14px;
-        }
-        .info-label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
-        .info-value { font-size: 14px; font-weight: bold; color: #111827; }
-
-        .failed-unit-row {
-            background: #fff5f5;
-            border-left: 3px solid #ef4444;
-        }
-        .table-compact td, .table-compact th { padding: 6px 10px; font-size: 13px; }
-        code { background: #f3f4f6; padding: 2px 5px; border-radius: 3px; font-size: 12px; }
-
-        .approval-notice {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            border-radius: 6px;
-            padding: 10px 14px;
-            font-size: 13px;
-            color: #1e40af;
-            margin-bottom: 16px;
-        }
-        .danger-notice {
-            background: #fff7ed;
-            border: 1px solid #fed7aa;
-            border-radius: 6px;
-            padding: 10px 14px;
-            font-size: 13px;
-            color: #9a3412;
-            margin-bottom: 16px;
-        }
-
-        .confirm-box {
-            background: #fefce8;
-            border: 1px solid #fde047;
-            border-radius: 6px;
             padding: 12px 16px;
-            margin-top: 12px;
         }
-        .confirm-box-title {
-            font-weight: bold;
-            color: #854d0e;
-            margin-bottom: 8px;
-            font-size: 13px;
+        .metric-label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+        .metric-value { font-size: 15px; font-weight: bold; color: #111827; word-break: break-all; }
+        .service-table th { font-size: 12px; color: #6b7280; font-weight: 600; }
+        .service-table td { font-size: 13px; vertical-align: middle; }
+        .badge-enabled { background-color: #d1fae5; color: #065f46; }
+        .badge-disabled { background-color: #fee2e2; color: #991b1b; }
+        .badge-static { background-color: #e0e7ff; color: #3730a3; }
+        .badge-masked { background-color: #f3f4f6; color: #6b7280; }
+        .danger-zone {
+            background: #fff1f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
         }
-        .confirm-box-actions { display: flex; gap: 8px; }
+        .danger-title { font-size: 15px; font-weight: bold; color: #dc2626; margin-bottom: 12px; }
+        .failed-badge { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 12px; font-size: 13px; }
+        .failed-ok { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 12px; font-size: 13px; }
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .search-box { max-width: 260px; }
     </style>
 </head>
 <body>
@@ -95,7 +55,7 @@
 
     <main class="main-content">
         <div class="main-header">
-            <h2 id="page-title">🚀 ブート管理</h2>
+            <h2 id="page-title">⚡ 起動・シャットダウン管理</h2>
             <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
                 🔄 更新
             </button>
@@ -107,276 +67,113 @@
             <!-- タブナビゲーション -->
             <ul class="nav nav-tabs mb-3" id="bootup-tabs">
                 <li class="nav-item">
-                    <a class="nav-link active" onclick="showTab('status')" id="tab-status">
-                        🖥️ ブート状態
-                    </a>
+                    <a class="nav-link active" onclick="showTab('status')" id="tab-status">📊 起動状態</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" onclick="showTab('services')" id="tab-services">
-                        ⚙️ 自動起動サービス
-                    </a>
+                    <a class="nav-link" onclick="showTab('services')" id="tab-services">🔧 サービス管理</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" onclick="showTab('service-op')" id="tab-service-op">
-                        🔧 サービス操作
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" onclick="showTab('system-op')" id="tab-system-op">
-                        ⚡ システム操作
-                    </a>
+                    <a class="nav-link" onclick="showTab('actions')" id="tab-actions">⚡ システム操作</a>
                 </li>
             </ul>
 
-            <!-- タブ1: ブート状態 -->
+            <!-- ── TAB: 起動状態 ──────────────────────────────── -->
             <div id="pane-status">
-                <div id="status-loading" class="text-center py-4 text-muted">読み込み中...</div>
-                <div id="status-content" style="display:none"></div>
+                <div class="status-card" id="bootup-status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">📊 システム起動状態</div>
+                        <span id="status-loading" class="text-muted small">読み込み中...</span>
+                    </div>
+                    <div class="metric-grid" id="status-grid">
+                        <!-- JS で動的生成 -->
+                    </div>
+                </div>
             </div>
 
-            <!-- タブ2: 自動起動サービス -->
+            <!-- ── TAB: サービス管理 ─────────────────────────── -->
             <div id="pane-services" style="display:none">
-                <div id="services-loading" class="text-center py-4 text-muted">読み込み中...</div>
-                <div id="services-content" style="display:none"></div>
-            </div>
-
-            <!-- タブ3: サービス操作 -->
-            <div id="pane-service-op" style="display:none">
-                <div class="approval-notice">
-                    ℹ️ サービスの自動起動有効化・無効化は<strong>承認フロー</strong>が必要です。申請後、管理者の承認を経て適用されます。
-                </div>
-
-                <!-- 有効化フォーム -->
-                <div class="info-card mb-3">
-                    <div class="info-card-title">✅ 自動起動を有効化</div>
-                    <form id="enable-form" onsubmit="submitEnableDisable(event, 'enable')">
-                        <div class="row g-3">
-                            <div class="col-md-5">
-                                <label class="form-label">対象サービス <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm" id="enable-service" required>
-                                    <option value="">-- サービスを選択 --</option>
-                                    <option value="nginx">nginx</option>
-                                    <option value="apache2">apache2</option>
-                                    <option value="postgresql">postgresql</option>
-                                    <option value="mysql">mysql</option>
-                                    <option value="redis">redis</option>
-                                    <option value="ssh">ssh</option>
-                                    <option value="ufw">ufw</option>
-                                    <option value="cron">cron</option>
-                                    <option value="rsyslog">rsyslog</option>
-                                    <option value="chrony">chrony</option>
-                                    <option value="ntp">ntp</option>
-                                    <option value="docker">docker</option>
-                                    <option value="fail2ban">fail2ban</option>
-                                </select>
-                            </div>
-                            <div class="col-md-7">
-                                <label class="form-label">申請理由 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control form-control-sm" id="enable-reason"
-                                       placeholder="例: Webサーバーを自動起動させるため" required maxlength="200">
-                            </div>
-                        </div>
-                        <!-- 確認UI -->
-                        <div class="confirm-box mt-3" id="enable-confirm-box" style="display:none">
-                            <div class="confirm-box-title">⚠️ 確認: 以下の操作を申請します</div>
-                            <div class="mb-2" style="font-size:13px">
-                                サービス: <strong id="enable-confirm-service"></strong> を
-                                <span class="status-badge status-enabled">有効化</span> する
-                            </div>
-                            <div class="mb-2" style="font-size:13px">
-                                理由: <em id="enable-confirm-reason"></em>
-                            </div>
-                            <div class="confirm-box-actions">
-                                <button type="submit" class="btn btn-sm btn-success" id="enable-submit-btn">
-                                    📨 承認申請を送信
-                                </button>
-                                <button type="button" class="btn btn-sm btn-secondary"
-                                        onclick="cancelConfirm('enable')">
-                                    キャンセル
-                                </button>
-                            </div>
-                        </div>
-                        <div class="mt-3" id="enable-preview-btn-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-success"
-                                    onclick="showConfirm('enable')">
-                                確認画面へ →
-                            </button>
-                        </div>
-                    </form>
-                    <div id="enable-result" class="mt-3" style="display:none"></div>
-                </div>
-
-                <!-- 無効化フォーム -->
-                <div class="info-card">
-                    <div class="info-card-title">🚫 自動起動を無効化</div>
-                    <form id="disable-form" onsubmit="submitEnableDisable(event, 'disable')">
-                        <div class="row g-3">
-                            <div class="col-md-5">
-                                <label class="form-label">対象サービス <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm" id="disable-service" required>
-                                    <option value="">-- サービスを選択 --</option>
-                                    <option value="nginx">nginx</option>
-                                    <option value="apache2">apache2</option>
-                                    <option value="postgresql">postgresql</option>
-                                    <option value="mysql">mysql</option>
-                                    <option value="redis">redis</option>
-                                    <option value="ssh">ssh</option>
-                                    <option value="ufw">ufw</option>
-                                    <option value="cron">cron</option>
-                                    <option value="rsyslog">rsyslog</option>
-                                    <option value="chrony">chrony</option>
-                                    <option value="ntp">ntp</option>
-                                    <option value="docker">docker</option>
-                                    <option value="fail2ban">fail2ban</option>
-                                </select>
-                            </div>
-                            <div class="col-md-7">
-                                <label class="form-label">申請理由 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control form-control-sm" id="disable-reason"
-                                       placeholder="例: メンテナンスのため一時的に無効化" required maxlength="200">
-                            </div>
-                        </div>
-                        <!-- 確認UI -->
-                        <div class="confirm-box mt-3" id="disable-confirm-box" style="display:none">
-                            <div class="confirm-box-title">⚠️ 確認: 以下の操作を申請します</div>
-                            <div class="mb-2" style="font-size:13px">
-                                サービス: <strong id="disable-confirm-service"></strong> を
-                                <span class="status-badge status-disabled">無効化</span> する
-                            </div>
-                            <div class="mb-2" style="font-size:13px">
-                                理由: <em id="disable-confirm-reason"></em>
-                            </div>
-                            <div class="confirm-box-actions">
-                                <button type="submit" class="btn btn-sm btn-warning" id="disable-submit-btn">
-                                    📨 承認申請を送信
-                                </button>
-                                <button type="button" class="btn btn-sm btn-secondary"
-                                        onclick="cancelConfirm('disable')">
-                                    キャンセル
-                                </button>
-                            </div>
-                        </div>
-                        <div class="mt-3" id="disable-preview-btn-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-warning"
-                                    onclick="showConfirm('disable')">
-                                確認画面へ →
-                            </button>
-                        </div>
-                    </form>
-                    <div id="disable-result" class="mt-3" style="display:none"></div>
+                <div class="status-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="status-title">🔧 起動時サービス一覧</div>
+                        <input
+                            type="text"
+                            class="form-control form-control-sm search-box"
+                            id="service-search"
+                            placeholder="サービス名で絞り込み..."
+                            oninput="filterServices()"
+                        >
+                    </div>
+                    <div id="services-loading" class="text-muted text-center py-4">読み込み中...</div>
+                    <table class="table table-hover service-table" id="services-table" style="display:none">
+                        <thead>
+                            <tr>
+                                <th>サービス名</th>
+                                <th>状態</th>
+                                <th>ベンダープリセット</th>
+                            </tr>
+                        </thead>
+                        <tbody id="services-tbody">
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <!-- タブ4: システム操作 -->
-            <div id="pane-system-op" style="display:none">
-                <div class="danger-notice">
-                    ⚠️ シャットダウン・再起動は<strong>承認フロー</strong>が必要です。操作後は指定遅延後にシステムが停止/再起動します。
+            <!-- ── TAB: システム操作（承認フロー必須） ──────── -->
+            <div id="pane-actions" style="display:none">
+                <!-- 警告バナー -->
+                <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+                    <span class="me-2" style="font-size:20px">⚠️</span>
+                    <div>
+                        <strong>重要:</strong> シャットダウン・再起動・サービス変更は <strong>Admin 権限 + 承認フロー</strong> が必要です。
+                        誤操作によりシステムへのアクセスが不能になる可能性があります。
+                    </div>
                 </div>
 
-                <!-- シャットダウン -->
-                <div class="info-card mb-3">
-                    <div class="info-card-title">⏻ シャットダウン申請</div>
-                    <form id="shutdown-form" onsubmit="submitSystemAction(event, 'shutdown')">
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label">遅延 <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm" id="shutdown-delay" required>
-                                    <option value="now">今すぐ (now)</option>
-                                    <option value="+1">+1 分後</option>
-                                    <option value="+2">+2 分後</option>
-                                    <option value="+5">+5 分後</option>
-                                    <option value="+10">+10 分後</option>
-                                    <option value="+30">+30 分後</option>
-                                    <option value="+60">+60 分後</option>
-                                </select>
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label">申請理由 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control form-control-sm" id="shutdown-reason"
-                                       placeholder="例: 定期メンテナンスのため" required maxlength="200">
-                            </div>
+                <!-- シャットダウン/再起動 -->
+                <div class="danger-zone">
+                    <div class="danger-title">🔴 システムシャットダウン / 再起動</div>
+                    <p class="text-muted small mb-3">
+                        この操作を実行すると、全ての接続が切断されます。十分に確認してから実行してください。
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">操作種別</label>
+                            <select class="form-select form-select-sm" id="action-type">
+                                <option value="shutdown">🔴 シャットダウン</option>
+                                <option value="reboot">🔄 再起動</option>
+                            </select>
                         </div>
-                        <!-- 確認UI -->
-                        <div class="confirm-box mt-3" id="shutdown-confirm-box" style="display:none">
-                            <div class="confirm-box-title">🔴 確認: 以下の操作を申請します</div>
-                            <div class="mb-2" style="font-size:13px">
-                                操作: <span class="status-badge status-failed">シャットダウン</span>
-                                &nbsp; 遅延: <strong id="shutdown-confirm-delay"></strong>
-                            </div>
-                            <div class="mb-2" style="font-size:13px">
-                                理由: <em id="shutdown-confirm-reason"></em>
-                            </div>
-                            <div class="confirm-box-actions">
-                                <button type="submit" class="btn btn-sm btn-danger" id="shutdown-submit-btn">
-                                    📨 承認申請を送信
-                                </button>
-                                <button type="button" class="btn btn-sm btn-secondary"
-                                        onclick="cancelConfirm('shutdown')">
-                                    キャンセル
-                                </button>
-                            </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">実行タイミング</label>
+                            <select class="form-select form-select-sm" id="action-delay">
+                                <option value="+1">1分後</option>
+                                <option value="+5">5分後</option>
+                                <option value="+10">10分後</option>
+                                <option value="+30">30分後</option>
+                                <option value="+60">1時間後</option>
+                                <option value="now">今すぐ</option>
+                            </select>
                         </div>
-                        <div class="mt-3" id="shutdown-preview-btn-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                    onclick="showConfirm('shutdown')">
-                                確認画面へ →
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold small">実行理由（必須）</label>
+                            <input
+                                type="text"
+                                class="form-control form-control-sm"
+                                id="action-reason"
+                                placeholder="例: 定期メンテナンスのため"
+                                maxlength="500"
+                            >
+                        </div>
+                        <div class="col-12">
+                            <button
+                                class="btn btn-danger btn-sm"
+                                onclick="confirmSystemAction()"
+                                id="action-btn"
+                            >
+                                ⚡ 実行
                             </button>
                         </div>
-                    </form>
-                    <div id="shutdown-result" class="mt-3" style="display:none"></div>
-                </div>
-
-                <!-- 再起動 -->
-                <div class="info-card">
-                    <div class="info-card-title">🔁 再起動申請</div>
-                    <form id="reboot-form" onsubmit="submitSystemAction(event, 'reboot')">
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label">遅延 <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm" id="reboot-delay" required>
-                                    <option value="now">今すぐ (now)</option>
-                                    <option value="+1">+1 分後</option>
-                                    <option value="+2">+2 分後</option>
-                                    <option value="+5">+5 分後</option>
-                                    <option value="+10">+10 分後</option>
-                                    <option value="+30">+30 分後</option>
-                                    <option value="+60">+60 分後</option>
-                                </select>
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label">申請理由 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control form-control-sm" id="reboot-reason"
-                                       placeholder="例: カーネルアップデート適用のため" required maxlength="200">
-                            </div>
-                        </div>
-                        <!-- 確認UI -->
-                        <div class="confirm-box mt-3" id="reboot-confirm-box" style="display:none">
-                            <div class="confirm-box-title">🟠 確認: 以下の操作を申請します</div>
-                            <div class="mb-2" style="font-size:13px">
-                                操作: <span class="status-badge status-unknown">再起動</span>
-                                &nbsp; 遅延: <strong id="reboot-confirm-delay"></strong>
-                            </div>
-                            <div class="mb-2" style="font-size:13px">
-                                理由: <em id="reboot-confirm-reason"></em>
-                            </div>
-                            <div class="confirm-box-actions">
-                                <button type="submit" class="btn btn-sm btn-warning" id="reboot-submit-btn">
-                                    📨 承認申請を送信
-                                </button>
-                                <button type="button" class="btn btn-sm btn-secondary"
-                                        onclick="cancelConfirm('reboot')">
-                                    キャンセル
-                                </button>
-                            </div>
-                        </div>
-                        <div class="mt-3" id="reboot-preview-btn-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-warning"
-                                    onclick="showConfirm('reboot')">
-                                確認画面へ →
-                            </button>
-                        </div>
-                    </form>
-                    <div id="reboot-result" class="mt-3" style="display:none"></div>
+                    </div>
                 </div>
             </div>
 
@@ -384,359 +181,252 @@
     </main>
 </div>
 
+<!-- 確認モーダル -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">⚠️ 操作確認</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="confirm-body">
+                この操作を実行しますか？
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-danger btn-sm" id="confirm-ok-btn">実行する</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../js/env-config.js"></script>
-<script src="../js/api.js"></script>
+    <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
 <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('bootup')):renderSidebar('bootup');</script>
+<script src="../js/components.js"></script>
 <script>
 // ===================================================================
-// ユーティリティ
+// Bootup/Shutdown 管理ページ
 // ===================================================================
 
+const API_BASE = '/api';
+let allServices = [];
+
+// ── 初期化 ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof initSidebar === 'function') initSidebar();
+    loadBootupStatus();
+});
+
+// ── タブ切り替え ────────────────────────────────────────────────
+function showTab(tab) {
+    ['status', 'services', 'actions'].forEach(t => {
+        document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+    });
+    if (tab === 'services' && allServices.length === 0) loadServices();
+}
+
+// ── 起動状態取得 ────────────────────────────────────────────────
+async function loadBootupStatus() {
+    const loading = document.getElementById('status-loading');
+    loading.textContent = '読み込み中...';
+
+    try {
+        const data = await apiGet(`${API_BASE}/bootup/status`);
+        renderBootupStatus(data.data || data);
+        loading.textContent = '';
+    } catch (err) {
+        loading.textContent = '';
+        showAlert('danger', `起動状態の取得に失敗しました: ${err.message}`);
+    }
+}
+
+function renderBootupStatus(d) {
+    const grid = document.getElementById('status-grid');
+    const metrics = [
+        { label: '🎯 デフォルトターゲット', value: d.default_target || 'N/A' },
+        { label: '⏱️ 稼働時間', value: d.uptime || 'N/A' },
+        { label: '🕒 最終起動時刻', value: d.last_boot || 'N/A' },
+        {
+            label: '⚠️ 失敗ユニット数',
+            value: `<span class="${d.failed_units > 0 ? 'failed-badge' : 'failed-ok'}">${d.failed_units ?? 0} 件</span>`
+        },
+    ];
+
+    grid.innerHTML = metrics.map(m => `
+        <div class="metric-item">
+            <div class="metric-label">${m.label}</div>
+            <div class="metric-value">${m.value}</div>
+        </div>
+    `).join('');
+}
+
+// ── サービス一覧取得 ────────────────────────────────────────────
+async function loadServices() {
+    const loading = document.getElementById('services-loading');
+    const table = document.getElementById('services-table');
+    loading.style.display = 'block';
+    table.style.display = 'none';
+
+    try {
+        const data = await apiGet(`${API_BASE}/bootup/services`);
+        allServices = (data.data && data.data.services) ? data.data.services : [];
+        renderServices(allServices);
+        loading.style.display = 'none';
+        table.style.display = '';
+    } catch (err) {
+        loading.textContent = `取得失敗: ${err.message}`;
+        showAlert('danger', `サービス一覧の取得に失敗しました: ${err.message}`);
+    }
+}
+
+function renderServices(services) {
+    const tbody = document.getElementById('services-tbody');
+    tbody.innerHTML = services.map(s => {
+        const stateClass = {
+            enabled: 'badge-enabled',
+            disabled: 'badge-disabled',
+            static: 'badge-static',
+            masked: 'badge-masked',
+        }[s.state] || 'badge-static';
+
+        const presetClass = {
+            enabled: 'badge-enabled',
+            disabled: 'badge-disabled',
+        }[s.vendor_preset] || 'badge-static';
+
+        return `
+            <tr>
+                <td><code>${escapeHtml(s.unit || '')}</code></td>
+                <td><span class="badge ${stateClass}">${escapeHtml(s.state || '')}</span></td>
+                <td><span class="badge ${presetClass}">${escapeHtml(s.vendor_preset || 'N/A')}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterServices() {
+    const q = document.getElementById('service-search').value.toLowerCase();
+    const filtered = allServices.filter(s => (s.unit || '').toLowerCase().includes(q));
+    renderServices(filtered);
+}
+
+// ── システム操作（シャットダウン/再起動）──────────────────────
+function confirmSystemAction() {
+    const action = document.getElementById('action-type').value;
+    const delay = document.getElementById('action-delay').value;
+    const reason = document.getElementById('action-reason').value.trim();
+
+    if (!reason) {
+        showAlert('warning', '実行理由を入力してください');
+        return;
+    }
+
+    const actionLabel = action === 'shutdown' ? 'シャットダウン' : '再起動';
+    const delayLabel = delay === 'now' ? '今すぐ' : `${delay.replace('+', '')}分後`;
+
+    document.getElementById('confirm-body').innerHTML = `
+        <div class="alert alert-danger mb-0">
+            <strong>⚠️ 本当に実行しますか？</strong><br>
+            操作: <strong>${actionLabel}</strong><br>
+            タイミング: <strong>${delayLabel}</strong><br>
+            理由: ${escapeHtml(reason)}
+        </div>
+    `;
+
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    document.getElementById('confirm-ok-btn').onclick = () => {
+        modal.hide();
+        executeSystemAction(action, delay, reason);
+    };
+    modal.show();
+}
+
+async function executeSystemAction(action, delay, reason) {
+    const btn = document.getElementById('action-btn');
+    btn.disabled = true;
+    btn.textContent = '実行中...';
+
+    try {
+        const result = await apiPost(`${API_BASE}/bootup/action`, {
+            action,
+            delay,
+            reason,
+        });
+
+        const label = action === 'shutdown' ? 'シャットダウン' : '再起動';
+        showAlert('success', `✅ システム${label}がスケジュールされました。${result.message || ''}`);
+    } catch (err) {
+        showAlert('danger', `❌ 操作に失敗しました: ${err.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ 実行';
+    }
+}
+
+// ── 全更新 ─────────────────────────────────────────────────────
+function refreshAll() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.textContent = '更新中...';
+    allServices = [];
+
+    loadBootupStatus().finally(() => {
+        btn.disabled = false;
+        btn.textContent = '🔄 更新';
+    });
+}
+
+// ── ユーティリティ ──────────────────────────────────────────────
 function escapeHtml(str) {
-    if (!str) return '';
     return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+        .replace(/"/g, '&quot;');
 }
 
-function showAlert(msg, type) {
-    var t = type || 'danger';
-    document.getElementById('alert-area').innerHTML =
-        '<div class="alert alert-' + t + ' alert-dismissible fade show" role="alert">' +
-            msg +
-            '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-        '</div>';
+function showAlert(type, msg) {
+    const area = document.getElementById('alert-area');
+    area.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${msg}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
 }
 
-// ===================================================================
-// タブ制御
-// ===================================================================
-
-var currentTab = 'status';
-
-function showTab(tab) {
-    ['status', 'services', 'service-op', 'system-op'].forEach(function(t) {
-        document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
-        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+async function apiGet(url) {
+    const token = localStorage.getItem('access_token');
+    const resp = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    currentTab = tab;
-    if (tab === 'status') loadStatus();
-    else if (tab === 'services') loadServices();
-}
-
-function refreshAll() {
-    if (currentTab === 'status') loadStatus();
-    else if (currentTab === 'services') loadServices();
-    else showAlert('現在のタブは更新ボタン不要です。', 'info');
-}
-
-// ===================================================================
-// タブ1: ブート状態
-// ===================================================================
-
-async function loadStatus() {
-    var loading = document.getElementById('status-loading');
-    var content = document.getElementById('status-content');
-    loading.style.display = '';
-    content.style.display = 'none';
-    loading.textContent = '読み込み中...';
-
-    try {
-        var data = await api.getBootupStatus();
-        content.innerHTML = buildStatusContent(data);
-        loading.style.display = 'none';
-        content.style.display = '';
-    } catch (e) {
-        loading.innerHTML = '<div class="alert alert-warning">取得失敗: ' + escapeHtml(e.message) + '</div>';
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
     }
+    return resp.json();
 }
 
-function buildStatusContent(data) {
-    var defaultTarget = escapeHtml(data.default_target || '-');
-    var uptime = escapeHtml(data.uptime || '-');
-    var lastBoot = escapeHtml(data.last_boot || '-');
-    var failedUnits = data.failed_units || [];
-
-    var infoGrid =
-        '<div class="info-card">' +
-            '<div class="info-card-title">🖥️ システムブート情報</div>' +
-            '<div class="info-grid">' +
-                '<div class="info-item">' +
-                    '<div class="info-label">デフォルトターゲット</div>' +
-                    '<div class="info-value">' + defaultTarget + '</div>' +
-                '</div>' +
-                '<div class="info-item">' +
-                    '<div class="info-label">稼働時間</div>' +
-                    '<div class="info-value">' + uptime + '</div>' +
-                '</div>' +
-                '<div class="info-item">' +
-                    '<div class="info-label">最終起動日時</div>' +
-                    '<div class="info-value">' + lastBoot + '</div>' +
-                '</div>' +
-            '</div>' +
-        '</div>';
-
-    var failedSection = buildFailedUnitsSection(failedUnits);
-
-    return infoGrid + failedSection;
-}
-
-function buildFailedUnitsSection(failedUnits) {
-    if (!failedUnits || failedUnits.length === 0) {
-        return '<div class="info-card">' +
-                   '<div class="info-card-title">🔴 異常ユニット</div>' +
-                   '<div class="text-success" style="font-size:14px; padding: 8px 0;">✅ 異常なし</div>' +
-               '</div>';
+async function apiPost(url, body) {
+    const token = localStorage.getItem('access_token');
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
     }
-
-    var rows = failedUnits.map(function(u) {
-        var unit = escapeHtml(u.unit || '-');
-        var activeState = escapeHtml(u.active_state || '-');
-        var subState = escapeHtml(u.sub_state || '-');
-        return '<tr class="failed-unit-row">' +
-                   '<td><code>' + unit + '</code></td>' +
-                   '<td><span class="status-badge status-failed">' + activeState + '</span></td>' +
-                   '<td>' + subState + '</td>' +
-               '</tr>';
-    }).join('');
-
-    return '<div class="info-card">' +
-               '<div class="info-card-title">' +
-                   '🔴 異常ユニット' +
-                   '<span class="badge bg-danger ms-2">' + failedUnits.length + '</span>' +
-               '</div>' +
-               '<table class="table table-sm table-hover table-compact">' +
-                   '<thead class="table-dark">' +
-                       '<tr><th>ユニット名</th><th>状態</th><th>サブ状態</th></tr>' +
-                   '</thead>' +
-                   '<tbody>' + rows + '</tbody>' +
-               '</table>' +
-           '</div>';
+    return resp.json();
 }
-
-// ===================================================================
-// タブ2: 自動起動サービス
-// ===================================================================
-
-async function loadServices() {
-    var loading = document.getElementById('services-loading');
-    var content = document.getElementById('services-content');
-    loading.style.display = '';
-    content.style.display = 'none';
-    loading.textContent = '読み込み中...';
-
-    try {
-        var data = await api.getBootupServices();
-        var services = data.services || [];
-        content.innerHTML = buildServicesTable(services);
-        loading.style.display = 'none';
-        content.style.display = '';
-    } catch (e) {
-        loading.innerHTML = '<div class="alert alert-warning">取得失敗: ' + escapeHtml(e.message) + '</div>';
-    }
-}
-
-function buildServicesTable(services) {
-    if (!services || services.length === 0) {
-        return '<div class="text-muted">サービス情報を取得できませんでした</div>';
-    }
-
-    var rows = services.map(function(svc) {
-        var unit = escapeHtml(svc.unit || '-');
-        var state = (svc.state || '').toLowerCase();
-        var vendorPreset = escapeHtml(svc.vendor_preset || '-');
-
-        var stateClass = 'status-unknown';
-        if (state === 'enabled') stateClass = 'status-enabled';
-        else if (state === 'disabled') stateClass = 'status-disabled';
-        else if (state === 'active') stateClass = 'status-active';
-        else if (state === 'failed') stateClass = 'status-failed';
-        else if (state === 'inactive') stateClass = 'status-inactive';
-
-        var presetLower = (svc.vendor_preset || '').toLowerCase();
-        var presetClass = 'status-inactive';
-        if (presetLower === 'enabled') presetClass = 'status-active';
-
-        return '<tr>' +
-                   '<td><code>' + unit + '</code></td>' +
-                   '<td><span class="status-badge ' + stateClass + '">' + escapeHtml(svc.state || '-') + '</span></td>' +
-                   '<td><span class="status-badge ' + presetClass + '">' + vendorPreset + '</span></td>' +
-               '</tr>';
-    }).join('');
-
-    return '<div class="mb-2 text-muted" style="font-size:12px">合計: ' + services.length + ' 件</div>' +
-           '<table class="table table-sm table-hover table-compact">' +
-               '<thead class="table-dark">' +
-                   '<tr><th>ユニット名</th><th>状態</th><th>ベンダープリセット</th></tr>' +
-               '</thead>' +
-               '<tbody>' + rows + '</tbody>' +
-           '</table>';
-}
-
-// ===================================================================
-// タブ3: サービス操作（確認UI制御）
-// ===================================================================
-
-function showConfirm(type) {
-    if (type === 'enable') {
-        var service = document.getElementById('enable-service').value;
-        var reason = document.getElementById('enable-reason').value.trim();
-        if (!service) { showAlert('サービスを選択してください。'); return; }
-        if (!reason) { showAlert('申請理由を入力してください。'); return; }
-        document.getElementById('enable-confirm-service').textContent = service;
-        document.getElementById('enable-confirm-reason').textContent = reason;
-        document.getElementById('enable-confirm-box').style.display = '';
-        document.getElementById('enable-preview-btn-wrap').style.display = 'none';
-    } else if (type === 'disable') {
-        var service = document.getElementById('disable-service').value;
-        var reason = document.getElementById('disable-reason').value.trim();
-        if (!service) { showAlert('サービスを選択してください。'); return; }
-        if (!reason) { showAlert('申請理由を入力してください。'); return; }
-        document.getElementById('disable-confirm-service').textContent = service;
-        document.getElementById('disable-confirm-reason').textContent = reason;
-        document.getElementById('disable-confirm-box').style.display = '';
-        document.getElementById('disable-preview-btn-wrap').style.display = 'none';
-    } else if (type === 'shutdown') {
-        var delay = document.getElementById('shutdown-delay').value;
-        var reason = document.getElementById('shutdown-reason').value.trim();
-        if (!reason) { showAlert('申請理由を入力してください。'); return; }
-        document.getElementById('shutdown-confirm-delay').textContent = delay;
-        document.getElementById('shutdown-confirm-reason').textContent = reason;
-        document.getElementById('shutdown-confirm-box').style.display = '';
-        document.getElementById('shutdown-preview-btn-wrap').style.display = 'none';
-    } else if (type === 'reboot') {
-        var delay = document.getElementById('reboot-delay').value;
-        var reason = document.getElementById('reboot-reason').value.trim();
-        if (!reason) { showAlert('申請理由を入力してください。'); return; }
-        document.getElementById('reboot-confirm-delay').textContent = delay;
-        document.getElementById('reboot-confirm-reason').textContent = reason;
-        document.getElementById('reboot-confirm-box').style.display = '';
-        document.getElementById('reboot-preview-btn-wrap').style.display = 'none';
-    }
-}
-
-function cancelConfirm(type) {
-    document.getElementById(type + '-confirm-box').style.display = 'none';
-    document.getElementById(type + '-preview-btn-wrap').style.display = '';
-}
-
-// ===================================================================
-// タブ3: サービス有効化・無効化送信
-// ===================================================================
-
-async function submitEnableDisable(event, action) {
-    event.preventDefault();
-    var service = document.getElementById(action + '-service').value;
-    var reason = document.getElementById(action + '-reason').value.trim();
-    var submitBtn = document.getElementById(action + '-submit-btn');
-    var result = document.getElementById(action + '-result');
-
-    if (!service) { showAlert('サービスを選択してください。'); return; }
-    if (!reason) { showAlert('申請理由を入力してください。'); return; }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = '送信中...';
-    result.style.display = 'none';
-
-    try {
-        var data;
-        if (action === 'enable') {
-            data = await api.enableBootupService(service, reason);
-        } else {
-            data = await api.disableBootupService(service, reason);
-        }
-
-        if (data.status === 'pending_approval') {
-            result.innerHTML =
-                '<div class="alert alert-info">' +
-                    '✅ 申請を受け付けました（承認待ち）。<br>' +
-                    '申請ID: <code>' + escapeHtml(data.request_id || '-') + '</code><br>' +
-                    '<small class="text-muted">' + escapeHtml(data.message || '') + '</small>' +
-                '</div>';
-            document.getElementById(action + '-form').reset();
-        } else {
-            result.innerHTML =
-                '<div class="alert alert-success">✅ ' +
-                    escapeHtml(data.message || '申請が完了しました') +
-                '</div>';
-        }
-        result.style.display = '';
-    } catch (e) {
-        result.innerHTML =
-            '<div class="alert alert-danger">申請失敗: ' + escapeHtml(e.message) + '</div>';
-        result.style.display = '';
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '📨 承認申請を送信';
-        cancelConfirm(action);
-    }
-}
-
-// ===================================================================
-// タブ4: システム操作送信（shutdown / reboot）
-// ===================================================================
-
-async function submitSystemAction(event, action) {
-    event.preventDefault();
-    var delay = document.getElementById(action + '-delay').value;
-    var reason = document.getElementById(action + '-reason').value.trim();
-    var submitBtn = document.getElementById(action + '-submit-btn');
-    var result = document.getElementById(action + '-result');
-
-    if (!reason) { showAlert('申請理由を入力してください。'); return; }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = '送信中...';
-    result.style.display = 'none';
-
-    try {
-        var data = await api.bootupAction(action, delay, reason);
-
-        if (data.status === 'pending_approval') {
-            result.innerHTML =
-                '<div class="alert alert-info">' +
-                    '✅ 申請を受け付けました（承認待ち）。<br>' +
-                    '申請ID: <code>' + escapeHtml(data.request_id || '-') + '</code><br>' +
-                    '<small class="text-muted">' + escapeHtml(data.message || '') + '</small>' +
-                '</div>';
-            document.getElementById(action + '-form').reset();
-        } else {
-            result.innerHTML =
-                '<div class="alert alert-success">✅ ' +
-                    escapeHtml(data.message || '申請が完了しました') +
-                '</div>';
-        }
-        result.style.display = '';
-    } catch (e) {
-        result.innerHTML =
-            '<div class="alert alert-danger">申請失敗: ' + escapeHtml(e.message) + '</div>';
-        result.style.display = '';
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '📨 承認申請を送信';
-        cancelConfirm(action);
-    }
-}
-
-// ===================================================================
-// 初期化
-// ===================================================================
-
-document.addEventListener('DOMContentLoaded', function() {
-    var token = localStorage.getItem('access_token');
-    if (!token) {
-        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
-        return;
-    }
-    api.setToken(token);
-    if (typeof initSidebar === 'function') initSidebar('bootup');
-    loadStatus();
-});
 </script>
-<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
 </html>

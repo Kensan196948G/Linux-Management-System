@@ -218,11 +218,6 @@ function showTab(tab) {
     else if (tab === 'active-connections') loadActiveConnections();
 }
 
-function escapeHtml(str) {
-    if (typeof str !== 'string') return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 function showAlert(msg, type = 'danger') {
     document.getElementById('alert-area').innerHTML =
         `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
@@ -265,7 +260,7 @@ async function loadInterfaces() {
         }
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -280,7 +275,7 @@ async function loadConnections() {
         renderConnections(allConnections);
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -334,7 +329,7 @@ async function loadRoutes() {
         }
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -376,7 +371,7 @@ async function loadStats() {
         }
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -398,7 +393,7 @@ async function loadInterfacesDetail() {
             typeof data.interfaces === 'string' ? data.interfaces : JSON.stringify(data.interfaces, null, 2);
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -412,7 +407,7 @@ async function loadDnsConfig() {
         document.getElementById('dns-hosts-pre').textContent = data.hosts || '';
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -426,7 +421,7 @@ async function loadActiveConnections() {
             typeof data.connections === 'string' ? data.connections : JSON.stringify(data.connections, null, 2);
         loading.style.display = 'none'; content.style.display = '';
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 

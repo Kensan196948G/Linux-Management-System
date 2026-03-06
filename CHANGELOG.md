@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.28.0] - 2026-03-06
+
+### Added (Steps 38-42)
+- Log Search 機能拡張
+  - `GET /api/logsearch/tail` — 複数ログファイル末尾連結取得 (lines: 5〜100)
+  - `GET /api/logsearch/stream` — SSE ポーリング型リアルタイムログストリーミング (10秒ごと)
+  - `sudo_wrapper.get_log_tail_multi()` — tail-multi サブコマンド呼び出し
+  - 保存クエリ機能（ローカルストレージ）— よく使う検索パターンをブックマーク、デフォルト4件プリセット
+- `frontend/prod/logsearch.html` — 本番用HTMLを生成
+- `Makefile` — `build-frontend` ターゲット追加（dev→prod 一括コピー）
+
+### Improved
+- カバレッジ向上
+  - `approval_service.py`: 89.53% → **98.22%**
+  - `sudo_wrapper.py`: 99.84% → **100%**（get_log_tail_multi テスト追加）
+  - `sessions.py` / `sshkeys.py`: 単独実行で **100%** 確認
+- 総テストカバレッジ 95.53% → **95.96%**（総テスト数: 2581件）
+- `tests/integration/test_logsearch_api.py` — 27件 → **34件**（tail エンドポイントテスト7件追加）
+
+---
+
 ## [v0.27.0] - 2026-03-08
 
 ### Added (Step 37)

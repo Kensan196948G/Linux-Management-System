@@ -269,3 +269,57 @@ class TestLogsearchErrorHandling:
         with patch("backend.core.sudo_wrapper.sudo_wrapper.get_recent_errors", side_effect=Exception("unexpected")):
             response = test_client.get("/api/logsearch/recent-errors", headers=auth_headers)
         assert response.status_code == 503
+
+
+class TestLogsearchTailEndpoint:
+    """GET /api/logsearch/tail エンドポイントのテスト"""
+
+    def test_get_tail_success(self, test_client, auth_headers):
+        """tail-multi が正常に結果を返す"""
+        from unittest.mock import patch
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_log_tail_multi") as m:
+            m.return_value = {"output": ["line1", "line2"], "files": ["syslog", "auth.log"], "timestamp": "2026-01-01T00:00:00Z"}
+            resp = test_client.get("/api/logsearch/tail", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "output" in data
+        assert data["lines_per_file"] == 30
+
+    def test_get_tail_custom_lines(self, test_client, auth_headers):
+        """lines パラメータを指定できる"""
+        from unittest.mock import patch
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_log_tail_multi") as m:
+            m.return_value = {"output": [], "files": [], "timestamp": "2026-01-01T00:00:00Z"}
+            resp = test_client.get("/api/logsearch/tail?lines=10", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["lines_per_file"] == 10
+
+    def test_get_tail_lines_too_large(self, test_client, auth_headers):
+        """lines > 100 は 422"""
+        resp = test_client.get("/api/logsearch/tail?lines=200", headers=auth_headers)
+        assert resp.status_code == 422
+
+    def test_get_tail_lines_too_small(self, test_client, auth_headers):
+        """lines < 5 は 422"""
+        resp = test_client.get("/api/logsearch/tail?lines=1", headers=auth_headers)
+        assert resp.status_code == 422
+
+    def test_get_tail_sudo_error(self, test_client, auth_headers):
+        """SudoWrapperError → 500"""
+        from unittest.mock import patch
+        from backend.core.sudo_wrapper import SudoWrapperError
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_log_tail_multi", side_effect=SudoWrapperError("fail")):
+            resp = test_client.get("/api/logsearch/tail", headers=auth_headers)
+        assert resp.status_code == 500
+
+    def test_get_tail_generic_exception(self, test_client, auth_headers):
+        """Exception → 503"""
+        from unittest.mock import patch
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_log_tail_multi", side_effect=Exception("unexpected")):
+            resp = test_client.get("/api/logsearch/tail", headers=auth_headers)
+        assert resp.status_code == 503
+
+    def test_get_tail_unauthenticated(self, test_client):
+        """認証なし → 401"""
+        resp = test_client.get("/api/logsearch/tail")
+        assert resp.status_code in (401, 403)

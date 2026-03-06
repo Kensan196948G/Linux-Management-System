@@ -1739,3 +1739,440 @@ class TestGetPolicyEdgeCases:
         assert result["operation_type"] == "user_add"
         assert "description" in result
         assert "risk_level" in result
+
+
+# =====================================================================
+# TC074-076: initialize_db() 正常パス（lines 202-219）
+# =====================================================================
+
+
+class TestInitializeDbHappyPath:
+    """initialize_db() の正常実行パスをカバー"""
+
+    def test_initialize_db_creates_tables(self, tmp_path):
+        """TC074: 新規DBにスキーマを適用してテーブルが作成される"""
+        db_path = str(tmp_path / "test_init_happy.db")
+        service = ApprovalService(db_path=db_path)
+        run_async(service.initialize_db())
+
+        async def check_tables():
+            async with aiosqlite.connect(db_path) as db:
+                async with db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ) as cursor:
+                    return await cursor.fetchall()
+
+        tables = run_async(check_tables())
+        table_names = [t[0] for t in tables]
+        assert "approval_requests" in table_names
+
+    def test_initialize_db_migration_already_applied(self, tmp_path):
+        """TC075: 2回目の initialize_db() はマイグレーションスキップ（例外なし）"""
+        db_path = str(tmp_path / "test_init_dup.db")
+        service = ApprovalService(db_path=db_path)
+        # First call - applies schema and migration
+        run_async(service.initialize_db())
+        # Second call - migration fails silently (column already exists)
+        run_async(service.initialize_db())
+
+    def test_initialize_db_log_success(self, tmp_path):
+        """TC076: 正常完了ログが出力される（例外なし）"""
+        db_path = str(tmp_path / "test_init_log.db")
+        service = ApprovalService(db_path=db_path)
+        # Should complete without raising
+        run_async(service.initialize_db())
+
+
+# =====================================================================
+# TC077-078: execute_request() 未定義 operation_type（lines 655, 768）
+# =====================================================================
+
+
+class TestExecuteRequestUnknownType:
+    """execute_request() で未知の operation_type が execution_failed になること"""
+
+    def _insert_approved_request(self, service, request_type: str) -> str:
+        """テスト用に approved 状態のリクエストを直接 DB に挿入"""
+        import uuid
+        from datetime import datetime, timedelta
+
+        request_id = str(uuid.uuid4())
+
+        async def _insert():
+            async with aiosqlite.connect(service.db_path) as db:
+                await db.execute(
+                    """
+                    INSERT INTO approval_requests
+                        (id, request_type, request_payload, reason, status,
+                         requester_id, requester_name,
+                         created_at, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        request_id,
+                        request_type,
+                        '{"data": "test"}',
+                        "unknown type test",
+                        "approved",
+                        "user_001",
+                        "operator",
+                        datetime.utcnow().isoformat(),
+                        (datetime.utcnow() + timedelta(hours=1)).isoformat(),
+                    ),
+                )
+                await db.commit()
+
+        run_async(_insert())
+        return request_id
+
+    def test_execute_request_unknown_type_becomes_execution_failed(
+        self, approval_service_with_mock_audit
+    ):
+        """TC077: 未知の operation_type → NotImplementedError → execution_failed（SudoWrapperError 送出）"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+
+        service = approval_service_with_mock_audit
+        request_id = self._insert_approved_request(service, "unknown_custom_operation")
+
+        # execute_request は execution_failed 時に SudoWrapperError を送出する
+        with pytest.raises(SudoWrapperError, match="No executor defined"):
+            run_async(
+                service.execute_request(
+                    request_id=request_id,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+
+        # DB のステータスが execution_failed に更新されていることを確認
+        async def check_status():
+            async with aiosqlite.connect(service.db_path) as db:
+                db.row_factory = aiosqlite.Row
+                async with db.execute(
+                    "SELECT status FROM approval_requests WHERE id = ?", (request_id,)
+                ) as cursor:
+                    row = await cursor.fetchone()
+                    return row["status"]
+
+        status = run_async(check_status())
+        assert status == "execution_failed"
+
+    def test_execute_request_covers_unsupported_check(
+        self, approval_service_with_mock_audit
+    ):
+        """TC078: _UNSUPPORTED チェック行（line 655）が実行される"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+
+        service = approval_service_with_mock_audit
+        request_id = self._insert_approved_request(service, "another_unknown_op")
+
+        # The dispatch function runs, hits the _UNSUPPORTED check (False), then falls
+        # through to the else clause raising NotImplementedError → SudoWrapperError
+        with pytest.raises(SudoWrapperError):
+            run_async(
+                service.execute_request(
+                    request_id=request_id,
+                    executor_id="user_003",
+                    executor_name="admin",
+                    executor_role="Admin",
+                )
+            )
+
+
+# =====================================================================
+# TC079-080: list_requests() requester_id / request_type フィルター（lines 1377-1382）
+# =====================================================================
+
+
+class TestListRequestsFilters:
+    """list_requests() の追加フィルターパス"""
+
+    def _create_req(self, service, requester_id, request_type="user_add", username="filter_u"):
+        return run_async(
+            service.create_request(
+                request_type=request_type,
+                payload={"username": username, "group": "dev"},
+                reason="filter test",
+                requester_id=requester_id,
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+
+    def test_requester_id_filter(self, approval_service_with_mock_audit):
+        """TC079: requester_id フィルターで該当リクエストのみ返る"""
+        service = approval_service_with_mock_audit
+        self._create_req(service, "user_req_filter_001", username="rf_usr1")
+        result = run_async(service.list_requests(requester_id="user_req_filter_001"))
+        assert result["total"] >= 1
+        for req in result["requests"]:
+            assert req["requester_id"] == "user_req_filter_001"
+
+    def test_request_type_filter(self, approval_service_with_mock_audit):
+        """TC080: request_type フィルターで該当種別のみ返る"""
+        service = approval_service_with_mock_audit
+        self._create_req(service, "user_002", request_type="user_add", username="rf_usr2")
+        result = run_async(service.list_requests(request_type="user_add"))
+        assert result["total"] >= 1
+        for req in result["requests"]:
+            assert req["request_type"] == "user_add"
+
+
+# =====================================================================
+# TC081-091: get_approval_history() バリデーション・フィルター（lines 1475-1512, 1543-1584）
+# =====================================================================
+
+
+class TestGetApprovalHistoryFilters:
+    """get_approval_history() の各バリデーションとフィルターパス"""
+
+    def _create_and_approve(self, service, username="hist_u"):
+        """リクエストを作成して承認し、履歴エントリを生成する"""
+        req = run_async(
+            service.create_request(
+                request_type="user_add",
+                payload={"username": username, "group": "dev"},
+                reason="history filter test",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+        run_async(
+            service.approve_request(
+                request_id=req["request_id"],
+                approver_id="user_003",
+                approver_name="admin",
+                approver_role="Admin",
+            )
+        )
+        return req["request_id"]
+
+    def test_per_page_low_clamped_to_1(self, approval_service_with_mock_audit):
+        """TC081: per_page < 1 → 1 にクランプ（エラーなし）"""
+        service = approval_service_with_mock_audit
+        result = run_async(service.get_approval_history(per_page=0))
+        assert isinstance(result["items"], list)
+        assert result["per_page"] == 1
+
+    def test_per_page_high_clamped_to_100(self, approval_service_with_mock_audit):
+        """TC082: per_page > 100 → 100 にクランプ（エラーなし）"""
+        service = approval_service_with_mock_audit
+        result = run_async(service.get_approval_history(per_page=200))
+        assert isinstance(result["items"], list)
+        assert result["per_page"] == 100
+
+    def test_invalid_action_raises_value_error(self, approval_service_with_mock_audit):
+        """TC083: 無効な action フィルター → ValueError"""
+        service = approval_service_with_mock_audit
+        with pytest.raises(ValueError, match="Invalid action filter"):
+            run_async(service.get_approval_history(action="invalid_action_xyz"))
+
+    def test_request_id_filter(self, approval_service_with_mock_audit):
+        """TC084: request_id フィルター"""
+        service = approval_service_with_mock_audit
+        request_id = self._create_and_approve(service, username="rid_filter_u")
+        result = run_async(service.get_approval_history(request_id=request_id))
+        assert "items" in result
+        for item in result["items"]:
+            assert item["approval_request_id"] == request_id
+
+    def test_action_filter_approve(self, approval_service_with_mock_audit):
+        """TC085: action='approved' フィルター"""
+        service = approval_service_with_mock_audit
+        self._create_and_approve(service, username="act_filter_u")
+        result = run_async(service.get_approval_history(action="approved"))
+        assert "items" in result
+        for item in result["items"]:
+            assert item["action"] == "approved"
+
+    def test_actor_id_filter(self, approval_service_with_mock_audit):
+        """TC086: actor_id フィルター"""
+        service = approval_service_with_mock_audit
+        self._create_and_approve(service, username="actor_filter_u")
+        result = run_async(service.get_approval_history(actor_id="user_003"))
+        assert "items" in result
+
+    def test_start_date_filter(self, approval_service_with_mock_audit):
+        """TC087: start_date フィルター"""
+        service = approval_service_with_mock_audit
+        result = run_async(service.get_approval_history(start_date="2020-01-01T00:00:00"))
+        assert "items" in result
+
+    def test_end_date_filter(self, approval_service_with_mock_audit):
+        """TC088: end_date フィルター"""
+        service = approval_service_with_mock_audit
+        result = run_async(service.get_approval_history(end_date="2099-12-31T23:59:59"))
+        assert "items" in result
+
+    def test_request_type_filter(self, approval_service_with_mock_audit):
+        """TC089: request_type フィルター"""
+        service = approval_service_with_mock_audit
+        self._create_and_approve(service, username="rtype_filter_u")
+        result = run_async(service.get_approval_history(request_type="user_add"))
+        assert "items" in result
+
+    def test_history_items_have_expected_fields(self, approval_service_with_mock_audit):
+        """TC090: 履歴アイテムに必要フィールドが含まれる（items ループ処理）"""
+        service = approval_service_with_mock_audit
+        self._create_and_approve(service, username="fields_u")
+        result = run_async(service.get_approval_history())
+        assert result["total"] >= 1
+        for item in result["items"]:
+            assert "action" in item
+            assert "actor_id" in item
+            assert "timestamp" in item
+            assert "signature_valid" in item
+
+    def test_page_low_clamped_to_1(self, approval_service_with_mock_audit):
+        """TC091: page < 1 → 1 にクランプ（エラーなし）"""
+        service = approval_service_with_mock_audit
+        result = run_async(service.get_approval_history(page=0))
+        assert isinstance(result["items"], list)
+        assert result["page"] == 1
+
+
+# =====================================================================
+# TC092: get_approval_stats() type_counts ループ（line 1636）
+# =====================================================================
+
+
+class TestGetApprovalStats:
+    """get_approval_stats() の type_counts ループをカバー"""
+
+    def test_get_approval_stats_type_counts_populated(
+        self, approval_service_with_mock_audit
+    ):
+        """TC092: リクエスト作成後に get_approval_stats() を呼び type_counts が含まれる"""
+        service = approval_service_with_mock_audit
+        run_async(
+            service.create_request(
+                request_type="user_add",
+                payload={"username": "stats_usr_tc92", "group": "dev"},
+                reason="stats type_counts test",
+                requester_id="user_002",
+                requester_name="operator",
+                requester_role="Operator",
+            )
+        )
+        result = run_async(service.get_approval_stats())
+        assert "type_counts" in result
+        assert "status_counts" in result
+        assert "total" in result
+        # type_counts リストに user_add が含まれること
+        assert isinstance(result["type_counts"], list)
+        type_names = [t["request_type"] for t in result["type_counts"]]
+        assert "user_add" in type_names
+
+    def test_get_approval_stats_period_filter(self, approval_service_with_mock_audit):
+        """TC093: period フィルター（7d, 90d, all）が正常動作する"""
+        service = approval_service_with_mock_audit
+        for period in ("7d", "90d", "all"):
+            result = run_async(service.get_approval_stats(period=period))
+            assert "period" in result
+            assert result["period"] == period
+
+
+# =====================================================================
+# TC094-095: get_approval_history() 例外パス（lines 1547-1548, 1578-1582）
+# =====================================================================
+
+
+class TestGetApprovalHistoryExceptionPaths:
+    """get_approval_history() の例外パスをカバー"""
+
+    def _insert_history_with_bad_details(self, service, request_id: str) -> None:
+        """details に不正な JSON を持つ履歴レコードを直接挿入"""
+        from datetime import datetime
+
+        async def _insert():
+            async with aiosqlite.connect(service.db_path) as db:
+                await db.execute(
+                    """
+                    INSERT INTO approval_history
+                        (approval_request_id, action, actor_id, actor_name,
+                         actor_role, timestamp, details, previous_status, new_status,
+                         signature)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        request_id,
+                        "created",
+                        "user_001",
+                        "operator",
+                        "Operator",
+                        datetime.utcnow().isoformat(),
+                        "not-valid-json{{{",  # 不正な JSON
+                        "pending",
+                        "pending",
+                        "a" * 64,  # 64 文字のダミー署名
+                    ),
+                )
+                await db.commit()
+
+        run_async(_insert())
+
+    def _insert_request(self, service) -> str:
+        """シンプルなリクエストを直接挿入して ID を返す"""
+        import uuid
+        from datetime import datetime, timedelta
+
+        request_id = str(uuid.uuid4())
+
+        async def _insert():
+            async with aiosqlite.connect(service.db_path) as db:
+                await db.execute(
+                    """
+                    INSERT INTO approval_requests
+                        (id, request_type, request_payload, reason, status,
+                         requester_id, requester_name, created_at, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        request_id,
+                        "user_add",
+                        '{"username": "hist_exc_u"}',
+                        "history exception test",
+                        "pending",
+                        "user_001",
+                        "operator",
+                        datetime.utcnow().isoformat(),
+                        (datetime.utcnow() + timedelta(hours=1)).isoformat(),
+                    ),
+                )
+                await db.commit()
+
+        run_async(_insert())
+        return request_id
+
+    def test_history_details_json_parse_error(self, approval_service_with_mock_audit):
+        """TC094: details に不正 JSON を持つ履歴レコードが正常処理される（lines 1547-1548）"""
+        service = approval_service_with_mock_audit
+        request_id = self._insert_request(service)
+        self._insert_history_with_bad_details(service, request_id)
+
+        result = run_async(service.get_approval_history(request_id=request_id))
+        assert "items" in result
+        # 不正 JSON でも items が返ること
+        assert len(result["items"]) >= 1
+
+    def test_history_signature_verification_failure(
+        self, approval_service_with_mock_audit
+    ):
+        """TC095: HMAC 署名検証が例外を送出した場合 signature_valid=False になる（lines 1578-1582）"""
+        from unittest.mock import patch
+
+        service = approval_service_with_mock_audit
+        request_id = self._insert_request(service)
+        self._insert_history_with_bad_details(service, request_id)
+
+        with patch(
+            "backend.core.approval_service.verify_history_signature",
+            side_effect=Exception("HMAC verification error"),
+        ):
+            result = run_async(service.get_approval_history(request_id=request_id))
+
+        assert "items" in result
+        for item in result["items"]:
+            assert item["signature_valid"] is False

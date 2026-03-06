@@ -139,7 +139,7 @@ function switchTab(name, el) {
     return false;
 }
 
-function renderUnavail(msg) { return `<div class="unavail-notice">⚠️ ${escHtml(msg || 'FTP サーバーがインストールされていないか、利用できません。')}</div>`; }
+function renderUnavail(msg) { return `<div class="unavail-notice">⚠️ ${msg || 'FTP サーバーがインストールされていないか、利用できません。'}</div>`; }
 function renderRaw(text) { return text ? `<div class="raw-output">${escHtml(text)}</div>` : '<div class="text-muted small">データなし</div>'; }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 

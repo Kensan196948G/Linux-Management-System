@@ -96,13 +96,6 @@
 </div>
 
 <script src="../js/api.js"></script>
-<script>
-function escapeHtml(str) {
-    if (typeof str !== 'string') return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-</script>
 <script src="../js/sidebar.js"></script>
 <script>
 let currentTab = 'routes';
@@ -148,7 +141,7 @@ async function loadRoutes() {
             </table>
         </div>`;
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -178,7 +171,7 @@ async function loadGateways() {
             </table>
         </div>`;
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -210,7 +203,7 @@ async function loadArp() {
             </table>
         </div>`;
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
@@ -238,7 +231,7 @@ async function loadInterfaces() {
             </div>`;
         }).join('');
     } catch (e) {
-        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${escapeHtml(e.message)}</div>`;
+        loading.innerHTML = `<div class="alert alert-warning">取得失敗: ${e.message}</div>`;
     }
 }
 
