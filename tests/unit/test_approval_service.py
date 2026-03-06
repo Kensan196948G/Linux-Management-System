@@ -2176,3 +2176,79 @@ class TestGetApprovalHistoryExceptionPaths:
         assert "items" in result
         for item in result["items"]:
             assert item["signature_valid"] is False
+
+
+# =====================================================================
+# TC-MIGA: initialize_db() マイグレーション成功パス（lines 214-215）
+# =====================================================================
+
+
+class TestInitializeDbMigrationSuccess:
+    """execute_by カラムが存在しない旧スキーマへのマイグレーション成功（lines 214-215）"""
+
+    def _create_old_schema_sync(self, db_path: str):
+        """executed_by カラムを持たない approval_requests のみを事前作成する。
+
+        approval_history / approval_policies はスキーマ SQL に任せることで、
+        executescript が INSERT サンプルデータを正しく投入できる。
+        """
+
+        async def _setup():
+            async with aiosqlite.connect(db_path) as db:
+                await db.execute(
+                    """
+                    CREATE TABLE approval_requests (
+                        id                VARCHAR(36)  PRIMARY KEY,
+                        request_type      VARCHAR(50)  NOT NULL,
+                        requester_id      VARCHAR(50)  NOT NULL,
+                        requester_name    VARCHAR(100) NOT NULL,
+                        request_payload   TEXT         NOT NULL,
+                        reason            TEXT         NOT NULL,
+                        status            VARCHAR(20)  NOT NULL DEFAULT 'pending',
+                        created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        expires_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        approved_by       VARCHAR(50)  NULL,
+                        approved_by_name  VARCHAR(100) NULL,
+                        approved_at       TIMESTAMP    NULL,
+                        rejection_reason  TEXT         NULL,
+                        execution_result  TEXT         NULL,
+                        executed_at       TIMESTAMP    NULL
+                    )
+                    """
+                )
+                await db.commit()
+
+        run_async(_setup())
+
+    def test_migration_adds_executed_by_column(self, tmp_path):
+        """旧スキーマ（executed_by なし）に initialize_db() でカラムを追加する"""
+        db_path = str(tmp_path / "test_migration.db")
+        self._create_old_schema_sync(db_path)
+
+        # initialize_db() を呼び出す:
+        # - executescript は CREATE TABLE IF NOT EXISTS のため approval_requests をスキップ
+        # - ALTER TABLE ADD COLUMN executed_by が成功 → lines 214-215 を実行
+        service = ApprovalService(db_path=db_path)
+        run_async(service.initialize_db())
+
+        # executed_by カラムが追加されていることを確認
+        async def _check_column():
+            async with aiosqlite.connect(db_path) as db:
+                async with db.execute("PRAGMA table_info(approval_requests)") as cur:
+                    return [row[1] for row in await cur.fetchall()]
+
+        columns = run_async(_check_column())
+        assert "executed_by" in columns
+
+    def test_migration_success_log_message(self, tmp_path):
+        """マイグレーション成功時のログメッセージが出力される（line 215）"""
+        db_path = str(tmp_path / "test_migration_log.db")
+        self._create_old_schema_sync(db_path)
+
+        service = ApprovalService(db_path=db_path)
+        with patch("backend.core.approval_service.logger") as mock_logger:
+            run_async(service.initialize_db())
+
+        # "Migrated approval_requests: added executed_by column" が記録される
+        info_calls = [str(call) for call in mock_logger.info.call_args_list]
+        assert any("executed_by" in msg for msg in info_calls)

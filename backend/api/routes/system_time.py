@@ -57,7 +57,7 @@ class TimezoneSetRequest(BaseModel):
                 f"タイムゾーン名の形式が無効です: '{v}' "
                 "(英字・数字・スラッシュ・ハイフン・アンダースコアのみ使用可能)"
             )
-        if ".." in v:
+        if ".." in v:  # pragma: no cover – regex already excludes dots; defence-in-depth
             raise ValueError("タイムゾーン名にパストラバーサルが含まれています")
         return v
 

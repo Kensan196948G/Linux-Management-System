@@ -651,7 +651,7 @@ class ApprovalService:
             # 3. operation_type ごとにディスパッチ
             # ── 未対応の operation_type は NotImplementedError を送出 ──
             _UNSUPPORTED: set = set()
-            if request_type in _UNSUPPORTED:
+            if request_type in _UNSUPPORTED:  # pragma: no cover – set is empty; reserved for future use
                 raise NotImplementedError(
                     f"Auto-execution of '{request_type}' is not yet supported. "
                     "Please execute this operation manually."

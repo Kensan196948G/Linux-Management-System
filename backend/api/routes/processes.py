@@ -2,15 +2,19 @@
 プロセス管理 API エンドポイント
 """
 
+import asyncio
+import json
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ...core import get_current_user, require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
-from ...core.auth import TokenData
+from ...core.auth import TokenData, decode_token
 from ...core.sudo_wrapper import SudoWrapperError
 
 logger = logging.getLogger(__name__)
@@ -162,3 +166,70 @@ async def list_processes(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Process list retrieval failed: {str(e)}",
         )
+
+
+@router.get(
+    "/stream",
+    summary="プロセス一覧SSEストリーム",
+    description="プロセス一覧をServer-Sent Eventsでリアルタイム配信します（EventSource用）。",
+)
+async def stream_processes(
+    interval: float = Query(default=3.0, ge=1.0, le=30.0, description="更新間隔（秒）"),
+    token: str = Query(..., description="JWT認証トークン"),
+    sort_by: str = Query("cpu", pattern="^(cpu|mem|pid|time)$"),
+    limit: int = Query(50, ge=1, le=500),
+) -> StreamingResponse:
+    """プロセス一覧をSSEでリアルタイム配信する（EventSource用）。
+
+    Args:
+        interval: 更新間隔（秒、1-30）
+        token: JWT認証トークン（クエリパラメータ経由）
+        sort_by: ソートキー (cpu/mem/pid/time)
+        limit: 取得件数 (1-500)
+
+    Returns:
+        StreamingResponse (text/event-stream)
+
+    Raises:
+        HTTPException: トークン不正時
+    """
+    try:
+        user_data = decode_token(token)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    # read:processes 権限チェック
+    required_perm = "read:processes"
+    if required_perm not in (user_data.permissions or []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+    async def event_generator():
+        try:
+            yield f"data: {json.dumps({'type': 'connected', 'interval': interval})}\n\n"
+            while True:
+                try:
+                    result = await asyncio.to_thread(
+                        sudo_wrapper.get_processes,
+                        sort_by=sort_by,
+                        limit=limit,
+                        filter_user=None,
+                        min_cpu=0.0,
+                        min_mem=0.0,
+                    )
+                    payload = json.dumps({
+                        "type": "update",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "data": result,
+                    })
+                    yield f"data: {payload}\n\n"
+                except Exception as e:
+                    yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

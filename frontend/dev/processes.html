@@ -117,7 +117,7 @@
         }
 
         /* ボタン */
-        #refreshBtn, #autoRefreshBtn {
+        #refreshBtn, #autoRefreshBtn, #sseBtn {
             padding: 8px 15px;
             background-color: #007bff;
             color: white;
@@ -127,12 +127,16 @@
             font-size: 14px;
         }
 
-        #refreshBtn:hover, #autoRefreshBtn:hover {
+        #refreshBtn:hover, #autoRefreshBtn:hover, #sseBtn:hover {
             background-color: #0056b3;
         }
 
         #autoRefreshBtn.active {
             background-color: #28a745;
+        }
+
+        #sseBtn.active {
+            background-color: #6f42c1;
         }
 
         /* ステータス表示 */
@@ -300,6 +304,7 @@
                         <div style="display: flex; gap: 10px;">
                             <button id="refreshBtn" title="Refresh now">🔄 Refresh</button>
                             <button id="autoRefreshBtn" title="Toggle auto-refresh (5s interval)">⏱️ Auto-Refresh: OFF</button>
+                            <button id="sseBtn" title="Toggle SSE real-time stream">📡 SSE: OFF</button>
                         </div>
                     </div>
                 </div>
@@ -377,6 +382,54 @@
             localStorage.removeItem('access_token');
             window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
         }
+
+        // SSE リアルタイムストリーム
+        let processEventSource = null;
+
+        function toggleProcessSSE() {
+            const btn = document.getElementById('sseBtn');
+            if (processEventSource) {
+                processEventSource.close();
+                processEventSource = null;
+                btn.textContent = '📡 SSE: OFF';
+                btn.classList.remove('active');
+                return;
+            }
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                alert('ログインが必要です');
+                return;
+            }
+            const sortBy = document.getElementById('sortBy') ? document.getElementById('sortBy').value : 'cpu';
+            const limitCount = document.getElementById('limitCount') ? document.getElementById('limitCount').value : '50';
+            const url = `/api/processes/stream?interval=3&token=${encodeURIComponent(token)}&sort_by=${sortBy}&limit=${limitCount}`;
+            processEventSource = new EventSource(url);
+            processEventSource.onmessage = function(e) {
+                try {
+                    const d = JSON.parse(e.data);
+                    if (d.type === 'update' && window.processManager) {
+                        window.processManager.renderProcesses(d.data.processes || []);
+                    } else if (d.type === 'error') {
+                        console.error('SSE error:', d.message);
+                    }
+                } catch (err) {
+                    console.error('SSE parse error:', err);
+                }
+            };
+            processEventSource.onerror = function() {
+                processEventSource.close();
+                processEventSource = null;
+                btn.textContent = '📡 SSE: OFF';
+                btn.classList.remove('active');
+            };
+            btn.textContent = '⏹ SSE: ON';
+            btn.classList.add('active');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const sseBtn = document.getElementById('sseBtn');
+            if (sseBtn) sseBtn.addEventListener('click', toggleProcessSSE);
+        });
     </script>
 </body>
 </html>

@@ -341,3 +341,197 @@ class TestAuditLogsExport:
         import json
         data = json.loads(resp.text)
         assert data == []
+
+
+# ===================================================================
+# GET /api/audit/operations
+# ===================================================================
+
+
+class TestAuditOperations:
+    """監査ログ操作種別一覧テスト"""
+
+    def test_list_operations_admin(self, client, admin_headers):
+        """正常系: Adminは操作種別一覧を取得できる"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=SAMPLE_LOG_ENTRIES,
+        ):
+            resp = client.get("/api/audit/operations", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert "operations" in data
+        assert isinstance(data["operations"], list)
+
+    def test_list_operations_contains_unique_sorted(self, client, admin_headers):
+        """正常系: 操作種別が重複なし・ソート済みで返る"""
+        entries = SAMPLE_LOG_ENTRIES + [
+            {
+                "timestamp": "2026-01-01T12:15:00",
+                "operation": "service_restart",
+                "user_id": "admin@example.com",
+                "target": "postgresql",
+                "status": "success",
+                "details": {},
+            }
+        ]
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=entries,
+        ):
+            resp = client.get("/api/audit/operations", headers=admin_headers)
+        assert resp.status_code == 200
+        ops = resp.json()["operations"]
+        assert ops == sorted(set(ops))  # ソート済み・重複なし
+        assert ops.count("service_restart") == 1
+
+    def test_list_operations_empty(self, client, admin_headers):
+        """正常系: ログが0件のとき空リストを返す"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=[],
+        ):
+            resp = client.get("/api/audit/operations", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["operations"] == []
+
+    def test_list_operations_no_auth(self, client):
+        """異常系: 認証なし → 403"""
+        resp = client.get("/api/audit/operations")
+        assert resp.status_code == 403
+
+    def test_list_operations_viewer_forbidden(self, client, viewer_headers):
+        """異常系: ViewerはアクセスできないためDeps段階で403"""
+        resp = client.get("/api/audit/operations", headers=viewer_headers)
+        assert resp.status_code == 403
+
+    def test_list_operations_operator_allowed(self, client, operator_headers):
+        """正常系: Operatorは自分のログ内の操作種別を取得できる"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=[SAMPLE_LOG_ENTRIES[1]],
+        ):
+            resp = client.get("/api/audit/operations", headers=operator_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "firewall_rules_read" in data["operations"]
+
+    def test_list_operations_internal_error(self, client, admin_headers):
+        """異常系: 内部エラー → 500"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            side_effect=Exception("DB connection failed"),
+        ):
+            resp = client.get("/api/audit/operations", headers=admin_headers)
+        assert resp.status_code == 500
+
+
+# ===================================================================
+# GET /api/audit/stats
+# ===================================================================
+
+
+class TestAuditStats:
+    """監査ログ統計テスト"""
+
+    def test_get_stats_admin(self, client, admin_headers):
+        """正常系: Admin は統計情報を取得できる"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=SAMPLE_LOG_ENTRIES,
+        ):
+            resp = client.get("/api/audit/stats", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert "total" in data
+        assert "by_operation" in data
+        assert "by_status" in data
+        assert "by_user" in data
+
+    def test_get_stats_total_count(self, client, admin_headers):
+        """正常系: 総件数が正しい"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=SAMPLE_LOG_ENTRIES,
+        ):
+            resp = client.get("/api/audit/stats", headers=admin_headers)
+        assert resp.json()["total"] == len(SAMPLE_LOG_ENTRIES)
+
+    def test_get_stats_operation_counts(self, client, admin_headers):
+        """正常系: 操作別件数が正しい"""
+        entries = [
+            {"operation": "login", "user_id": "admin@example.com", "status": "success",
+             "timestamp": "2026-01-01T00:00:00", "target": "system", "details": {}},
+            {"operation": "login", "user_id": "user1@example.com", "status": "success",
+             "timestamp": "2026-01-01T01:00:00", "target": "system", "details": {}},
+            {"operation": "service_restart", "user_id": "admin@example.com", "status": "success",
+             "timestamp": "2026-01-01T02:00:00", "target": "nginx", "details": {}},
+        ]
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=entries,
+        ):
+            resp = client.get("/api/audit/stats", headers=admin_headers)
+        data = resp.json()
+        assert data["by_operation"]["login"] == 2
+        assert data["by_operation"]["service_restart"] == 1
+
+    def test_get_stats_status_counts(self, client, admin_headers):
+        """正常系: ステータス別件数が返る"""
+        entries = [
+            {"operation": "service_restart", "user_id": "admin@example.com", "status": "success",
+             "timestamp": "2026-01-01T00:00:00", "target": "nginx", "details": {}},
+            {"operation": "service_restart", "user_id": "admin@example.com", "status": "failure",
+             "timestamp": "2026-01-01T01:00:00", "target": "nginx", "details": {}},
+        ]
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=entries,
+        ):
+            resp = client.get("/api/audit/stats", headers=admin_headers)
+        data = resp.json()
+        assert "by_status" in data
+        assert data["by_status"].get("success", 0) == 1
+        assert data["by_status"].get("failure", 0) == 1
+
+    def test_get_stats_no_auth(self, client):
+        """異常系: 認証なし → 403"""
+        resp = client.get("/api/audit/stats")
+        assert resp.status_code == 403
+
+    def test_get_stats_viewer_forbidden(self, client, viewer_headers):
+        """異常系: Viewerはアクセス不可 → 403"""
+        resp = client.get("/api/audit/stats", headers=viewer_headers)
+        assert resp.status_code == 403
+
+    def test_get_stats_operator_allowed(self, client, operator_headers):
+        """正常系: Operatorは自分のログの統計を取得できる"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=[SAMPLE_LOG_ENTRIES[1]],
+        ):
+            resp = client.get("/api/audit/stats", headers=operator_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 1
+
+    def test_get_stats_empty(self, client, admin_headers):
+        """正常系: ログが0件のとき total=0"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            return_value=[],
+        ):
+            resp = client.get("/api/audit/stats", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 0
+
+    def test_get_stats_internal_error(self, client, admin_headers):
+        """異常系: 内部エラー → 500"""
+        with patch(
+            "backend.api.routes.audit.audit_log.query",
+            side_effect=Exception("DB connection failed"),
+        ):
+            resp = client.get("/api/audit/stats", headers=admin_headers)
+        assert resp.status_code == 500

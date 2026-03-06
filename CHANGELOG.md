@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-03-06
+
+### Added
+- **audit_log API エンドポイント**: `backend/api/routes/audit.py` に `/api/audit/operations`・`/api/audit/stats` を追加（操作種別一覧・統計情報）
+- **プロセスSSEストリーム**: `/api/processes/stream` エンドポイント追加（`asyncio.to_thread` + interval/sort_by/limit パラメータ対応）
+- **Processes UI SSEボタン**: `frontend/dev/processes.html` に「📡 リアルタイム」SSE接続ボタン追加
+- **audit.html**: `frontend/dev/audit.html` 新規作成（フィルタUI・テーブル表示・CSV出力）
+- **audit API テスト追加**: `test_audit_api.py` に16件追加（合計36件、operations/stats エンドポイント）
+
+### Improved
+- **auth.py**: 91.86% → **100%**（tests/unit/test_auth_coverage.py 8件追加）
+- **config.py**: 88.07% → **100%**（tests/unit/test_config_coverage.py 9件追加）
+- **system_time.py**: 98.55% → **100%**（pragma: no cover 付与）
+- **approval_service.py**: 99.33% → **100%**（マイグレーションパステスト2件追加）
+- **総カバレッジ**: 95.98% → **96.03%**（2631テスト PASS）
+- backend/core/ 全モジュール **100%** 達成
+
+### Confirmed existing
+- Firewall管理モジュール: 既実装済み（テスト34件PASS）
+- Cron Job管理モジュール: 既実装済み（テスト102件PASS）
+
 ## [0.29.0] - 2026-03-06
 
 ### Added

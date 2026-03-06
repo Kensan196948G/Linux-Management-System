@@ -136,6 +136,86 @@ async def list_audit_logs(
 
 
 @router.get(
+    "/operations",
+    summary="監査ログ操作種別一覧",
+    description="監査ログに記録されている操作種別の一覧を返します。",
+)
+async def list_audit_operations(
+    current_user: TokenData = Depends(require_permission("read:audit")),
+) -> dict:
+    """監査ログに存在する操作種別一覧を返す。"""
+    try:
+        entries = audit_log.query(
+            user_role=current_user.role,
+            requesting_user_id=current_user.user_id,
+            limit=10000,
+        )
+        ops = sorted({e.get("operation", "") for e in entries if e.get("operation")})
+        return {"status": "success", "operations": ops}
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="監査ログへのアクセス権限がありません",
+        )
+    except Exception as e:
+        logger.error("Unexpected error in list_audit_operations: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"操作種別一覧の取得に失敗しました: {e}",
+        )
+
+
+@router.get(
+    "/stats",
+    summary="監査ログ統計",
+    description="監査ログの統計情報（総件数・操作別件数・ユーザー別件数）を返します。",
+)
+async def get_audit_stats(
+    current_user: TokenData = Depends(require_permission("read:audit")),
+) -> dict:
+    """監査ログの統計情報を返す（総件数・操作別件数・ユーザー別件数）。"""
+    try:
+        entries = audit_log.query(
+            user_role=current_user.role,
+            requesting_user_id=current_user.user_id,
+            limit=10000,
+        )
+        op_counts: dict = {}
+        user_counts: dict = {}
+        status_counts: dict = {}
+        for entry in entries:
+            op = entry.get("operation", "unknown")
+            uid = entry.get("user_id", "unknown")
+            st = entry.get("status", "unknown")
+            op_counts[op] = op_counts.get(op, 0) + 1
+            user_counts[uid] = user_counts.get(uid, 0) + 1
+            status_counts[st] = status_counts.get(st, 0) + 1
+
+        # Operator/Approverはユーザー別件数を自分のみに制限
+        if current_user.role in ("Operator", "Approver"):
+            user_counts = {k: v for k, v in user_counts.items() if k == current_user.user_id}
+
+        return {
+            "status": "success",
+            "total": len(entries),
+            "by_operation": op_counts,
+            "by_status": status_counts,
+            "by_user": user_counts if current_user.role in ("Admin", "Operator", "Approver") else {},
+        }
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="監査ログへのアクセス権限がありません",
+        )
+    except Exception as e:
+        logger.error("Unexpected error in get_audit_stats: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"統計情報の取得に失敗しました: {e}",
+        )
+
+
+@router.get(
     "/logs/export",
     summary="監査ログエクスポート",
     description="監査ログをCSVまたはJSONでエクスポートします。Adminのみ使用可能。",
