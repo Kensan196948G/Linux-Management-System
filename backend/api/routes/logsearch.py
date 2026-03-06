@@ -1,4 +1,5 @@
 """ログ検索APIルーター"""
+
 import asyncio
 import json
 import re

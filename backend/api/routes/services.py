@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from ...core import get_current_user, require_permission, sudo_wrapper
+from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 from ...core.sudo_wrapper import SudoWrapperError
@@ -25,9 +25,7 @@ router = APIRouter(prefix="/services", tags=["services"])
 class ServiceRestartRequest(BaseModel):
     """サービス再起動リクエスト"""
 
-    service_name: str = Field(
-        ..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$"
-    )
+    service_name: str = Field(..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$")
 
 
 class ServiceRestartResponse(BaseModel):
@@ -64,9 +62,7 @@ async def restart_service(
     """
     service_name = request.service_name
 
-    logger.info(
-        f"Service restart requested: service={service_name}, user={current_user.username}"
-    )
+    logger.info(f"Service restart requested: service={service_name}, user={current_user.username}")
 
     # 監査ログ記録（試行）
     audit_log.record(

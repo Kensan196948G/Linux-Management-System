@@ -54,8 +54,7 @@ class TimezoneSetRequest(BaseModel):
         """タイムゾーン名の形式を検証します。"""
         if not _TZ_PATTERN.match(v):
             raise ValueError(
-                f"タイムゾーン名の形式が無効です: '{v}' "
-                "(英字・数字・スラッシュ・ハイフン・アンダースコアのみ使用可能)"
+                f"タイムゾーン名の形式が無効です: '{v}' " "(英字・数字・スラッシュ・ハイフン・アンダースコアのみ使用可能)"
             )
         if ".." in v:  # pragma: no cover – regex already excludes dots; defence-in-depth
             raise ValueError("タイムゾーン名にパストラバーサルが含まれています")
@@ -70,10 +69,7 @@ class TimezoneSetRequest(BaseModel):
 @router.get(
     "/status",
     summary="システム時刻・タイムゾーン状態取得",
-    description=(
-        "現在のシステム時刻、タイムゾーン、NTP同期状態を返します。\n"
-        "全ロールが参照可能です。"
-    ),
+    description=("現在のシステム時刻、タイムゾーン、NTP同期状態を返します。\n" "全ロールが参照可能です。"),
 )
 async def get_time_status(
     current_user: Annotated[TokenData, Depends(require_permission("read:time"))],
@@ -109,10 +105,7 @@ async def get_time_status(
 @router.get(
     "/timezones",
     summary="利用可能なタイムゾーン一覧",
-    description=(
-        "設定可能なタイムゾーンの一覧を返します。\n"
-        "全ロールが参照可能です。"
-    ),
+    description=("設定可能なタイムゾーンの一覧を返します。\n" "全ロールが参照可能です。"),
 )
 async def list_timezones(
     current_user: Annotated[TokenData, Depends(require_permission("read:time"))],

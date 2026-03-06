@@ -7,7 +7,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from ...core import get_current_user, require_permission, sudo_wrapper
+from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 

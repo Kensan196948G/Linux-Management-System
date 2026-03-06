@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from ...core import get_current_user, require_permission, sudo_wrapper
+from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 from ...core.sudo_wrapper import SudoWrapperError
@@ -130,10 +130,7 @@ async def get_interfaces(
             import subprocess as _sp
             from datetime import datetime as _dt
 
-            proc = _sp.run(
-                ["/usr/sbin/ip", "-j", "addr", "show"],
-                capture_output=True, text=True, timeout=10
-            )
+            proc = _sp.run(["/usr/sbin/ip", "-j", "addr", "show"], capture_output=True, text=True, timeout=10)
             if proc.returncode == 0:
                 interfaces = _json.loads(proc.stdout)
                 parsed = {

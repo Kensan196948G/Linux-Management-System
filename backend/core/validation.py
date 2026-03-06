@@ -43,8 +43,6 @@ FORBIDDEN_CHARS_LIST = [
 class ValidationError(ValueError):
     """入力検証エラー"""
 
-    pass
-
 
 def validate_no_forbidden_chars(value: str, field_name: str = "input") -> None:
     """
@@ -59,9 +57,7 @@ def validate_no_forbidden_chars(value: str, field_name: str = "input") -> None:
     """
     for char in FORBIDDEN_CHARS_LIST:
         if char in value:
-            raise ValidationError(
-                f"{field_name} contains forbidden character: {repr(char)}"
-            )
+            raise ValidationError(f"{field_name} contains forbidden character: {repr(char)}")
 
 
 def validate_pattern(
@@ -83,9 +79,7 @@ def validate_pattern(
         ValidationError: パターンに一致しない場合
     """
     if max_length and len(value) > max_length:
-        raise ValidationError(
-            f"{field_name} exceeds maximum length {max_length} (got {len(value)})"
-        )
+        raise ValidationError(f"{field_name} exceeds maximum length {max_length} (got {len(value)})")
 
     if not re.match(pattern, value):
         raise ValidationError(f"{field_name} does not match required pattern")

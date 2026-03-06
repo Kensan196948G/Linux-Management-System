@@ -12,16 +12,58 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
-from .routes import approval, audit, auth, bandwidth, bind, bootup, cron, dbmonitor, filesystem, firewall, hardware, logs, mysql, netstat, network, packages, partitions, postfix, postgresql, processes, quotas, routing, sensors, servers, services, smart, ssh, stream, system, system_time, sysconfig, users, apache
-from .routes import approval, audit, auth, bandwidth, bind, bootup, cron, dbmonitor, filesystem, firewall, hardware, logs, mysql, netstat, network, packages, postfix, postgresql, processes, quotas, servers, services, ssh, stream, system, system_time, users, apache
-from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, dhcp, filesystem, firewall, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, ssh, stream, system, system_time, users, apache
-from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filesystem, firewall, ftp, hardware, logs, mysql, network, nginx, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, squid, ssh, stream, system, system_time, users, apache
-from .routes import approval, audit, auth, bandwidth, bootup, cron, dbmonitor, filemanager, filesystem, firewall, ftp, hardware, logs, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, servers, services, smart, squid, ssh, stream, system, system_time, users, apache
-from .routes import alerts, approval, audit, auth, backup, bandwidth, bootup, cron, dbmonitor, filesystem, firewall, ftp, hardware, journal, logs, logsearch, modules, mysql, network, packages, partitions, postfix, postgresql, processes, quotas, security, servers, services, sessions, smart, squid, ssh, sshkeys, stream, system, system_time, users, apache
+from .routes import (
+    alerts,
+    apache,
+    approval,
+    audit,
+    auth,
+    backup,
+    bandwidth,
+    bind,
+    bootup,
+    cron,
+    dbmonitor,
+    dhcp,
+    filemanager,
+    filesystem,
+    firewall,
+    ftp,
+    hardware,
+    journal,
+    logs,
+    logsearch,
+    modules,
+    mysql,
+    netstat,
+    network,
+    nginx,
+    packages,
+    partitions,
+    postfix,
+    postgresql,
+    processes,
+    quotas,
+    routing,
+    security,
+    sensors,
+    servers,
+    services,
+    sessions,
+    smart,
+    squid,
+    ssh,
+    sshkeys,
+    stream,
+    sysconfig,
+    system,
+    system_time,
+    users,
+)
 
 # ログ設定
 logging.basicConfig(
@@ -129,12 +171,8 @@ app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
 app.mount("/vendor", StaticFiles(directory=str(frontend_dir / "vendor")), name="vendor")
 
 # dev, prod ディレクトリの配信
-app.mount(
-    "/dev", StaticFiles(directory=str(frontend_dir / "dev"), html=True), name="dev"
-)
-app.mount(
-    "/prod", StaticFiles(directory=str(frontend_dir / "prod"), html=True), name="prod"
-)
+app.mount("/dev", StaticFiles(directory=str(frontend_dir / "dev"), html=True), name="dev")
+app.mount("/prod", StaticFiles(directory=str(frontend_dir / "prod"), html=True), name="prod")
 
 # ===================================================================
 # ミドルウェア
@@ -172,9 +210,7 @@ async def security_headers(request: Request, call_next):
         "connect-src 'self'"
     )
     if settings.security.require_https:
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"
-        )
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 
@@ -234,9 +270,7 @@ async def log_requests(request: Request, call_next):
 
     response = await call_next(request)
 
-    logger.info(
-        f"Response: {request.method} {request.url.path} - {response.status_code}"
-    )
+    logger.info(f"Response: {request.method} {request.url.path} - {response.status_code}")
 
     return response
 
@@ -303,7 +337,9 @@ async def api_info():
     https_port = settings.server.https_port
     is_prod = settings.environment == "production"
     # 本番ではHTTP/HTTPS両方、開発はHTTPのみ
-    api_base = f"https://{ip}:{https_port}/api" if (is_prod and settings.server.ssl_enabled) else f"http://{ip}:{http_port}/api"
+    api_base = (
+        f"https://{ip}:{https_port}/api" if (is_prod and settings.server.ssl_enabled) else f"http://{ip}:{http_port}/api"
+    )
     return {
         "environment": settings.environment,
         "version": "0.10.0",
@@ -403,8 +439,7 @@ async def validate_production_config():
         # JWT秘密鍵の検証
         if settings.jwt_secret_key == "change-this-in-production":
             raise RuntimeError(
-                "CRITICAL: JWT_SECRET not configured for production! "
-                "Set SESSION_SECRET environment variable."
+                "CRITICAL: JWT_SECRET not configured for production! " "Set SESSION_SECRET environment variable."
             )
 
         # HTTPS必須の検証
@@ -417,16 +452,12 @@ async def validate_production_config():
 
         # API ドキュメントの警告
         if settings.features.api_docs_enabled:
-            logger.warning(
-                "WARNING: API docs are enabled in production. "
-                "Consider disabling for security."
-            )
+            logger.warning("WARNING: API docs are enabled in production. " "Consider disabling for security.")
 
         # CORS設定の検証
         if "*" in settings.cors_origins:
             raise RuntimeError(
-                "CRITICAL: Wildcard CORS origin (*) is not allowed in production! "
-                "Specify explicit domains in prod.json."
+                "CRITICAL: Wildcard CORS origin (*) is not allowed in production! " "Specify explicit domains in prod.json."
             )
 
         logger.info("✅ Production security configuration validated")

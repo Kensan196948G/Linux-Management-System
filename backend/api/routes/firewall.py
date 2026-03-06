@@ -187,6 +187,7 @@ async def get_firewall_status(
 
 class FirewallRuleCreate(BaseModel):
     """UFWルール追加リクエスト"""
+
     port: int = Field(..., ge=1, le=65535)
     protocol: str = Field("tcp", pattern="^(tcp|udp|any)$")
     action: str = Field(..., pattern="^(allow|deny)$")
@@ -195,6 +196,7 @@ class FirewallRuleCreate(BaseModel):
 
 class FirewallRuleDelete(BaseModel):
     """UFWルール削除リクエスト"""
+
     rule_num: int = Field(..., ge=1, le=999)
 
 

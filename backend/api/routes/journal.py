@@ -1,4 +1,5 @@
 """systemdジャーナルログ管理APIルーター"""
+
 import re
 from datetime import datetime, timezone
 from typing import Annotated
@@ -48,7 +49,7 @@ async def get_unit_logs(
     current_user: Annotated[TokenData, Depends(require_permission("read:journal"))] = None,
 ):
     """特定ユニットのログを取得"""
-    if not re.match(r'^[a-zA-Z0-9._@:-]+$', unit_name):
+    if not re.match(r"^[a-zA-Z0-9._@:-]+$", unit_name):
         raise HTTPException(status_code=400, detail="Invalid unit name")
     try:
         result = sudo_wrapper.get_journal_unit_logs(unit_name)

@@ -9,7 +9,7 @@ SSH Keys 管理 API エンドポイント（読み取り専用）
 """
 
 import logging
-from typing import Any, List, Optional
+from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field

@@ -324,19 +324,33 @@ async def export_quotas_csv(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["username", "filesystem", "used_kb", "soft_limit_kb", "hard_limit_kb", "grace_period", "inodes_used", "inode_soft", "inode_hard"])
+    writer.writerow(
+        [
+            "username",
+            "filesystem",
+            "used_kb",
+            "soft_limit_kb",
+            "hard_limit_kb",
+            "grace_period",
+            "inodes_used",
+            "inode_soft",
+            "inode_hard",
+        ]
+    )
     for u in users:
-        writer.writerow([
-            u.get("username", ""),
-            u.get("filesystem", ""),
-            u.get("used_kb", 0),
-            u.get("soft_limit_kb", 0),
-            u.get("hard_limit_kb", 0),
-            u.get("grace_period", "-"),
-            u.get("inodes_used", 0),
-            u.get("inode_soft", 0),
-            u.get("inode_hard", 0),
-        ])
+        writer.writerow(
+            [
+                u.get("username", ""),
+                u.get("filesystem", ""),
+                u.get("used_kb", 0),
+                u.get("soft_limit_kb", 0),
+                u.get("hard_limit_kb", 0),
+                u.get("grace_period", "-"),
+                u.get("inodes_used", 0),
+                u.get("inode_soft", 0),
+                u.get("inode_hard", 0),
+            ]
+        )
 
     audit_log.record(
         operation="quota_csv_export",
@@ -390,13 +404,15 @@ async def get_quota_alerts(
         if limit > 0:
             usage_pct = (used / limit) * 100
             if usage_pct > threshold:
-                alerts.append({
-                    "username": u.get("username", ""),
-                    "filesystem": u.get("filesystem", ""),
-                    "used_kb": used,
-                    "limit_kb": limit,
-                    "usage_percent": round(usage_pct, 1),
-                })
+                alerts.append(
+                    {
+                        "username": u.get("username", ""),
+                        "filesystem": u.get("filesystem", ""),
+                        "used_kb": used,
+                        "limit_kb": limit,
+                        "usage_percent": round(usage_pct, 1),
+                    }
+                )
 
     audit_log.record(
         operation="quota_alerts_read",

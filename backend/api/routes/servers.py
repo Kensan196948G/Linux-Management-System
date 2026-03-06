@@ -8,7 +8,6 @@
   GET /api/servers/{server}/config     - 設定ファイル情報
 """
 
-import json
 import logging
 from typing import Any
 
@@ -84,8 +83,6 @@ class ServerConfigInfoResponse(BaseModel):
 # ===================================================================
 # ヘルパー
 # ===================================================================
-
-
 
 
 def _validate_server_name(server: str) -> None:
@@ -172,9 +169,7 @@ async def get_all_server_status(
 
 @router.get("/{server}/status", response_model=ServerStatusResponse)
 async def get_server_status(
-    server: str = Path(
-        ..., pattern="^(nginx|apache2|mysql|postgresql|redis)$"
-    ),
+    server: str = Path(..., pattern="^(nginx|apache2|mysql|postgresql|redis)$"),
     current_user: TokenData = Depends(require_permission("read:servers")),
 ) -> ServerStatusResponse:
     """
@@ -249,9 +244,7 @@ async def get_server_status(
 
 @router.get("/{server}/version", response_model=ServerVersionResponse)
 async def get_server_version(
-    server: str = Path(
-        ..., pattern="^(nginx|apache2|mysql|postgresql|redis)$"
-    ),
+    server: str = Path(..., pattern="^(nginx|apache2|mysql|postgresql|redis)$"),
     current_user: TokenData = Depends(require_permission("read:servers")),
 ) -> ServerVersionResponse:
     """
@@ -326,9 +319,7 @@ async def get_server_version(
 
 @router.get("/{server}/config", response_model=ServerConfigInfoResponse)
 async def get_server_config_info(
-    server: str = Path(
-        ..., pattern="^(nginx|apache2|mysql|postgresql|redis)$"
-    ),
+    server: str = Path(..., pattern="^(nginx|apache2|mysql|postgresql|redis)$"),
     current_user: TokenData = Depends(require_permission("read:servers")),
 ) -> ServerConfigInfoResponse:
     """

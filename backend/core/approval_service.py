@@ -26,9 +26,7 @@ logger = logging.getLogger(__name__)
 # ===================================================================
 
 # HMAC 署名用秘密鍵（環境変数から取得、デフォルトは開発環境用）
-HMAC_SECRET_KEY = getattr(
-    settings, "APPROVAL_HMAC_SECRET", "dev-approval-secret-key-change-in-production"
-)
+HMAC_SECRET_KEY = getattr(settings, "APPROVAL_HMAC_SECRET", "dev-approval-secret-key-change-in-production")
 
 # 承認履歴の許可アクション
 ALLOWED_ACTIONS = {
@@ -156,9 +154,7 @@ def validate_payload_values(payload: dict) -> None:
         if isinstance(value, str):
             for char in FORBIDDEN_CHARS:
                 if char in value:
-                    raise ValueError(
-                        f"Forbidden character '{char}' detected in payload field '{key}'"
-                    )
+                    raise ValueError(f"Forbidden character '{char}' detected in payload field '{key}'")
 
 
 # ===================================================================
@@ -188,12 +184,7 @@ class ApprovalService:
         approval-schema.sql の CREATE TABLE / INDEX / VIEW を実行する。
         INSERT OR IGNORE のため既存データは影響を受けない。
         """
-        schema_path = (
-            Path(__file__).parent.parent.parent
-            / "docs"
-            / "database"
-            / "approval-schema.sql"
-        )
+        schema_path = Path(__file__).parent.parent.parent / "docs" / "database" / "approval-schema.sql"
 
         if not schema_path.exists():
             logger.error(f"Schema file not found: {schema_path}")
@@ -208,9 +199,7 @@ class ApprovalService:
             await db.executescript(schema_sql)
             # 既存DBへの後方互換マイグレーション
             try:
-                await db.execute(
-                    "ALTER TABLE approval_requests ADD COLUMN executed_by VARCHAR(50) NULL"
-                )
+                await db.execute("ALTER TABLE approval_requests ADD COLUMN executed_by VARCHAR(50) NULL")
                 await db.commit()
                 logger.info("Migrated approval_requests: added executed_by column")
             except Exception as e:
@@ -263,8 +252,7 @@ class ApprovalService:
 
             if not policy:
                 raise LookupError(
-                    f"Invalid request_type: {request_type}. "
-                    "Operation type must be defined in approval_policies."
+                    f"Invalid request_type: {request_type}. " "Operation type must be defined in approval_policies."
                 )
 
             # 3. 承認リクエスト作成
@@ -374,16 +362,12 @@ class ApprovalService:
 
             # 2. 自己承認禁止チェック
             if request["requester_id"] == approver_id:
-                raise ValueError(
-                    "Self-approval is prohibited. "
-                    "A different Approver/Admin must approve this request."
-                )
+                raise ValueError("Self-approval is prohibited. " "A different Approver/Admin must approve this request.")
 
             # 3. ステータスチェック（pending のみ承認可能）
             if request["status"] != "pending":
                 raise ValueError(
-                    f"Cannot approve: request status is '{request['status']}'. "
-                    "Only 'pending' requests can be approved."
+                    f"Cannot approve: request status is '{request['status']}'. " "Only 'pending' requests can be approved."
                 )
 
             # 4. 期限切れチェック
@@ -392,9 +376,7 @@ class ApprovalService:
                 # 期限切れの場合、自動的に expired に変更
                 await self._expire_request(db, request, request_id)
                 await db.commit()
-                raise ValueError(
-                    f"Cannot approve: request has expired at {request['expires_at']}"
-                )
+                raise ValueError(f"Cannot approve: request has expired at {request['expires_at']}")
 
             # 5. 承認実行
             approved_at = datetime.utcnow()
@@ -511,9 +493,7 @@ class ApprovalService:
         # 拒否理由の FORBIDDEN_CHARS チェック
         for char in FORBIDDEN_CHARS:
             if char in rejection_reason:
-                raise ValueError(
-                    f"Forbidden character '{char}' detected in rejection_reason"
-                )
+                raise ValueError(f"Forbidden character '{char}' detected in rejection_reason")
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
@@ -531,8 +511,7 @@ class ApprovalService:
             # 2. ステータスチェック（pending のみ拒否可能）
             if request["status"] != "pending":
                 raise ValueError(
-                    f"Cannot reject: request status is '{request['status']}'. "
-                    "Only 'pending' requests can be rejected."
+                    f"Cannot reject: request status is '{request['status']}'. " "Only 'pending' requests can be rejected."
                 )
 
             # 3. 拒否実行
@@ -640,8 +619,7 @@ class ApprovalService:
             # 2. ステータスチェック（approved のみ実行可能）
             if request["status"] != "approved":
                 raise ValueError(
-                    f"Request {request_id} cannot be executed: "
-                    f"status is '{request['status']}', expected 'approved'"
+                    f"Request {request_id} cannot be executed: " f"status is '{request['status']}', expected 'approved'"
                 )
 
             request_type = request["request_type"]
@@ -653,8 +631,7 @@ class ApprovalService:
             _UNSUPPORTED: set = set()
             if request_type in _UNSUPPORTED:  # pragma: no cover – set is empty; reserved for future use
                 raise NotImplementedError(
-                    f"Auto-execution of '{request_type}' is not yet supported. "
-                    "Please execute this operation manually."
+                    f"Auto-execution of '{request_type}' is not yet supported. " "Please execute this operation manually."
                 )
 
             def _dispatch_sync() -> dict:
@@ -765,36 +742,26 @@ class ApprovalService:
                     else:
                         raise ValueError(f"Unknown firewall action: {action}")
                 else:
-                    raise NotImplementedError(
-                        f"No executor defined for operation_type: '{request_type}'"
-                    )
+                    raise NotImplementedError(f"No executor defined for operation_type: '{request_type}'")
 
             # 4. 実行（sudo_wrapper はブロッキングなので別スレッドで実行）
             execution_success = False
             execution_result: dict = {}
             try:
                 execution_result = await asyncio.to_thread(_dispatch_sync)
-                execution_success = (
-                    execution_result.get("status") == "success"
-                )
+                execution_success = execution_result.get("status") == "success"
                 if not execution_success:
-                    raise SudoWrapperError(
-                        execution_result.get("message", "Wrapper returned non-success status")
-                    )
+                    raise SudoWrapperError(execution_result.get("message", "Wrapper returned non-success status"))
 
             except (SudoWrapperError, NotImplementedError) as exc:
                 # 5a. 実行失敗 → execution_failed に更新
                 new_status = "execution_failed"
                 execution_result = {"status": "error", "message": str(exc)}
-                logger.error(
-                    f"Execution failed for {request_id} ({request_type}): {exc}"
-                )
+                logger.error(f"Execution failed for {request_id} ({request_type}): {exc}")
             else:
                 # 5b. 実行成功 → executed に更新
                 new_status = "executed"
-                logger.info(
-                    f"Executed approved request {request_id} ({request_type}) by {executor_id}"
-                )
+                logger.info(f"Executed approved request {request_id} ({request_type}) by {executor_id}")
 
             # 6. ステータス更新
             await db.execute(
@@ -913,9 +880,7 @@ class ApprovalService:
                         "actor_name": row["actor_name"],
                         "actor_role": row["actor_role"],
                         "timestamp": row["timestamp"],
-                        "details": (
-                            json.loads(row["details"]) if row["details"] else None
-                        ),
+                        "details": (json.loads(row["details"]) if row["details"] else None),
                     }
                 )
 
@@ -936,11 +901,7 @@ class ApprovalService:
                 "approved_by_name": request["approved_by_name"],
                 "approved_at": request["approved_at"],
                 "rejection_reason": request["rejection_reason"],
-                "execution_result": (
-                    json.loads(request["execution_result"])
-                    if request["execution_result"]
-                    else None
-                ),
+                "execution_result": (json.loads(request["execution_result"]) if request["execution_result"] else None),
                 "executed_at": request["executed_at"],
                 "history": history,
             }
@@ -998,9 +959,7 @@ class ApprovalService:
                 sort_order = "asc"
 
             # 3. 総件数取得
-            count_query = (
-                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"  # nosec B608
-            )
+            count_query = f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"  # nosec B608
             async with db.execute(count_query, params) as cursor:
                 total = (await cursor.fetchone())["total"]
 
@@ -1024,9 +983,7 @@ class ApprovalService:
             for row in rows:
                 payload = json.loads(row["request_payload"])
                 # ペイロードのサマリー作成（最大3フィールド）
-                payload_summary = ", ".join(
-                    f"{k}={v}" for k, v in list(payload.items())[:3]
-                )
+                payload_summary = ", ".join(f"{k}={v}" for k, v in list(payload.items())[:3])
 
                 requests.append(
                     {
@@ -1094,9 +1051,7 @@ class ApprovalService:
             where_sql = " AND ".join(where_clauses)
 
             # 2. 総件数取得
-            count_query = (
-                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"  # nosec B608
-            )
+            count_query = f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"  # nosec B608
             async with db.execute(count_query, params) as cursor:
                 total = (await cursor.fetchone())["total"]
 
@@ -1189,8 +1144,7 @@ class ApprovalService:
             # 3. ステータスチェック（pending のみキャンセル可能）
             if request["status"] != "pending":
                 raise ValueError(
-                    f"Cannot cancel: request status is '{request['status']}'. "
-                    "Only 'pending' requests can be cancelled."
+                    f"Cannot cancel: request status is '{request['status']}'. " "Only 'pending' requests can be cancelled."
                 )
 
             # 4. キャンセル実行
@@ -1391,9 +1345,7 @@ class ApprovalService:
                 sort_order = "desc"
 
             # 総件数取得
-            count_query = (
-                f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"  # nosec B608
-            )
+            count_query = f"SELECT COUNT(*) as total FROM approval_requests r WHERE {where_sql}"  # nosec B608
             async with db.execute(count_query, params) as cursor:
                 total = (await cursor.fetchone())["total"]
 
@@ -1576,9 +1528,7 @@ class ApprovalService:
                         }
                     )
                 except Exception as e:
-                    logger.warning(
-                        f"HMAC verification failed for history record {row['id']}: {e}"
-                    )
+                    logger.warning(f"HMAC verification failed for history record {row['id']}: {e}")
                     record["signature_valid"] = False
 
                 items.append(record)
@@ -1626,9 +1576,7 @@ class ApprovalService:
                 }
 
             # 種別別件数（v_approval_stats_by_type ビュー使用）
-            async with db.execute(
-                "SELECT * FROM v_approval_stats_by_type"
-            ) as cursor:
+            async with db.execute("SELECT * FROM v_approval_stats_by_type") as cursor:
                 type_rows = await cursor.fetchall()
 
             type_counts: list[dict] = []
@@ -1645,15 +1593,13 @@ class ApprovalService:
 
             # 今日の件数
             async with db.execute(
-                "SELECT COUNT(*) as cnt FROM approval_requests"
-                " WHERE DATE(created_at) = DATE('now')"
+                "SELECT COUNT(*) as cnt FROM approval_requests" " WHERE DATE(created_at) = DATE('now')"
             ) as cursor:
                 today_count = (await cursor.fetchone())["cnt"]
 
             # 今週の件数（月曜始まり）
             async with db.execute(
-                "SELECT COUNT(*) as cnt FROM approval_requests"
-                " WHERE created_at >= DATE('now', 'weekday 1', '-7 days')"
+                "SELECT COUNT(*) as cnt FROM approval_requests" " WHERE created_at >= DATE('now', 'weekday 1', '-7 days')"
             ) as cursor:
                 this_week_count = (await cursor.fetchone())["cnt"]
 
@@ -1727,9 +1673,7 @@ class ApprovalService:
         """
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute(
-                "SELECT * FROM approval_policies ORDER BY id"
-            ) as cursor:
+            async with db.execute("SELECT * FROM approval_policies ORDER BY id") as cursor:
                 policies = await cursor.fetchall()
 
             result = []

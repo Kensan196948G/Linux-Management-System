@@ -14,7 +14,7 @@ import logging
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
@@ -28,6 +28,7 @@ router = APIRouter(prefix="/bandwidth", tags=["bandwidth"])
 
 # インターフェース名パターン（バリデーション）
 import re
+
 _IFACE_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{1,32}$")
 
 

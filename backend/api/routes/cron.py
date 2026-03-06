@@ -12,15 +12,11 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
 
-from ...core import get_current_user, require_permission, sudo_wrapper
+from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 from ...core.sudo_wrapper import SudoWrapperError
-from ...core.validation import (
-    ValidationError,
-    validate_no_forbidden_chars,
-    validate_username,
-)
+from ...core.validation import ValidationError, validate_username
 
 logger = logging.getLogger(__name__)
 
@@ -534,10 +530,7 @@ async def list_cron_jobs(
             details={"total_count": result.get("total_count", 0)},
         )
 
-        logger.info(
-            f"Cron list retrieved: user={username}, "
-            f"count={result.get('total_count', 0)}"
-        )
+        logger.info(f"Cron list retrieved: user={username}, " f"count={result.get('total_count', 0)}")
 
         return CronJobListResponse(**result)
 
@@ -733,10 +726,7 @@ async def remove_cron_job(
             detail=str(e),
         )
 
-    logger.info(
-        f"Cron remove requested: target={username}, "
-        f"line={request.line_number}, by={current_user.username}"
-    )
+    logger.info(f"Cron remove requested: target={username}, " f"line={request.line_number}, by={current_user.username}")
 
     # 監査ログ記録（試行）
     audit_log.record(
@@ -805,9 +795,7 @@ async def remove_cron_job(
             },
         )
 
-        logger.info(
-            f"Cron remove successful: user={username}, line={request.line_number}"
-        )
+        logger.info(f"Cron remove successful: user={username}, line={request.line_number}")
 
         return CronJobActionResponse(
             status="success",
@@ -955,10 +943,7 @@ async def toggle_cron_job(
             },
         )
 
-        logger.info(
-            f"Cron toggle successful: user={username}, "
-            f"line={request.line_number}, action={action}"
-        )
+        logger.info(f"Cron toggle successful: user={username}, " f"line={request.line_number}, action={action}")
 
         return CronJobActionResponse(
             status="success",

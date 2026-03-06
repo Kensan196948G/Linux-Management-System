@@ -269,9 +269,7 @@ async def export_audit_logs(
             return Response(
                 content=content,
                 media_type="application/json",
-                headers={
-                    "Content-Disposition": f"attachment; filename=audit_export_{timestamp_str}.json"
-                },
+                headers={"Content-Disposition": f"attachment; filename=audit_export_{timestamp_str}.json"},
             )
         else:
             # CSV
@@ -288,9 +286,7 @@ async def export_audit_logs(
             return Response(
                 content=output.getvalue(),
                 media_type="text/csv; charset=utf-8",
-                headers={
-                    "Content-Disposition": f"attachment; filename=audit_export_{timestamp_str}.csv"
-                },
+                headers={"Content-Disposition": f"attachment; filename=audit_export_{timestamp_str}.csv"},
             )
 
     except PermissionError:

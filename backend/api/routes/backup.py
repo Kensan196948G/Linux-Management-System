@@ -1,4 +1,5 @@
 """バックアップ管理APIルーター (読み取り専用)"""
+
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -66,4 +67,3 @@ async def get_backup_recent_logs(
         raise
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
-

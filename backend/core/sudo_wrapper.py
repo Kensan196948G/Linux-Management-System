@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 class SudoWrapperError(Exception):
     """sudo ラッパー実行エラー"""
 
-    pass
-
 
 class SudoWrapper:
     """sudo ラッパー呼び出しクラス"""
@@ -39,14 +37,9 @@ class SudoWrapper:
         if not test_file.exists():
             project_root = Path(__file__).parent.parent.parent
             self.wrapper_dir = project_root / "wrappers"
-            logger.warning(
-                f"Wrapper scripts not found at {wrapper_dir}, "
-                f"using development directory: {self.wrapper_dir}"
-            )
+            logger.warning(f"Wrapper scripts not found at {wrapper_dir}, " f"using development directory: {self.wrapper_dir}")
 
-    def _execute(
-        self, wrapper_name: str, args: list[str], timeout: int = 30
-    ) -> Dict[str, Any]:
+    def _execute(self, wrapper_name: str, args: list[str], timeout: int = 30) -> Dict[str, Any]:
         """
         ラッパースクリプトを実行
 
@@ -201,9 +194,7 @@ class SudoWrapper:
 
         return self._execute("adminui-processes.sh", args, timeout=10)
 
-    def _execute_with_stdin(
-        self, wrapper_name: str, args: list[str], stdin_data: str, timeout: int = 30
-    ) -> Dict[str, Any]:
+    def _execute_with_stdin(self, wrapper_name: str, args: list[str], stdin_data: str, timeout: int = 30) -> Dict[str, Any]:
         """
         ラッパースクリプトを stdin データ付きで実行
 
@@ -357,9 +348,7 @@ class SudoWrapper:
         if groups:
             args.append(f"--groups={','.join(groups)}")
 
-        return self._execute_with_stdin(
-            "adminui-user-add.sh", args, stdin_data=password_hash, timeout=15
-        )
+        return self._execute_with_stdin("adminui-user-add.sh", args, stdin_data=password_hash, timeout=15)
 
     def delete_user(
         self,
@@ -1230,8 +1219,7 @@ class SudoWrapper:
     def get_packages_upgradeable(self) -> Dict[str, Any]:
         """アップグレード可能なパッケージ一覧を取得"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-packages.sh", "upgradeable"],
-            capture_output=True, text=True, timeout=60
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "upgradeable"], capture_output=True, text=True, timeout=60
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
@@ -1242,8 +1230,7 @@ class SudoWrapper:
             if char in query:
                 raise ValueError(f"Forbidden character in query: {char}")
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-packages.sh", "search", query],
-            capture_output=True, text=True, timeout=60
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "search", query], capture_output=True, text=True, timeout=60
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
@@ -1254,24 +1241,21 @@ class SudoWrapper:
             if char in package:
                 raise ValueError(f"Forbidden character in package name: {char}")
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-packages.sh", "info", package],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "info", package], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_packages_installed(self) -> Dict[str, Any]:
         """インストール済みパッケージ一覧 (dpkg -l)"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-packages.sh", "installed"],
-            capture_output=True, text=True, timeout=60
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "installed"], capture_output=True, text=True, timeout=60
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_packages_security_updates(self) -> Dict[str, Any]:
         """セキュリティアップデート一覧"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-packages.sh", "security-updates"],
-            capture_output=True, text=True, timeout=60
+            ["sudo", "/usr/local/sbin/adminui-packages.sh", "security-updates"], capture_output=True, text=True, timeout=60
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
@@ -1922,8 +1906,7 @@ class SudoWrapper:
         safe_lines = max(1, min(200, lines))
         return self._execute("adminui-dhcp.sh", ["logs", str(safe_lines)])
 
-
-# グローバルインスタンス
+    # グローバルインスタンス
 
     # ------------------------------------------------------------------
     # センサー (lm-sensors)
@@ -2111,65 +2094,65 @@ class SudoWrapper:
 
     def get_nginx_status(self) -> Dict[str, Any]:
         """
-        Nginx サービス状態を取得 (systemctl is-active nginx + nginx -v)
+            Nginx サービス状態を取得 (systemctl is-active nginx + nginx -v)
 
-        Returns:
-            Nginx サービス状態の辞書
-    # SSH 鍵管理 (読み取り専用)
-    def get_ssh_keys(self) -> Dict[str, Any]:
-        SSH公開鍵一覧を取得 (/etc/ssh/*.pub)
-            SSH公開鍵一覧の辞書
+            Returns:
+                Nginx サービス状態の辞書
+        # SSH 鍵管理 (読み取り専用)
+        def get_ssh_keys(self) -> Dict[str, Any]:
+            SSH公開鍵一覧を取得 (/etc/ssh/*.pub)
+                SSH公開鍵一覧の辞書
 
-        Raises:
-            SudoWrapperError: 実行失敗時
+            Raises:
+                SudoWrapperError: 実行失敗時
         """
         return self._execute("adminui-nginx.sh", ["status"], timeout=15)
 
     def get_nginx_config(self) -> Dict[str, Any]:
         """
-        Nginx 設定をダンプ (nginx -T)
+            Nginx 設定をダンプ (nginx -T)
 
-        Returns:
-            設定内容の辞書
-        return self._execute("adminui-sshkeys.sh", ["list-keys"], timeout=15)
-    def get_sshd_config(self) -> Dict[str, Any]:
-        sshd_config の安全な設定表示（重要パラメータのみ）
-            sshd_config 設定の辞書
+            Returns:
+                設定内容の辞書
+            return self._execute("adminui-sshkeys.sh", ["list-keys"], timeout=15)
+        def get_sshd_config(self) -> Dict[str, Any]:
+            sshd_config の安全な設定表示（重要パラメータのみ）
+                sshd_config 設定の辞書
 
-        Raises:
-            SudoWrapperError: 実行失敗時
+            Raises:
+                SudoWrapperError: 実行失敗時
         """
         return self._execute("adminui-nginx.sh", ["config"], timeout=30)
 
     def get_nginx_vhosts(self) -> Dict[str, Any]:
         """
-        Nginx バーチャルホスト一覧を取得 (/etc/nginx/sites-enabled/)
+            Nginx バーチャルホスト一覧を取得 (/etc/nginx/sites-enabled/)
 
-        Returns:
-            バーチャルホスト一覧の辞書
-        return self._execute("adminui-sshkeys.sh", ["sshd-config"], timeout=15)
-    def get_ssh_host_keys(self) -> Dict[str, Any]:
-        ホスト鍵フィンガープリントを取得 (ssh-keygen -l)
-            ホスト鍵フィンガープリントの辞書
+            Returns:
+                バーチャルホスト一覧の辞書
+            return self._execute("adminui-sshkeys.sh", ["sshd-config"], timeout=15)
+        def get_ssh_host_keys(self) -> Dict[str, Any]:
+            ホスト鍵フィンガープリントを取得 (ssh-keygen -l)
+                ホスト鍵フィンガープリントの辞書
 
-        Raises:
-            SudoWrapperError: 実行失敗時
+            Raises:
+                SudoWrapperError: 実行失敗時
         """
         return self._execute("adminui-nginx.sh", ["vhosts"], timeout=15)
 
     def get_nginx_connections(self) -> Dict[str, Any]:
         """
-        Nginx 接続状況を取得 (ss -tnp | grep nginx)
+            Nginx 接続状況を取得 (ss -tnp | grep nginx)
 
-        Returns:
-            接続状況の辞書
-        return self._execute("adminui-sshkeys.sh", ["host-keys"], timeout=15)
-    def get_known_hosts_count(self) -> Dict[str, Any]:
-        /etc/ssh/ssh_known_hosts のエントリ数を取得（内容は非表示）
-            known_hosts エントリ数の辞書
+            Returns:
+                接続状況の辞書
+            return self._execute("adminui-sshkeys.sh", ["host-keys"], timeout=15)
+        def get_known_hosts_count(self) -> Dict[str, Any]:
+            /etc/ssh/ssh_known_hosts のエントリ数を取得（内容は非表示）
+                known_hosts エントリ数の辞書
 
-        Raises:
-            SudoWrapperError: 実行失敗時
+            Raises:
+                SudoWrapperError: 実行失敗時
         """
         return self._execute("adminui-nginx.sh", ["connections"], timeout=15)
 
@@ -2220,6 +2203,7 @@ class SudoWrapper:
         """
         safe_lines = max(1, min(200, lines))
         return self._execute("adminui-apache.sh", ["logs", str(safe_lines)], timeout=15)
+
     # ------------------------------------------------------------------
     # File Manager
     # ------------------------------------------------------------------
@@ -2407,7 +2391,6 @@ class SudoWrapper:
         """
         return self._execute("adminui-security.sh", ["open-ports"], timeout=15)
 
-
     # ------------------------------------------------------------------
     # ログ検索 (logsearch)
     # ------------------------------------------------------------------
@@ -2497,6 +2480,7 @@ class SudoWrapper:
         Raises:
             SudoWrapperError: 実行失敗時
         """
+
     def get_ntp_servers(self) -> Dict[str, Any]:
         """NTPサーバー一覧を取得 (chrony/ntpd)"""
         return self._execute("adminui-time.sh", ["ntp-servers"])
@@ -2514,43 +2498,39 @@ class SudoWrapper:
         if lines < 1 or lines > 1000:
             raise ValueError("lines must be between 1 and 1000")
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-journal.sh", "list", str(lines)],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "list", str(lines)], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_journal_units(self) -> dict:
         """systemdユニット一覧を取得"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-journal.sh", "units"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "units"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_journal_unit_logs(self, unit: str) -> dict:
         """特定ユニットのログを取得"""
         import re
-        if not re.match(r'^[a-zA-Z0-9._@:-]+$', unit):
+
+        if not re.match(r"^[a-zA-Z0-9._@:-]+$", unit):
             raise ValueError(f"Invalid unit name: {unit}")
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-journal.sh", "unit-logs", unit],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "unit-logs", unit], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_journal_boot_logs(self) -> dict:
         """ブートログを取得"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-journal.sh", "boot-logs"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "boot-logs"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_journal_kernel_logs(self) -> dict:
         """カーネルログを取得"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-journal.sh", "kernel-logs"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-journal.sh", "kernel-logs"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
@@ -2561,70 +2541,65 @@ class SudoWrapper:
             raise ValueError(f"Invalid priority: {priority}")
         result = subprocess.run(
             ["sudo", "/usr/local/sbin/adminui-journal.sh", "priority-logs", priority],
-            capture_output=True, text=True, timeout=30
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_backup_list(self) -> dict:
         """バックアップファイル一覧を取得"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-backup.sh", "list"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "list"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_backup_status(self) -> dict:
         """バックアップステータスを取得 (systemd timer)"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-backup.sh", "status"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "status"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_backup_disk_usage(self) -> dict:
         """バックアップディスク使用量を取得"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-backup.sh", "disk-usage"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "disk-usage"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_backup_recent_logs(self) -> dict:
         """バックアップ関連ログを取得"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-backup.sh", "recent-logs"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "recent-logs"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
     def get_active_sessions(self) -> dict:
         """アクティブなユーザーセッション一覧 (who -u)"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "active"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "active"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_session_history(self) -> dict:
         """ログイン履歴 (last)"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "history"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "history"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_failed_sessions(self) -> dict:
         """ログイン失敗一覧 (faillog)"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "failed"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "failed"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
     def get_wtmp_summary(self) -> dict:
         """ログイン統計サマリー"""
         result = subprocess.run(
-            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "wtmp-summary"],
-            capture_output=True, text=True, timeout=30
+            ["sudo", "/usr/local/sbin/adminui-sessions.sh", "wtmp-summary"], capture_output=True, text=True, timeout=30
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 

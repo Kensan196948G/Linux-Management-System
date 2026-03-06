@@ -11,7 +11,7 @@
 
 import logging
 import re
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -27,9 +27,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/hardware", tags=["hardware"])
 
 # デバイスパスのバリデーションパターン
-DEVICE_PATTERN = re.compile(
-    r"^/dev/(sd[a-z]|nvme[0-9]n[0-9]|vd[a-z]|xvd[a-z]|hd[a-z])$"
-)
+DEVICE_PATTERN = re.compile(r"^/dev/(sd[a-z]|nvme[0-9]n[0-9]|vd[a-z]|xvd[a-z]|hd[a-z])$")
 
 
 # ===================================================================
@@ -270,8 +268,7 @@ async def get_smart(
     if not DEVICE_PATTERN.match(device):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid device path: {device}. "
-            "Allowed: /dev/sd[a-z], /dev/nvme[0-9]n[0-9], /dev/vd[a-z]",
+            detail=f"Invalid device path: {device}. " "Allowed: /dev/sd[a-z], /dev/nvme[0-9]n[0-9], /dev/vd[a-z]",
         )
 
     logger.info(f"Hardware SMART requested: device={device}, by={current_user.username}")

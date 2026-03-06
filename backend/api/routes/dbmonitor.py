@@ -13,7 +13,7 @@ import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log

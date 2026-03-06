@@ -69,10 +69,7 @@ class AuditLog:
                 json.dump(log_entry, f, ensure_ascii=False)
                 f.write("\n")
 
-            logger.info(
-                f"Audit log recorded: operation={operation}, user={user_id}, "
-                f"target={target}, status={status}"
-            )
+            logger.info(f"Audit log recorded: operation={operation}, user={user_id}, " f"target={target}, status={status}")
 
         except Exception as e:
             logger.error(f"Failed to record audit log: {e}")

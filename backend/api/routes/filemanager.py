@@ -9,9 +9,9 @@
   GET /api/files/read          - ファイル内容 (1-200行)
   GET /api/files/search        - ファイル検索
 """
+
 import logging
 import os
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 

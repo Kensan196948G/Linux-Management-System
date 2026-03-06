@@ -10,9 +10,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from ...core import get_current_user, require_permission, sudo_wrapper
+from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
 from ...core.auth import ROLES, TokenData, decode_token
 from ...core.sudo_wrapper import SudoWrapperError
@@ -64,9 +64,7 @@ class ProcessListResponse(BaseModel):
 async def list_processes(
     sort_by: str = Query("cpu", pattern="^(cpu|mem|pid|time)$"),
     limit: int = Query(100, ge=1, le=1000),
-    filter_user: Optional[str] = Query(
-        None, min_length=1, max_length=32, pattern="^[a-zA-Z0-9_-]+$"
-    ),
+    filter_user: Optional[str] = Query(None, min_length=1, max_length=32, pattern="^[a-zA-Z0-9_-]+$"),
     min_cpu: float = Query(0.0, ge=0.0, le=100.0),
     min_mem: float = Query(0.0, ge=0.0, le=100.0),
     current_user: TokenData = Depends(require_permission("read:processes")),
@@ -144,9 +142,7 @@ async def list_processes(
             details={"returned_processes": result.get("returned_processes", 0)},
         )
 
-        logger.info(
-            f"Process list retrieved: {result.get('returned_processes', 0)} processes"
-        )
+        logger.info(f"Process list retrieved: {result.get('returned_processes', 0)} processes")
 
         return ProcessListResponse(**result)
 
@@ -218,11 +214,13 @@ async def stream_processes(
                         min_cpu=0.0,
                         min_mem=0.0,
                     )
-                    payload = json.dumps({
-                        "type": "update",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "data": result,
-                    })
+                    payload = json.dumps(
+                        {
+                            "type": "update",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "data": result,
+                        }
+                    )
                     yield f"data: {payload}\n\n"
                 except Exception as e:
                     yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"

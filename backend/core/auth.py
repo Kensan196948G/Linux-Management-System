@@ -477,9 +477,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
     to_encode.update({"exp": expire})
 
-    encoded_jwt = jwt.encode(
-        to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
-    )
+    encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
     return encoded_jwt
 
@@ -547,9 +545,7 @@ def decode_token(token: str) -> TokenData:
     )
 
     try:
-        payload = jwt.decode(
-            token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
-        )
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
 
         user_id: str = payload.get("sub")
         username: str = payload.get("username")
@@ -605,8 +601,7 @@ def require_permission(permission: str):
 
         if permission not in user_role.permissions:
             logger.warning(
-                f"Permission denied: user={current_user.username}, "
-                f"role={current_user.role}, required={permission}"
+                f"Permission denied: user={current_user.username}, " f"role={current_user.role}, required={permission}"
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

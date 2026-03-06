@@ -5,13 +5,12 @@ CLAUDE.md のセキュリティ原則に従い、allowlist検証 + sudo ラッ�
 """
 
 import logging
-import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from ...core import get_current_user, require_permission, sudo_wrapper
+from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 from ...core.constants import ALLOWED_SHELLS, FORBIDDEN_GROUPS, FORBIDDEN_USERNAMES
@@ -55,9 +54,7 @@ class UserDetailResponse(BaseModel):
 class CreateUserRequest(BaseModel):
     """ユーザー作成リクエスト"""
 
-    username: str = Field(
-        ..., min_length=1, max_length=32, pattern=r"^[a-z_][a-z0-9_-]{0,31}$"
-    )
+    username: str = Field(..., min_length=1, max_length=32, pattern=r"^[a-z_][a-z0-9_-]{0,31}$")
     password: str = Field(..., min_length=8, max_length=128)
     shell: str = Field("/bin/bash")
     gecos: str = Field("", max_length=256)
@@ -92,18 +89,14 @@ class GroupListResponse(BaseModel):
 class CreateGroupRequest(BaseModel):
     """グループ作成リクエスト"""
 
-    name: str = Field(
-        ..., min_length=1, max_length=32, pattern=r"^[a-z_][a-z0-9_-]{0,31}$"
-    )
+    name: str = Field(..., min_length=1, max_length=32, pattern=r"^[a-z_][a-z0-9_-]{0,31}$")
 
 
 class ModifyMembershipRequest(BaseModel):
     """グループメンバーシップ変更リクエスト"""
 
     action: str = Field(..., pattern=r"^(add|remove)$")
-    user: str = Field(
-        ..., min_length=1, max_length=32, pattern=r"^[a-z_][a-z0-9_-]{0,31}$"
-    )
+    user: str = Field(..., min_length=1, max_length=32, pattern=r"^[a-z_][a-z0-9_-]{0,31}$")
 
 
 # ===================================================================
@@ -116,9 +109,7 @@ async def list_users(
     sort_by: str = Query("username", pattern="^(username|uid|last_login)$"),
     limit: int = Query(100, ge=1, le=500),
     filter_locked: Optional[str] = Query(None, pattern="^(true|false)$"),
-    username_filter: Optional[str] = Query(
-        None, min_length=1, max_length=32, pattern=r"^[a-z0-9_-]+$"
-    ),
+    username_filter: Optional[str] = Query(None, min_length=1, max_length=32, pattern=r"^[a-z0-9_-]+$"),
     current_user: TokenData = Depends(require_permission("read:users")),
 ):
     """
@@ -204,9 +195,7 @@ async def list_users_alias(
     sort_by: str = Query("username", pattern="^(username|uid|last_login)$"),
     limit: int = Query(100, ge=1, le=500),
     filter_locked: Optional[str] = Query(None, pattern="^(true|false)$"),
-    username_filter: Optional[str] = Query(
-        None, min_length=1, max_length=32, pattern=r"^[a-z0-9_-]+$"
-    ),
+    username_filter: Optional[str] = Query(None, min_length=1, max_length=32, pattern=r"^[a-z0-9_-]+$"),
     current_user: TokenData = Depends(require_permission("read:users")),
 ):
     """
@@ -279,9 +268,7 @@ async def get_user_detail(
             detail=f"Invalid username: {str(e)}",
         )
 
-    logger.info(
-        f"User detail requested: username={username}, by={current_user.username}"
-    )
+    logger.info(f"User detail requested: username={username}, by={current_user.username}")
 
     audit_log.record(
         operation="user_detail",
@@ -358,10 +345,7 @@ async def create_user(
 
     # FORBIDDEN_USERNAMES チェック
     if request.username in FORBIDDEN_USERNAMES:
-        logger.warning(
-            f"Forbidden username creation attempt: {request.username}, "
-            f"by={current_user.username}"
-        )
+        logger.warning(f"Forbidden username creation attempt: {request.username}, " f"by={current_user.username}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Username is reserved: {request.username}",
@@ -394,10 +378,7 @@ async def create_user(
                 detail=f"Invalid group name '{group}': {str(e)}",
             )
 
-    logger.info(
-        f"User creation requested: username={request.username}, "
-        f"shell={request.shell}, by={current_user.username}"
-    )
+    logger.info(f"User creation requested: username={request.username}, " f"shell={request.shell}, by={current_user.username}")
 
     audit_log.record(
         operation="user_create",
@@ -446,9 +427,7 @@ async def create_user(
             details={"username": request.username},
         )
 
-        logger.info(
-            f"User created: username={request.username}, by={current_user.username}"
-        )
+        logger.info(f"User created: username={request.username}, by={current_user.username}")
 
         return result
 
@@ -588,9 +567,7 @@ async def change_password(
             detail=f"Invalid username: {str(e)}",
         )
 
-    logger.info(
-        f"Password change requested: username={username}, by={current_user.username}"
-    )
+    logger.info(f"Password change requested: username={username}, by={current_user.username}")
 
     audit_log.record(
         operation="user_change_password",
@@ -631,9 +608,7 @@ async def change_password(
             details={"username": username},
         )
 
-        logger.info(
-            f"Password changed: username={username}, by={current_user.username}"
-        )
+        logger.info(f"Password changed: username={username}, by={current_user.username}")
 
         return result
 
@@ -674,10 +649,7 @@ async def list_groups(
     Returns:
         グループ一覧
     """
-    logger.info(
-        f"Group list requested: sort={sort_by}, limit={limit}, "
-        f"by={current_user.username}"
-    )
+    logger.info(f"Group list requested: sort={sort_by}, limit={limit}, " f"by={current_user.username}")
 
     audit_log.record(
         operation="group_list",
@@ -753,10 +725,7 @@ async def create_group(
 
     # FORBIDDEN_GROUPS チェック
     if request.name in FORBIDDEN_GROUPS:
-        logger.warning(
-            f"Forbidden group creation attempt: {request.name}, "
-            f"by={current_user.username}"
-        )
+        logger.warning(f"Forbidden group creation attempt: {request.name}, " f"by={current_user.username}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Group name is reserved: {request.name}",
@@ -764,18 +733,13 @@ async def create_group(
 
     # FORBIDDEN_USERNAMES との衝突チェック
     if request.name in FORBIDDEN_USERNAMES:
-        logger.warning(
-            f"Group/username collision attempt: {request.name}, "
-            f"by={current_user.username}"
-        )
+        logger.warning(f"Group/username collision attempt: {request.name}, " f"by={current_user.username}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Group name collides with reserved username: {request.name}",
         )
 
-    logger.info(
-        f"Group creation requested: name={request.name}, by={current_user.username}"
-    )
+    logger.info(f"Group creation requested: name={request.name}, by={current_user.username}")
 
     audit_log.record(
         operation="group_create",
@@ -939,10 +903,7 @@ async def modify_group_membership(
 
     # FORBIDDEN_GROUPS チェック
     if name in FORBIDDEN_GROUPS:
-        logger.warning(
-            f"Forbidden group membership modification attempt: group={name}, "
-            f"by={current_user.username}"
-        )
+        logger.warning(f"Forbidden group membership modification attempt: group={name}, " f"by={current_user.username}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Group is forbidden: {name}",

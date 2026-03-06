@@ -365,6 +365,7 @@ async def get_upgradeable_packages(
         result = sudo_wrapper.get_packages_upgradeable()
         lines = [line for line in result["stdout"].splitlines() if line and not line.startswith("Listing")]
         from datetime import datetime, timezone
+
         audit_log.record(
             operation="packages_upgradeable_read",
             user_id=current_user.user_id,
@@ -456,6 +457,7 @@ async def get_security_updates_v2(
         result = sudo_wrapper.get_packages_security_updates()
         lines = [line for line in result["stdout"].splitlines() if line]
         from datetime import datetime, timezone
+
         audit_log.record(
             operation="packages_security_updates_read",
             user_id=current_user.user_id,

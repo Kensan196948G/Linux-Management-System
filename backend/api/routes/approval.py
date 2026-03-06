@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.core.approval_service import ApprovalService
-from backend.core.auth import TokenData, get_current_user, require_permission
+from backend.core.auth import TokenData, require_permission
 from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -233,10 +233,7 @@ async def reject_request(
     """
     try:
         if action.emergency:
-            logger.warning(
-                f"Emergency rejection by {current_user.username} "
-                f"for request {request_id}: {action.reason}"
-            )
+            logger.warning(f"Emergency rejection by {current_user.username} " f"for request {request_id}: {action.reason}")
 
         result = await approval_service.reject_request(
             request_id=request_id,

@@ -14,7 +14,7 @@ Bootup / Shutdown 管理 API ルーター
 """
 
 import logging
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -35,9 +35,19 @@ sudo_wrapper = SudoWrapper()
 
 # サービス名の allowlist（ラッパースクリプト側でも検証）
 ALLOWED_BOOTUP_SERVICES = [
-    "nginx", "apache2", "postgresql", "mysql", "redis",
-    "ssh", "ufw", "cron", "rsyslog", "chrony", "ntp",
-    "docker", "fail2ban",
+    "nginx",
+    "apache2",
+    "postgresql",
+    "mysql",
+    "redis",
+    "ssh",
+    "ufw",
+    "cron",
+    "rsyslog",
+    "chrony",
+    "ntp",
+    "docker",
+    "fail2ban",
 ]
 
 # 遅延値の allowlist

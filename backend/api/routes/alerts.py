@@ -1,4 +1,5 @@
 """システムリソースアラート管理APIルーター"""
+
 import asyncio
 import json
 import os
@@ -14,11 +15,46 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 # デフォルトアラートルール（設定ファイルがない場合）
 DEFAULT_RULES = [
-    {"id": "cpu-high", "resource": "cpu", "threshold": 90.0, "comparison": "gte", "enabled": True, "description": "CPU使用率90%以上"},
-    {"id": "mem-high", "resource": "memory", "threshold": 85.0, "comparison": "gte", "enabled": True, "description": "メモリ使用率85%以上"},
-    {"id": "disk-root", "resource": "disk:/", "threshold": 80.0, "comparison": "gte", "enabled": True, "description": "ルートディスク使用率80%以上"},
-    {"id": "disk-home", "resource": "disk:/home", "threshold": 90.0, "comparison": "gte", "enabled": True, "description": "/homeディスク使用率90%以上"},
-    {"id": "load-high", "resource": "load", "threshold": 4.0, "comparison": "gte", "enabled": True, "description": "ロードアベレージ4.0以上"},
+    {
+        "id": "cpu-high",
+        "resource": "cpu",
+        "threshold": 90.0,
+        "comparison": "gte",
+        "enabled": True,
+        "description": "CPU使用率90%以上",
+    },
+    {
+        "id": "mem-high",
+        "resource": "memory",
+        "threshold": 85.0,
+        "comparison": "gte",
+        "enabled": True,
+        "description": "メモリ使用率85%以上",
+    },
+    {
+        "id": "disk-root",
+        "resource": "disk:/",
+        "threshold": 80.0,
+        "comparison": "gte",
+        "enabled": True,
+        "description": "ルートディスク使用率80%以上",
+    },
+    {
+        "id": "disk-home",
+        "resource": "disk:/home",
+        "threshold": 90.0,
+        "comparison": "gte",
+        "enabled": True,
+        "description": "/homeディスク使用率90%以上",
+    },
+    {
+        "id": "load-high",
+        "resource": "load",
+        "threshold": 4.0,
+        "comparison": "gte",
+        "enabled": True,
+        "description": "ロードアベレージ4.0以上",
+    },
 ]
 
 
@@ -102,10 +138,7 @@ async def get_active_alerts(current_user: TokenData = Depends(require_permission
         disk_root = get_disk_usage_pct("/")
         disk_home = get_disk_usage_pct("/home")
 
-        current_values = {
-            "cpu": cpu, "memory": mem, "load": load,
-            "disk:/": disk_root, "disk:/home": disk_home
-        }
+        current_values = {"cpu": cpu, "memory": mem, "load": load, "disk:/": disk_root, "disk:/home": disk_home}
 
         active = []
         for rule in DEFAULT_RULES:
@@ -115,17 +148,13 @@ async def get_active_alerts(current_user: TokenData = Depends(require_permission
             current = current_values.get(resource, 0.0)
             triggered = current >= rule["threshold"] if rule["comparison"] == "gte" else current <= rule["threshold"]
             if triggered:
-                active.append({
-                    **rule,
-                    "current_value": current,
-                    "triggered_at": datetime.now(timezone.utc).isoformat()
-                })
+                active.append({**rule, "current_value": current, "triggered_at": datetime.now(timezone.utc).isoformat()})
 
         return {
             "active_alerts": active,
             "count": len(active),
             "current_values": current_values,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except HTTPException:
         raise
@@ -146,7 +175,7 @@ async def get_alerts_summary(current_user: TokenData = Depends(require_permissio
             "current_cpu": cpu,
             "current_memory": mem,
             "current_load": load,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except HTTPException:
         raise
@@ -197,24 +226,27 @@ async def stream_alerts(
                         val = current_values.get(resource)
                         if val is None:
                             continue
-                        triggered = (
-                            (rule["comparison"] == "gte" and val >= rule["threshold"])
-                            or (rule["comparison"] == "lte" and val <= rule["threshold"])
+                        triggered = (rule["comparison"] == "gte" and val >= rule["threshold"]) or (
+                            rule["comparison"] == "lte" and val <= rule["threshold"]
                         )
                         if triggered:
-                            active.append({
-                                "id": rule["id"],
-                                "description": rule["description"],
-                                "value": round(val, 1),
-                                "threshold": rule["threshold"],
-                            })
+                            active.append(
+                                {
+                                    "id": rule["id"],
+                                    "description": rule["description"],
+                                    "value": round(val, 1),
+                                    "threshold": rule["threshold"],
+                                }
+                            )
 
-                    payload = json.dumps({
-                        "type": "update",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "active_alerts": active,
-                        "metrics": {k: round(v, 1) for k, v in current_values.items()},
-                    })
+                    payload = json.dumps(
+                        {
+                            "type": "update",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "active_alerts": active,
+                            "metrics": {k: round(v, 1) for k, v in current_values.items()},
+                        }
+                    )
                     yield f"data: {payload}\n\n"
                 except Exception as e:
                     yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
