@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **自動エラー検知・修復ループ**: `.github/workflows/auto-error-fix-loop.yml` 新規作成（522行）
+  - 7種類の検知：flake8・black・pytest・bandit・DB整合性・ファイルパーミッション・pylint複雑度
+  - 3種類の自動修復：autoflake+isort（未使用import/順序）・black（フォーマット）・chmod +x（実行権限）
+  - 最大15回ループ・30分間隔スケジュール・手動実行・auto-fixラベルトリガー
+  - GitHub Issue自動作成（partial/critical ステータス時）
+- **GitHub Labels**: `auto-fix`（青）・`auto-fix-needed`（赤）作成
+- **GitHub Issue #2**: ワークフロー動作説明Issue作成
+
+### Fixed
+- **flake8 E741**: `journal.py`/`backup.py`/`sessions.py` 変数名 `l` → `ln`（曖昧な変数名）
+- **flake8 E402**: `bandwidth.py` の `import re` をファイル先頭に移動
+- **flake8 E501**: `logsearch.py:190` 139文字 → 2行に分割
+- **bandit B108**: `filemanager.py` ALLOWED_DIRECTORIES から `/tmp` 除去（世界書き込み可能ディレクトリ）
+- **ShellCheck SC1073**: `wrappers/adminui-security.sh` 混在クォート → POSIX文字クラスに修正
+- **CI テスト**: `test_user_detail_nonexistent` が sudo未設定のCI環境で500を返す問題をモック化で修正
+- **CI アーティファクト競合**: `bandit-report` → `bandit-report-py${{ matrix.python-version }}` で名前衝突解消
+- **ワークフロー誤検出修正**: `shell=True` grep がコメント行を誤検出 → `grep -vE '^\s*#|:[[:space:]]*#'` に改善
+- **ワークフロー表示バグ**: pytest 通過数が常に0件表示 → `grep -oE "[0-9]+ passed"` に修正
+
 ## [0.31.0] - 2026-03-06
 
 ### Added
