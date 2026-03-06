@@ -87,8 +87,9 @@ class TestAllowedDirs:
         """期待するディレクトリが全て含まれる"""
         response = test_client.get("/api/files/allowed-dirs")
         dirs = response.json()["allowed_dirs"]
-        for expected in ["/var/log", "/etc/nginx", "/etc/apache2", "/etc/ssh", "/tmp", "/var/www", "/home"]:
+        for expected in ["/var/log", "/etc/nginx", "/etc/apache2", "/etc/ssh", "/var/www", "/home"]:
             assert expected in dirs
+        assert "/tmp" not in dirs, "/tmp はセキュリティリスクのため許可リストから除外されている"
 
 
 # ==============================================================================
@@ -120,7 +121,7 @@ class TestFileList:
         """Admin ロールでアクセス可能"""
         with patch("backend.core.sudo_wrapper.sudo_wrapper.list_files") as mock:
             mock.return_value = _ok(SAMPLE_LS_OUTPUT)
-            response = test_client.get("/api/files/list?path=/tmp", headers=admin_headers)
+            response = test_client.get("/api/files/list?path=/var/log", headers=admin_headers)
         assert response.status_code == 200
 
 

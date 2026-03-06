@@ -187,7 +187,10 @@ async def stream_log_realtime(
                 stderr=asyncio.subprocess.DEVNULL,
             )
             # 初回接続確認メッセージ
-            yield f"data: {json.dumps({'type': 'connected', 'logfile': logfile, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+            connected_msg = json.dumps(
+                {"type": "connected", "logfile": logfile, "timestamp": datetime.now(timezone.utc).isoformat()}
+            )
+            yield f"data: {connected_msg}\n\n"
 
             while True:
                 try:

@@ -18,7 +18,7 @@ async def get_active_sessions(
     """アクティブセッション一覧 (read:sessions権限)"""
     try:
         result = sudo_wrapper.get_active_sessions()
-        lines = [l for l in result["stdout"].splitlines() if l]
+        lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"sessions": lines, "count": len(lines), "timestamp": datetime.now(timezone.utc).isoformat()}
     except HTTPException:
         raise
@@ -33,7 +33,7 @@ async def get_session_history(
     """ログイン履歴 (read:sessions権限)"""
     try:
         result = sudo_wrapper.get_session_history()
-        lines = [l for l in result["stdout"].splitlines() if l]
+        lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"history": lines, "count": len(lines), "timestamp": datetime.now(timezone.utc).isoformat()}
     except HTTPException:
         raise
@@ -48,7 +48,7 @@ async def get_failed_sessions(
     """ログイン失敗一覧 (read:sessions権限)"""
     try:
         result = sudo_wrapper.get_failed_sessions()
-        lines = [l for l in result["stdout"].splitlines() if l]
+        lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"failed_logins": lines, "count": len(lines)}
     except HTTPException:
         raise
@@ -63,7 +63,7 @@ async def get_wtmp_summary(
     """ログイン統計サマリー (read:sessions権限)"""
     try:
         result = sudo_wrapper.get_wtmp_summary()
-        lines = [l for l in result["stdout"].splitlines() if l]
+        lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"summary": lines, "count": len(lines)}
     except HTTPException:
         raise

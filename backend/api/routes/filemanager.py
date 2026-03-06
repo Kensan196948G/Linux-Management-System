@@ -29,7 +29,6 @@ ALLOWED_BASE_DIRS = [
     "/etc/nginx",
     "/etc/apache2",
     "/etc/ssh",
-    "/tmp",
     "/var/www",
     "/home",
 ]

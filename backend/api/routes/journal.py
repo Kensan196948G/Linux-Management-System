@@ -20,7 +20,7 @@ async def get_journal_list(
     """ジャーナルログ一覧を取得"""
     try:
         result = sudo_wrapper.get_journal_list(lines)
-        log_lines = [l for l in result["stdout"].splitlines() if l]
+        log_lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"logs": log_lines, "count": len(log_lines), "timestamp": datetime.now(timezone.utc).isoformat()}
     except HTTPException:
         raise
@@ -35,7 +35,7 @@ async def get_journal_units(
     """systemdユニット一覧を取得"""
     try:
         result = sudo_wrapper.get_journal_units()
-        units = [l for l in result["stdout"].splitlines() if l]
+        units = [ln for ln in result["stdout"].splitlines() if ln]
         return {"units": units, "count": len(units)}
     except HTTPException:
         raise
@@ -53,7 +53,7 @@ async def get_unit_logs(
         raise HTTPException(status_code=400, detail="Invalid unit name")
     try:
         result = sudo_wrapper.get_journal_unit_logs(unit_name)
-        log_lines = [l for l in result["stdout"].splitlines() if l]
+        log_lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"unit": unit_name, "logs": log_lines, "count": len(log_lines)}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -70,7 +70,7 @@ async def get_boot_logs(
     """ブートログを取得"""
     try:
         result = sudo_wrapper.get_journal_boot_logs()
-        log_lines = [l for l in result["stdout"].splitlines() if l]
+        log_lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"logs": log_lines, "count": len(log_lines)}
     except HTTPException:
         raise
@@ -85,7 +85,7 @@ async def get_kernel_logs(
     """カーネルログを取得"""
     try:
         result = sudo_wrapper.get_journal_kernel_logs()
-        log_lines = [l for l in result["stdout"].splitlines() if l]
+        log_lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"logs": log_lines, "count": len(log_lines)}
     except HTTPException:
         raise
@@ -104,7 +104,7 @@ async def get_priority_logs(
         raise HTTPException(status_code=400, detail=f"Invalid priority. Allowed: {ALLOWED}")
     try:
         result = sudo_wrapper.get_journal_priority_logs(priority)
-        log_lines = [l for l in result["stdout"].splitlines() if l]
+        log_lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"priority": priority, "logs": log_lines, "count": len(log_lines)}
     except HTTPException:
         raise

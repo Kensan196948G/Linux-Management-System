@@ -11,6 +11,7 @@
 """
 
 import logging
+import re
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -25,9 +26,6 @@ from ._utils import parse_wrapper_result
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/bandwidth", tags=["bandwidth"])
-
-# インターフェース名パターン（バリデーション）
-import re
 
 _IFACE_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{1,32}$")
 

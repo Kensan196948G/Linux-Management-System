@@ -18,7 +18,7 @@ async def get_backup_list(
     """バックアップファイル一覧 (read:backup権限)"""
     try:
         result = sudo_wrapper.get_backup_list()
-        lines = [l for l in result["stdout"].splitlines() if l]
+        lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"backups": lines, "count": len(lines), "timestamp": datetime.now(timezone.utc).isoformat()}
     except HTTPException:
         raise
@@ -61,7 +61,7 @@ async def get_backup_recent_logs(
     """バックアップ関連ログ (read:backup権限)"""
     try:
         result = sudo_wrapper.get_backup_recent_logs()
-        lines = [l for l in result["stdout"].splitlines() if l]
+        lines = [ln for ln in result["stdout"].splitlines() if ln]
         return {"logs": lines, "count": len(lines)}
     except HTTPException:
         raise

@@ -184,8 +184,8 @@ jobs:
               -x \
               2>&1 | tee /tmp/pytest_report.txt || PYTEST_RESULT=$?
 
-            PYTEST_PASSED=$(grep -E "^[0-9]+ passed" /tmp/pytest_report.txt | grep -oE "^[0-9]+" || echo "0")
-            PYTEST_FAILED=$(grep -E "failed" /tmp/pytest_report.txt | grep -oE "^[0-9]+" || echo "0")
+            PYTEST_PASSED=$(grep -oE "[0-9]+ passed" /tmp/pytest_report.txt | grep -oE "^[0-9]+" || echo "0")
+            PYTEST_FAILED=$(grep -oE "[0-9]+ failed" /tmp/pytest_report.txt | grep -oE "^[0-9]+" || echo "0")
 
             if [ "$PYTEST_RESULT" -ne 0 ]; then
               echo "❌ テスト失敗: ${PYTEST_FAILED}件失敗（自動修復不可 - 人間確認必要）"
@@ -222,9 +222,9 @@ jobs:
               echo "✅ bandit: セキュリティ問題なし"
             fi
 
-            # shell=True 検出（プロジェクト固有のセキュリティチェック）
+            # shell=True 検出（プロジェクト固有のセキュリティチェック）- コメント行を除外
             SHELL_TRUE_COUNT=$(grep -r "shell=True" backend/ --include="*.py" \
-              2>/dev/null | grep -v '^\s*#' | wc -l || echo "0")
+              2>/dev/null | grep -vE '^\s*#|:[[:space:]]*#' | wc -l || echo "0")
             if [ "$SHELL_TRUE_COUNT" -gt 0 ]; then
               echo "🚨 CRITICAL: shell=True が ${SHELL_TRUE_COUNT}件 検出！"
               FINAL_STATUS="critical"
