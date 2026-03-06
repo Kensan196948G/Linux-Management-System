@@ -36,6 +36,7 @@
             <div class="mb-3">
                 <button class="tab-btn active" onclick="showTab('search')" id="tab-search">🔍 検索</button>
                 <button class="tab-btn" onclick="showTab('errors')" id="tab-errors">🔴 直近エラー</button>
+                <button class="tab-btn" onclick="showTab('stream')" id="tab-stream">📡 リアルタイム</button>
             </div>
 
             <!-- 検索タブ -->
@@ -132,6 +133,36 @@
                     </div>
                     <div class="card-body p-2">
                         <div class="log-area error-log-area" id="log-errors">読み込み中...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- リアルタイムストリームタブ -->
+            <div id="pane-stream" style="display:none">
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>📡 リアルタイムログストリーム</span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <select id="stream-file-select" class="form-select form-select-sm" style="width:auto">
+                                <option value="syslog">syslog</option>
+                                <option value="auth.log">auth.log</option>
+                                <option value="kern.log">kern.log</option>
+                                <option value="dpkg.log">dpkg.log</option>
+                            </select>
+                            <button id="stream-start-btn" class="btn btn-sm btn-success" onclick="startStream()">▶ 開始</button>
+                            <button id="stream-stop-btn" class="btn btn-sm btn-danger" onclick="stopStream()" style="display:none">⏹ 停止</button>
+                            <span id="stream-status" class="stat-badge">停止中</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="stream-log" class="log-area" style="height:500px">
+                            <span style="color:#666">▶ 開始ボタンを押すとリアルタイムストリーミングを開始します</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body py-2">
+                        <small class="text-muted">⚡ tail -f 相当のリアルタイム表示 | 最大500行保持 | 自動スクロール</small>
                     </div>
                 </div>
             </div>
@@ -276,12 +307,96 @@
     let currentTab = 'search';
 
     function showTab(tab) {
-        ['search', 'errors'].forEach(t => {
+        ['search', 'errors', 'stream'].forEach(t => {
             document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
             document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
         });
+        // ストリームタブ以外に切り替えた場合はストリームを停止
+        if (tab !== 'stream') stopStream();
         currentTab = tab;
         if (tab === 'errors') loadRecentErrors();
+    }
+
+    // ===== リアルタイムストリーム =====
+    let streamEventSource = null;
+    let streamLines = [];
+    const MAX_STREAM_LINES = 500;
+
+    function startStream() {
+        const logfile = document.getElementById('stream-file-select').value;
+        const token = getToken();
+        if (!token) { showAlert('認証が必要です', 'danger'); return; }
+
+        stopStream(); // 既存ストリームを停止
+
+        const url = `/api/logsearch/stream?logfile=${encodeURIComponent(logfile)}&token=${encodeURIComponent(token)}`;
+        streamEventSource = new EventSource(url);
+
+        document.getElementById('stream-start-btn').style.display = 'none';
+        document.getElementById('stream-stop-btn').style.display = '';
+        document.getElementById('stream-status').textContent = '接続中...';
+        document.getElementById('stream-status').style.background = '#fef3c7';
+        document.getElementById('stream-status').style.color = '#92400e';
+        streamLines = [];
+        document.getElementById('stream-log').innerHTML = '';
+
+        streamEventSource.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.type === 'connected') {
+                    document.getElementById('stream-status').textContent = '接続済み ●';
+                    document.getElementById('stream-status').style.background = '#d1fae5';
+                    document.getElementById('stream-status').style.color = '#065f46';
+                } else if (data.type === 'log') {
+                    appendStreamLine(data.line);
+                } else if (data.type === 'heartbeat') {
+                    // noop
+                } else if (data.type === 'error') {
+                    showAlert('ストリームエラー: ' + data.message, 'danger');
+                    stopStream();
+                }
+            } catch {}
+        };
+
+        streamEventSource.onerror = () => {
+            document.getElementById('stream-status').textContent = '切断';
+            document.getElementById('stream-status').style.background = '#fee2e2';
+            document.getElementById('stream-status').style.color = '#991b1b';
+        };
+    }
+
+    function stopStream() {
+        if (streamEventSource) {
+            streamEventSource.close();
+            streamEventSource = null;
+        }
+        const startBtn = document.getElementById('stream-start-btn');
+        const stopBtn = document.getElementById('stream-stop-btn');
+        const statusEl = document.getElementById('stream-status');
+        if (startBtn) startBtn.style.display = '';
+        if (stopBtn) stopBtn.style.display = 'none';
+        if (statusEl) {
+            statusEl.textContent = '停止中';
+            statusEl.style.background = '';
+            statusEl.style.color = '';
+        }
+    }
+
+    function appendStreamLine(line) {
+        streamLines.push(line);
+        if (streamLines.length > MAX_STREAM_LINES) streamLines.shift();
+        const container = document.getElementById('stream-log');
+        const span = document.createElement('span');
+        span.className = 'log-line' + (line.match(/error|critical|fatal/i) ? ' error' : '');
+        span.textContent = line;
+        container.appendChild(span);
+        container.appendChild(document.createElement('br'));
+        // 最大行数超過時に先頭削除
+        while (container.children.length > MAX_STREAM_LINES * 2) {
+            container.removeChild(container.firstChild);
+        }
+        // 自動スクロール
+        container.scrollTop = container.scrollHeight;
     }
 
     // 初期ロード

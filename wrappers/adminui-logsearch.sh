@@ -13,7 +13,7 @@ error() { logger -t adminui-logsearch -p user.err   "ERROR: $*"; echo "[$(date -
 # ===================================================================
 # 許可サブコマンド（allowlist）
 # ===================================================================
-ALLOWED=("search" "list-files" "recent-errors" "tail-multi")
+ALLOWED=("search" "list-files" "recent-errors" "tail-multi" "tail-stream")
 
 # ===================================================================
 # 禁止文字パターン
@@ -230,6 +230,34 @@ tail-multi)
     fi
     echo "  \"timestamp\": \"$(date -Iseconds)\""
     echo "}"
+    ;;
+
+# ------------------------------------------------------------------
+# tail-stream: リアルタイムログストリーム（tail -f 相当）
+# 引数: LOGFILE (デフォルト: syslog)
+# ------------------------------------------------------------------
+tail-stream)
+    LOGFILE="${2:-syslog}"
+    # 許可ファイルリスト
+    ALLOWED_LOG_FILES=("syslog" "auth.log" "kern.log" "dpkg.log")
+    IS_ALLOWED=false
+    for f in "${ALLOWED_LOG_FILES[@]}"; do
+        if [[ "$LOGFILE" == "$f" ]]; then
+            IS_ALLOWED=true
+            break
+        fi
+    done
+    if [[ "$IS_ALLOWED" != "true" ]]; then
+        error "Log file not allowed for streaming: $LOGFILE"
+        exit 1
+    fi
+    LOGPATH="/var/log/${LOGFILE}"
+    if [[ ! -f "$LOGPATH" ]]; then
+        error "Log file not found: $LOGPATH"
+        exit 1
+    fi
+    # tail -n 0 -F でリアルタイムストリーム（-F はローテーション追跡）
+    exec /usr/bin/tail -n 0 -F "$LOGPATH"
     ;;
 
 esac

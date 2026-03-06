@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-03-06
+
+### Added
+- **SSEリアルタイムストリーミング**: `wrappers/adminui-logsearch.sh` に `tail-stream` サブコマンド追加（`exec tail -n 0 -F` による真のリアルタイム）
+- **logsearch SSE 真のリアルタイム化**: `/api/logsearch/stream` を `asyncio.create_subprocess_exec` ベースに変更（ポーリング → プロセス直読み）、30秒ハートビート・切断時クリーンアップ付き
+- **logsearch.html リアルタイムタブ**: 「📡 リアルタイム」3つ目のタブ追加（500行保持・自動スクロール・開始/停止ボタン）
+- **Dashboard エラーウィジェット**: `frontend/dev/dashboard.html` に直近エラーログパネル追加（60秒自動更新・件数バッジ・logsearch詳細リンク）
+- **Approval UI 新規申請フォーム**: `frontend/dev/approval.html` に「📝 新規申請」タブ追加（11種類の操作種別・JSONパラメータ・申請理由・操作種別別ヘルプ）
+- **Approval 新規申請ロジック**: `frontend/js/approval.js` に `POST /api/approval/request` 呼び出し・JSONバリデーション・成功時タブ自動遷移追加
+- **サイドバー承認待ちバッジ**: `frontend/js/sidebar.js` に承認待ち件数バッジ追加（30秒自動更新）
+- **audit_log.py テスト追加**: `tests/unit/test_audit_log.py` 新規作成（13件）
+
+### Improved
+- **audit_log.py カバレッジ**: 89.47% → **100%**（例外再送出・フィルタcontinueパスを網羅）
+- **packages テスト**: `tests/integration/test_packages_api.py` 56件全PASS確認
+- **総カバレッジ**: 95.96% → **95.98%**（2596テスト PASS）
+
 ---
 
 ## [v0.28.0] - 2026-03-06

@@ -334,6 +334,7 @@ function renderSidebar(activePage) {
             <div class="menu-item${a('approval')}" onclick="location.href='approval.html'">
                 <span class="menu-item-icon">✅</span>
                 <span>承認ワークフロー</span>
+                <span id="approval-pending-badge" class="badge bg-warning text-dark ms-1" style="display:none">0</span>
             </div>
 
             <!-- サーバー カテゴリ -->
@@ -494,3 +495,30 @@ if (typeof logout === 'undefined') {
         location.href = 'index.html';
     };
 }
+
+/**
+ * サイドバーの承認待ち件数バッジを更新する
+ */
+async function updateApprovalBadge() {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+        const resp = await fetch('/api/approval/pending', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const count = (data.requests || []).length;
+        const badgeEl = document.getElementById('approval-pending-badge');
+        if (badgeEl) {
+            badgeEl.textContent = count;
+            badgeEl.style.display = count > 0 ? '' : 'none';
+        }
+    } catch {}
+}
+
+// ページロード時とその後30秒ごとにバッジを更新
+document.addEventListener('DOMContentLoaded', function() {
+    updateApprovalBadge();
+    setInterval(updateApprovalBadge, 30000);
+});

@@ -465,6 +465,11 @@
                             承認履歴
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="new-request-tab" data-bs-toggle="tab" data-bs-target="#new-request-pane" type="button" role="tab" aria-controls="new-request-pane">
+                            📝 新規申請
+                        </button>
+                    </li>
                 </ul>
 
                 <div class="tab-content" id="approvalTabContent">
@@ -578,6 +583,62 @@
 
                         <!-- リスト -->
                         <div id="history-list"></div>
+                    </div>
+
+                    <!-- 新規申請タブペイン -->
+                    <div class="tab-pane fade" id="new-request-pane" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">📝 新規承認申請</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="new-request-alert" class="mb-3" style="display:none"></div>
+                                <form id="new-request-form">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">操作種別 <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="req-type" required>
+                                            <option value="">-- 選択してください --</option>
+                                            <option value="service_restart">サービス再起動</option>
+                                            <option value="service_stop">サービス停止</option>
+                                            <option value="package_upgrade">パッケージアップグレード</option>
+                                            <option value="user_add">ユーザー追加</option>
+                                            <option value="user_delete">ユーザー削除</option>
+                                            <option value="cron_add">Cronジョブ追加</option>
+                                            <option value="cron_delete">Cronジョブ削除</option>
+                                            <option value="firewall_rule_add">ファイアウォールルール追加</option>
+                                            <option value="firewall_rule_delete">ファイアウォールルール削除</option>
+                                            <option value="system_shutdown">システムシャットダウン</option>
+                                            <option value="system_reboot">システム再起動</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3" id="payload-section">
+                                        <label class="form-label fw-semibold">パラメータ (JSON)</label>
+                                        <textarea class="form-control font-monospace" id="req-payload" rows="4"
+                                                  placeholder='{"service": "nginx"}'></textarea>
+                                        <div class="form-text" id="payload-hint">操作に必要なパラメータをJSON形式で入力</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">申請理由 <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="req-reason" rows="3" required
+                                                  maxlength="1000" placeholder="この操作が必要な理由を詳しく記載してください"></textarea>
+                                        <div class="form-text"><span id="reason-count">0</span>/1000文字</div>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button type="submit" class="btn btn-primary">📨 申請する</button>
+                                        <button type="button" class="btn btn-outline-secondary"
+                                                onclick="document.getElementById('new-request-form').reset(); updateReasonCount();">🗑 リセット</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- 操作種別別ヘルプ -->
+                        <div class="card mt-3" id="op-help-card" style="display:none">
+                            <div class="card-header"><h6 class="mb-0">💡 パラメータガイド</h6></div>
+                            <div class="card-body">
+                                <pre id="op-help-content" class="mb-0" style="font-size:12px; white-space:pre-wrap"></pre>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

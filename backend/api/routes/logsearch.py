@@ -143,11 +143,11 @@ async def get_log_tail_multi(
 
 
 @router.get("/stream")
-async def stream_log_tail(
+async def stream_log_realtime(
     logfile: str = Query(default="syslog", description="ストリーミング対象ログファイル名"),
     token: str = Query(..., description="JWT認証トークン"),
 ):
-    """ログの末尾をSSEで10秒ごとに配信するポーリング型ストリーム。
+    """ログファイルをSSEでリアルタイムストリーミングする（tail -f 相当）。
 
     EventSource API は Authorization ヘッダー非対応のため、
     クエリパラメータでトークンを受け取る。
@@ -156,47 +156,73 @@ async def stream_log_tail(
         logfile: 対象ログファイル名（許可リスト内のみ）
         token: JWT認証トークン
     """
+    import logging
+
     from backend.core.auth import decode_token
+
+    logger_sse = logging.getLogger(__name__)
 
     user_data = decode_token(token)
     if not user_data:
         raise HTTPException(status_code=401, detail="Invalid token")
 
     _validate_search_param(logfile, "logfile")
-    if not re.match(r"^[a-zA-Z0-9._/-]+$", logfile):
+    if not re.match(r"^[a-zA-Z0-9._-]+$", logfile):
         raise HTTPException(status_code=400, detail="Invalid logfile name")
-    if logfile not in _STREAM_ALLOWED_LOG_FILES:
+
+    ALLOWED_LOG_FILES = ["syslog", "auth.log", "kern.log", "dpkg.log"]
+    if logfile not in ALLOWED_LOG_FILES:
         raise HTTPException(status_code=400, detail=f"Log file not allowed: {logfile}")
 
-    import logging
-
-    logger = logging.getLogger(__name__)
-
     async def event_generator() -> AsyncGenerator[str, None]:
-        last_lines: list = []
+        proc = None
         try:
+            proc = await asyncio.create_subprocess_exec(
+                "sudo",
+                "/usr/local/sbin/adminui-logsearch.sh",
+                "tail-stream",
+                logfile,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            # 初回接続確認メッセージ
+            yield f"data: {json.dumps({'type': 'connected', 'logfile': logfile, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+
             while True:
                 try:
-                    result = await asyncio.to_thread(sudo_wrapper.get_log_tail_multi, 20)
-                    new_lines = result.get("lines", [])
-                    if new_lines != last_lines:
-                        last_lines = new_lines
+                    line_bytes = await asyncio.wait_for(
+                        proc.stdout.readline(),
+                        timeout=30.0,
+                    )
+                    if not line_bytes:
+                        # プロセス終了
+                        break
+                    line = line_bytes.decode("utf-8", errors="replace").rstrip("\n")
+                    if line:
                         payload = json.dumps(
                             {
-                                "lines": new_lines,
+                                "type": "log",
+                                "line": line,
                                 "logfile": logfile,
                                 "timestamp": datetime.now(timezone.utc).isoformat(),
                             }
                         )
                         yield f"data: {payload}\n\n"
-                    else:
-                        yield f"data: {json.dumps({'heartbeat': True})}\n\n"
-                except Exception as e:
-                    logger.error("SSE poll error: %s", e)
-                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
-                await asyncio.sleep(10)
+                except asyncio.TimeoutError:
+                    # ハートビート送信（接続維持）
+                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
         except asyncio.CancelledError:
-            logger.info("SSE log stream cancelled")
+            logger_sse.info("SSE log stream cancelled for %s", logfile)
+        except Exception as e:
+            logger_sse.error("SSE log stream error: %s", e)
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        finally:
+            if proc and proc.returncode is None:
+                try:
+                    proc.terminate()
+                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                except Exception:
+                    pass
 
     return StreamingResponse(
         event_generator(),

@@ -1400,9 +1400,122 @@ class ApprovalManager {
 // グローバルインスタンス
 let approvalManager;
 
+// ===== 新規申請フォーム =====
+
+const OP_HELP = {
+    service_restart: '{"service": "nginx"}  // nginx, postgresql, redis など',
+    service_stop: '{"service": "nginx"}',
+    package_upgrade: '{"package": "nginx"}  // パッケージ名。全体更新は "package": "*"',
+    user_add: '{"username": "newuser", "groups": ["sudo"]}',
+    user_delete: '{"username": "olduser"}',
+    cron_add: '{"schedule": "0 2 * * *", "command": "/usr/local/bin/backup.sh", "user": "root"}',
+    cron_delete: '{"cron_id": "abc123"}',
+    firewall_rule_add: '{"chain": "INPUT", "protocol": "tcp", "port": 8080, "action": "ACCEPT"}',
+    firewall_rule_delete: '{"rule_id": "xyz789"}',
+    system_shutdown: '{"delay_minutes": 5, "message": "メンテナンスのためシャットダウン"}',
+    system_reboot: '{"delay_minutes": 5, "message": "メンテナンスのため再起動"}',
+};
+
+function updateReasonCount() {
+    const ta = document.getElementById('req-reason');
+    const counter = document.getElementById('reason-count');
+    if (ta && counter) counter.textContent = ta.value.length;
+}
+
+function showNewRequestAlert(msg, type) {
+    const el = document.getElementById('new-request-alert');
+    if (!el) return;
+    el.style.display = '';
+    el.className = `alert alert-${type} alert-dismissible fade show`;
+    el.innerHTML = `${msg}<button type="button" class="btn-close" onclick="this.parentElement.style.display='none'"></button>`;
+}
+
 // 初期化
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('Approval page loaded');
     approvalManager = new ApprovalManager();
     await approvalManager.init();
+
+    // 操作種別変更時のヘルプ表示
+    const reqType = document.getElementById('req-type');
+    if (reqType) {
+        reqType.addEventListener('change', function() {
+            const help = OP_HELP[this.value];
+            const card = document.getElementById('op-help-card');
+            const content = document.getElementById('op-help-content');
+            if (help && card && content) {
+                content.textContent = help;
+                card.style.display = '';
+                // デフォルトペイロードをセット（空の場合のみ）
+                const payload = document.getElementById('req-payload');
+                if (payload && !payload.value) {
+                    payload.value = help.split('//')[0].trim();
+                }
+            } else if (card) {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    // 申請理由カウンター
+    const reasonTA = document.getElementById('req-reason');
+    if (reasonTA) {
+        reasonTA.addEventListener('input', updateReasonCount);
+    }
+
+    // フォーム送信
+    const form = document.getElementById('new-request-form');
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const type = document.getElementById('req-type').value;
+            const payloadStr = document.getElementById('req-payload').value.trim() || '{}';
+            const reason = document.getElementById('req-reason').value.trim();
+
+            if (!type) { showNewRequestAlert('操作種別を選択してください', 'warning'); return; }
+            if (!reason) { showNewRequestAlert('申請理由を入力してください', 'warning'); return; }
+
+            let payload;
+            try {
+                payload = JSON.parse(payloadStr);
+            } catch {
+                showNewRequestAlert('パラメータのJSON形式が不正です', 'danger'); return;
+            }
+
+            const token = localStorage.getItem('access_token');
+            if (!token) { showNewRequestAlert('認証が必要です', 'danger'); return; }
+
+            const submitBtn = form.querySelector('[type=submit]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '送信中...';
+
+            try {
+                const resp = await fetch('/api/approval/request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token,
+                    },
+                    body: JSON.stringify({ request_type: type, payload, reason }),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    showNewRequestAlert(`✅ 申請が作成されました (ID: ${data.request_id || '—'})`, 'success');
+                    form.reset();
+                    updateReasonCount();
+                    // 自分の申請タブに切り替え
+                    const myTab = document.getElementById('my-requests-tab');
+                    if (myTab) myTab.click();
+                } else {
+                    const err = await resp.json();
+                    showNewRequestAlert(`❌ エラー: ${err.detail || err.message || '申請に失敗しました'}`, 'danger');
+                }
+            } catch (err) {
+                showNewRequestAlert(`❌ 通信エラー: ${err.message}`, 'danger');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '📨 申請する';
+            }
+        });
+    }
 });
