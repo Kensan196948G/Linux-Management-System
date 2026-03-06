@@ -335,13 +335,9 @@ jobs:
               echo "  ℹ️  コミット対象の変更なし"
             elif [ "$DRY_RUN" != "true" ]; then
               git add -A
-              git commit -m "fix(auto): 自動修復 ループ${LOOP} — ${FIXED_THIS_LOOP}件修正
-
-  検知・修復システム v2.0 による自動コミット
-  ループ: ${LOOP}/${MAX_LOOPS}
-  修復件数: ${FIXED_THIS_LOOP}
-
-  Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+              COMMIT_MSG="fix(auto): 自動修復 ループ${LOOP} [${FIXED_THIS_LOOP}件修正]"
+              git commit -m "${COMMIT_MSG}" \
+                -m "Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
               echo "  ✅ コミット完了"
             else
               echo "  🔍 ドライラン: コミットスキップ（変更あり）"
