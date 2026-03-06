@@ -21,7 +21,7 @@ if [[ "$VALID" -eq 0 ]]; then
 fi
 
 # 特殊文字チェック
-if [[ "$SUBCOMMAND" =~ [';|&$()' '`><*?{}[\]'] ]]; then
+if [[ "$SUBCOMMAND" =~ [[:space:]\;\|\&\$\(\)\`\>\<\*\?\{\}\[\]\\] ]]; then
     echo '{"status":"error","message":"Invalid characters in subcommand"}' >&2
     exit 1
 fi

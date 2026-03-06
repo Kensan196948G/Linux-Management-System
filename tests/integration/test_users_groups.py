@@ -106,10 +106,15 @@ class TestUserDetailEndpoint:
 
     def test_user_detail_nonexistent(self, test_client, auth_headers):
         """存在しないユーザーは 404 を返すこと"""
-        response = test_client.get(
-            "/api/users/nonexistent_user_12345",
-            headers=auth_headers,
-        )
+        from unittest.mock import patch
+
+        # CI環境でsudoが使えない場合もあるため、wrapperをモックして404を確認
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_user_detail") as mock_detail:
+            mock_detail.return_value = {"status": "error", "message": "User not found"}
+            response = test_client.get(
+                "/api/users/nonexistent_user_12345",
+                headers=auth_headers,
+            )
         assert response.status_code == 404
 
     def test_user_detail_unauthenticated(self, test_client):
