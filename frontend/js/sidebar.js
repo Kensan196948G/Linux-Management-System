@@ -440,6 +440,13 @@ function renderSidebar(activePage) {
 
         <!-- サイドバーフッター -->
         <div class="sidebar-footer">
+            <div style="padding:10px 12px; border-top:1px solid var(--border-color,#334155)">
+                <button id="theme-toggle-btn" onclick="toggleTheme()"
+                        style="width:100%; padding:7px; border-radius:6px; border:1px solid var(--border-color,#334155);
+                               background:transparent; color:var(--text-primary,#f1f5f9); cursor:pointer; font-size:12px">
+                    🌙 ダーク
+                </button>
+            </div>
             <div class="user-info" onclick="toggleUserMenu(event)">
                 <div class="user-avatar" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
                     <span class="avatar-icon">👤</span>

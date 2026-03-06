@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Disk &amp; Storage — Linux Management System</title>
+<link rel="stylesheet" href="../css/main.css">
+<script src="../js/theme.js"></script>
+<style>
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--text-muted, #6b7280);
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+}
+.tab-btn:hover { color: var(--text-primary, #1f2937); }
+.tab-btn.active {
+    color: var(--primary, #3b82f6);
+    border-bottom-color: var(--primary, #3b82f6);
+    font-weight: 600;
+}
+.p-0 { padding: 0 !important; }
+.p-3 { padding: 12px; }
+.mb-3 { margin-bottom: 12px; }
+.text-muted { color: var(--text-muted, #6b7280); }
+.text-center { text-align: center; }
+</style>
+</head>
+<body>
+<div id="sidebar-container"></div>
+<main class="main-content">
+  <div class="page-header">
+    <h1 class="page-title">💾 ディスク管理</h1>
+    <p class="page-subtitle">パーティション・ファイルシステム管理</p>
+    <button class="btn btn-outline-secondary btn-sm" onclick="loadAll()">🔄 更新</button>
+  </div>
+
+  <!-- 統計カード -->
+  <div class="stats-grid" id="disk-stats" style="margin-bottom:16px">
+    <div class="stat-card">
+      <div class="stat-label">マウント数</div>
+      <div class="stat-value" id="stat-mounts">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">パーティション数</div>
+      <div class="stat-value" id="stat-parts">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">最大使用率</div>
+      <div class="stat-value" id="stat-max-use">—</div>
+    </div>
+  </div>
+
+  <!-- タブ -->
+  <div class="card mb-3">
+    <div class="card-header" style="padding:0">
+      <div style="display:flex; gap:0; border-bottom:2px solid var(--border-color,#e2e8f0)">
+        <button class="tab-btn active" id="tab-fs" onclick="switchTab('fs')">📁 ファイルシステム</button>
+        <button class="tab-btn" id="tab-partitions" onclick="switchTab('partitions')">🗂 パーティション</button>
+        <button class="tab-btn" id="tab-usage" onclick="switchTab('usage')">📊 使用率グラフ</button>
+      </div>
+    </div>
+    <div class="card-body p-0">
+
+      <!-- ファイルシステムタブ -->
+      <div id="pane-fs">
+        <div id="fs-loading" class="p-3 text-muted text-center">読み込み中...</div>
+        <table class="table table-sm table-hover mb-0" id="fs-table" style="display:none">
+          <thead class="table-dark">
+            <tr>
+              <th>デバイス</th>
+              <th>マウント</th>
+              <th>種別</th>
+              <th>サイズ</th>
+              <th>使用</th>
+              <th>空き</th>
+              <th>使用率</th>
+            </tr>
+          </thead>
+          <tbody id="fs-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- パーティションタブ -->
+      <div id="pane-partitions" style="display:none">
+        <div id="parts-loading" class="p-3 text-muted text-center">読み込み中...</div>
+        <table class="table table-sm table-hover mb-0" id="parts-table" style="display:none">
+          <thead class="table-dark">
+            <tr>
+              <th>デバイス</th>
+              <th>サイズ</th>
+              <th>タイプ</th>
+              <th>マウント</th>
+            </tr>
+          </thead>
+          <tbody id="parts-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- 使用率グラフタブ -->
+      <div id="pane-usage" style="display:none; padding:16px">
+        <div id="usage-bars"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="disk-alert" style="display:none"></div>
+</main>
+
+<script src="../js/auth.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+const TABS = ['fs', 'partitions', 'usage'];
+let fsData = [];
+
+function switchTab(name) {
+    TABS.forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('active', t === name);
+        document.getElementById('pane-' + t).style.display = t === name ? '' : 'none';
+    });
+}
+
+function escapeHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function formatSize(kb) {
+    if (kb == null || kb === '') return '—';
+    const n = Number(kb);
+    if (isNaN(n)) return String(kb);
+    if (n > 1073741824) return (n / 1073741824).toFixed(1) + ' TB';
+    if (n > 1048576)    return (n / 1048576).toFixed(1) + ' GB';
+    if (n > 1024)       return (n / 1024).toFixed(1) + ' MB';
+    return n + ' KB';
+}
+
+function usageColor(pct) {
+    if (pct >= 90) return '#ef4444';
+    if (pct >= 75) return '#f59e0b';
+    return '#22c55e';
+}
+
+async function apiFetch(url) {
+    const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+    const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+    return r.json();
+}
+
+async function loadFilesystems() {
+    try {
+        // /api/filesystem/usage → { status, filesystems: [{filesystem, mounted_on, type, size_kb, used_kb, avail_kb, use_pct, ...}] }
+        const d = await apiFetch('/api/filesystem/usage');
+        const mounts = Array.isArray(d.filesystems) ? d.filesystems : [];
+        fsData = mounts;
+
+        document.getElementById('stat-mounts').textContent = mounts.length;
+
+        if (mounts.length) {
+            const maxUse = Math.max(...mounts.map(m => parseFloat(m.use_percent ?? m.use_pct ?? 0)));
+            const maxEl = document.getElementById('stat-max-use');
+            maxEl.textContent = maxUse.toFixed(0) + '%';
+            maxEl.style.color = usageColor(maxUse);
+        }
+
+        const tbody = document.getElementById('fs-tbody');
+        if (!mounts.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted p-3">データなし</td></tr>';
+        } else {
+            tbody.innerHTML = mounts.map(m => {
+                const pct = parseFloat(m.use_percent ?? m.use_pct ?? 0);
+                const color = usageColor(pct);
+                return `<tr>
+                  <td><code style="font-size:11px">${escapeHtml(m.filesystem || m.device || '—')}</code></td>
+                  <td>${escapeHtml(m.mounted_on || m.mount || '—')}</td>
+                  <td><span style="font-size:11px;background:#e0e7ff;color:#3730a3;border-radius:4px;padding:1px 6px">${escapeHtml(m.type || '—')}</span></td>
+                  <td>${formatSize(m.size_kb ?? m.size)}</td>
+                  <td>${formatSize(m.used_kb ?? m.used)}</td>
+                  <td>${formatSize(m.avail_kb ?? m.avail)}</td>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <div style="flex:1;background:#e5e7eb;border-radius:4px;height:8px">
+                        <div style="width:${Math.min(pct, 100)}%;background:${color};height:8px;border-radius:4px"></div>
+                      </div>
+                      <span style="font-size:11px;min-width:36px;text-align:right;color:${color}">${pct.toFixed(0)}%</span>
+                    </div>
+                  </td>
+                </tr>`;
+            }).join('');
+        }
+        document.getElementById('fs-loading').style.display = 'none';
+        document.getElementById('fs-table').style.display = '';
+        renderUsageBars(mounts);
+    } catch (e) {
+        document.getElementById('fs-loading').textContent = 'エラー: ' + e.message;
+    }
+}
+
+async function loadPartitions() {
+    try {
+        // /api/partitions/list → lsblk JSON (blockdevices array)
+        const d = await apiFetch('/api/partitions/list');
+        // Flatten lsblk blockdevices tree into a flat list
+        const parts = [];
+        function flatten(devices) {
+            if (!Array.isArray(devices)) return;
+            for (const dev of devices) {
+                parts.push(dev);
+                if (dev.children) flatten(dev.children);
+            }
+        }
+        const devices = d.blockdevices || d.partitions || d.data || [];
+        if (Array.isArray(devices)) flatten(devices);
+
+        document.getElementById('stat-parts').textContent = parts.length;
+
+        const tbody = document.getElementById('parts-tbody');
+        if (!parts.length) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted p-3">データなし</td></tr>';
+        } else {
+            tbody.innerHTML = parts.map(p => `<tr>
+              <td><code style="font-size:11px">${escapeHtml(p.name || p.kname || '—')}</code></td>
+              <td>${escapeHtml(String(p.size || '—'))}</td>
+              <td>${escapeHtml(p.type || p.fstype || '—')}</td>
+              <td>${escapeHtml(p.mountpoint || p.mountpoints?.[0] || '—')}</td>
+            </tr>`).join('');
+        }
+        document.getElementById('parts-loading').style.display = 'none';
+        document.getElementById('parts-table').style.display = '';
+    } catch (e) {
+        document.getElementById('parts-loading').textContent = 'エラー: ' + e.message;
+    }
+}
+
+function renderUsageBars(mounts) {
+    const area = document.getElementById('usage-bars');
+    if (!area) return;
+    const filtered = mounts.filter(m => m.mounted_on || m.mount);
+    if (!filtered.length) {
+        area.innerHTML = '<p class="text-muted">データなし</p>';
+        return;
+    }
+    area.innerHTML = filtered.map(m => {
+        const pct = parseFloat(m.use_percent ?? m.use_pct ?? 0);
+        const mount = escapeHtml(m.mounted_on || m.mount || '?');
+        const color = usageColor(pct);
+        return `<div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:13px;font-weight:500">${mount}</span>
+            <span style="font-size:12px;color:${color};font-weight:600">${pct.toFixed(1)}%</span>
+          </div>
+          <div style="background:var(--border-color,#e5e7eb);border-radius:6px;height:14px">
+            <div style="width:${Math.min(pct, 100)}%;background:${color};height:14px;border-radius:6px;transition:width 0.5s ease"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted,#9ca3af);margin-top:2px">
+            ${formatSize(m.used_kb ?? m.used)} 使用 / ${formatSize(m.size_kb ?? m.size)} 合計
+          </div>
+        </div>`;
+    }).join('');
+}
+
+async function loadAll() {
+    await Promise.allSettled([loadFilesystems(), loadPartitions()]);
+}
+
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
+</body>
+</html>

@@ -31,6 +31,7 @@
         .ring-canvas-wrap { position:relative; width:140px; height:140px; }
         .ring-canvas-wrap canvas { width:100% !important; height:100% !important; }
     </style>
+<script src="../js/theme.js"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -85,6 +86,17 @@
                         </div>
                     </div>
                     <div id="error-log-area" style="background:#1e1e2e; color:#cdd6f4; font-family:monospace; font-size:11px; padding:10px; border-radius:6px; height:160px; overflow-y:auto; white-space:pre-wrap">
+                        <span style="color:#6b7280">読み込み中...</span>
+                    </div>
+                </div>
+
+                <!-- NIC統計ウィジェット -->
+                <div class="chart-card" style="grid-column:1/-1; margin-top:0">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+                        <h3 style="margin:0">🌐 NIC統計</h3>
+                        <span id="nic-update-time" style="font-size:11px;color:#9ca3af"></span>
+                    </div>
+                    <div id="nic-stats-area" style="font-size:12px;font-family:monospace">
                         <span style="color:#6b7280">読み込み中...</span>
                     </div>
                 </div>
@@ -241,6 +253,8 @@ document.addEventListener('DOMContentLoaded', function() {
     connectSSE();
     loadRecentErrorsWidget();
     setInterval(loadRecentErrorsWidget, 60000);
+    loadNicStats();
+    setInterval(loadNicStats, 30000);
 });
 
 // ── 直近エラーウィジェット ────────────────────────────────
@@ -273,6 +287,45 @@ async function loadRecentErrorsWidget() {
                 area.scrollTop = area.scrollHeight;
             }
         }
+    } catch(e) {}
+}
+
+// ── NIC統計ウィジェット ─────────────────────────────────
+function formatBytes(b) {
+    b = Number(b);
+    if (b > 1073741824) return (b / 1073741824).toFixed(1) + 'GB';
+    if (b > 1048576)    return (b / 1048576).toFixed(1) + 'MB';
+    if (b > 1024)       return (b / 1024).toFixed(1) + 'KB';
+    return b + 'B';
+}
+
+async function loadNicStats() {
+    var token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+        var resp = await fetch('/api/system/detailed', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) return;
+        var data = await resp.json();
+        var nics = (data.data || {}).network_interfaces || [];
+        var el = document.getElementById('nic-stats-area');
+        var timeEl = document.getElementById('nic-update-time');
+        if (timeEl) timeEl.textContent = '更新: ' + new Date().toLocaleTimeString('ja-JP');
+        if (!el) return;
+        if (!nics.length || nics[0].error) {
+            el.innerHTML = '<span style="color:#6b7280">NICデータなし</span>';
+            return;
+        }
+        el.innerHTML = nics.map(function(n) {
+            return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border-color,#e2e8f0)">' +
+                '<span style="font-weight:500">' + escapeHtml(n.interface) + '</span>' +
+                '<span style="font-size:11px;color:var(--text-secondary,#64748b)">' +
+                    '↑' + formatBytes(n.tx_bytes) + ' ↓' + formatBytes(n.rx_bytes) +
+                    (n.rx_errors || n.tx_errors ? ' <span style="color:#ef4444">err:' + (n.rx_errors + n.tx_errors) + '</span>' : '') +
+                '</span>' +
+            '</div>';
+        }).join('');
     } catch(e) {}
 }
 </script>

@@ -70,6 +70,7 @@
         .refresh-info { font-size: 12px; color: #6b7280; }
         .dark-mode .refresh-info { color: #94a3b8; }
     </style>
+<script src="../js/theme.js"></script>
 </head>
 <body>
 <div id="sidebar-container"></div>
@@ -80,7 +81,13 @@
                 <i class="bi bi-bell-fill fs-4 text-warning"></i>
                 <h2 class="mb-0">System Resource Alerts</h2>
             </div>
-            <div class="refresh-info" id="refresh-info">自動更新: 30秒ごと</div>
+            <div style="display:flex;align-items:center;gap:8px">
+                <button id="alerts-sse-btn" onclick="toggleAlertsSSE()"
+                    style="font-size:12px;padding:4px 12px;border:1px solid #6b7280;border-radius:4px;background:none;cursor:pointer">
+                    📡 リアルタイム開始
+                </button>
+                <div class="refresh-info" id="refresh-info">自動更新: 30秒ごと</div>
+            </div>
         </div>
 
         <!-- サマリーカード -->
@@ -225,6 +232,46 @@
 
     await refresh();
     setInterval(refresh, 30000);
+
+    // SSE リアルタイム更新
+    let alertsSSE = null;
+
+    window.toggleAlertsSSE = function () {
+        if (alertsSSE) {
+            alertsSSE.close();
+            alertsSSE = null;
+            document.getElementById('alerts-sse-btn').textContent = '📡 リアルタイム開始';
+            document.getElementById('refresh-info').textContent = '自動更新: 30秒ごと';
+            return;
+        }
+        const t = localStorage.getItem('token');
+        if (!t) return;
+        alertsSSE = new EventSource(`/api/alerts/stream?interval=10&token=${encodeURIComponent(t)}`);
+        alertsSSE.onmessage = function (e) {
+            try {
+                const d = JSON.parse(e.data);
+                if (d.type === 'connected') {
+                    document.getElementById('refresh-info').textContent = 'SSE接続中 (10秒ごと)';
+                } else if (d.type === 'update') {
+                    const m = d.metrics || {};
+                    if (m.cpu != null) document.getElementById('sum-cpu').textContent = m.cpu;
+                    if (m.memory != null) document.getElementById('sum-mem').textContent = m.memory;
+                    if (m.load != null) document.getElementById('sum-load').textContent = m.load;
+                    const cnt = (d.active_alerts || []).length;
+                    document.getElementById('sum-active').textContent = cnt;
+                    const badge = cnt > 0
+                        ? `<span class="badge-danger">${cnt}件</span>`
+                        : `<span class="badge-ok">なし</span>`;
+                    document.getElementById('active-badge').innerHTML = badge;
+                    document.getElementById('last-updated').textContent = '最終更新(SSE): ' + d.timestamp;
+                }
+            } catch {}
+        };
+        alertsSSE.onerror = function () {
+            document.getElementById('refresh-info').textContent = 'SSE切断 — 再接続中...';
+        };
+        document.getElementById('alerts-sse-btn').textContent = '⏹ SSE停止';
+    };
 })();
 </script>
 </body>
