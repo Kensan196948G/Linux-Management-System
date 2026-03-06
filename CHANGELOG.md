@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.27.0] - 2026-03-08
+
+### Added (Step 37)
+- Log Search（ログ全文検索）
+  - `GET /api/logsearch/files` — /var/log配下のログファイル一覧取得
+  - `GET /api/logsearch/search` — キーワード検索 (pattern/logfile/lines パラメータ)
+  - `GET /api/logsearch/recent-errors` — syslog/auth.logの直近エラー集約
+  - `wrappers/adminui-logsearch.sh` — allowlist方式ラッパー (search/list-files/recent-errors/tail-multi)
+  - `backend/api/routes/logsearch.py` — APIルーター (禁止文字バリデーション付き)
+  - `frontend/dev/logsearch.html` — タブ型UI (ファイル選択・キーワード検索・結果ハイライト・直近エラー)
+  - `tests/integration/test_logsearch_api.py` — 27件テスト (全PASS)
+  - 全ロール (`viewer/operator/approver/admin`) に `"read:logsearch"` 権限を追加
+
+### Improved
+- `tests/unit/test_sudo_wrapper.py` — sudo_wrapper.py カバレッジ 78.68% → **100%** (127テスト追加)
+- 総テストカバレッジ 93.38% → **95.53%**（総テスト数: 2544件）
+- `README.md` — 実装済みモジュール表を v0.26.0 時点に更新
+  - Journal, Backup, Alerts, Sessions (v0.25-v0.26), Log Search (v0.27) を追加
+
+---
+
 ## [v0.26.0] - 2026-03-06
 
 ### Added (Steps 35-36)

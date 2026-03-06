@@ -127,6 +127,8 @@ ROLES = {
             "read:alerts",
             # バックアップ管理
             "read:backup",
+            # ログ検索
+            "read:logsearch",
         ],
     ),
     "Operator": UserRole(
@@ -202,6 +204,8 @@ ROLES = {
             "read:alerts",
             # バックアップ管理
             "read:backup",
+            # ログ検索
+            "read:logsearch",
         ],
     ),
     "Approver": UserRole(
@@ -284,6 +288,8 @@ ROLES = {
             "read:alerts",
             # バックアップ管理
             "read:backup",
+            # ログ検索
+            "read:logsearch",
         ],
     ),
     "Admin": UserRole(
@@ -379,6 +385,8 @@ ROLES = {
             "read:alerts",
             # バックアップ管理
             "read:backup",
+            # ログ検索
+            "read:logsearch",
         ],
     ),
 }

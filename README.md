@@ -121,14 +121,14 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 | サービス | 内容 | 実装状況 |
 |---------|------|---------|
 | **Apache Webserver** | Apache 設定管理 | ✅ v0.9実装済み |
-| **BIND DNS Server** | DNS サーバー管理 | 📋 v0.5計画 |
+| **BIND DNS Server** | DNS サーバー管理 | ✅ v0.9実装済み |
 | **Postfix / Sendmail** | メールサーバー管理 | ✅ v0.9実装済み |
 | **MySQL / MariaDB** | MySQL データベース監視 | ✅ v0.8実装済み |
 | **PostgreSQL** | PostgreSQL データベース監視 | ✅ v0.8実装済み |
 | **SSH Server** | SSH サーバー設定 | ✅ v0.5実装済み |
-| **ProFTPD / WU-FTP** | FTP サーバー管理 | 📋 v0.5計画 |
-| **Squid Proxy** | プロキシサーバー管理 | 📋 v0.5計画 |
-| **DHCP Server** | DHCP サーバー管理 | 📋 v0.5計画 |
+| **ProFTPD / WU-FTP** | FTP サーバー管理 | ✅ v0.9実装済み |
+| **Squid Proxy** | プロキシサーバー管理 | ✅ v0.9実装済み |
+| **DHCP Server** | DHCP サーバー管理 | ✅ v0.9実装済み |
 
 ### 🌐 Networking カテゴリ（ネットワーク）
 
@@ -144,7 +144,7 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 
 | モジュール | 内容 | 実装状況 |
 |----------|------|---------|
-| **Partitions on Local Disks** | パーティション管理 | 📋 v0.5計画 |
+| **Partitions on Local Disks** | パーティション管理 | ✅ v0.9実装済み |
 | **System Time** | システム時刻設定 | ✅ v0.7実装済み |
 | **SMART Drive Status** | ディスク健全性監視 | ✅ v0.4実装済み |
 | **Sensors (lm-sensors)** | ハードウェアセンサー | ✅ v0.4実装済み |
@@ -157,11 +157,11 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 | **Cluster Cron Jobs** | クラスタ Cron 管理 | 📋 v0.5計画 |
 | **Cluster Users and Groups** | クラスタユーザー管理 | 📋 v0.5計画 |
 | **Command Shell** | コマンドシェル | ❌ セキュリティ上禁止 |
-| **File Manager** | ファイルマネージャー | 📋 v0.5計画 |
+| **File Manager** | ファイルマネージャー | ✅ v0.23実装済み |
 | **Scheduled Commands** | スケジュールコマンド | 📋 v0.5計画 |
 | **Custom Commands** | カスタムコマンド | ⚠️ 制限付き実装予定 |
 
-### 現在実装済み（v0.24.0時点）
+### 現在実装済み（v0.26.0時点）
 
 | 機能 | 実装状況 |
 |------|---------|
@@ -196,6 +196,11 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 | ✅ Package Manager UI（upgradeable/search/info/installed/security-updates） | v0.23.0実装済み |
 | ✅ System Time/NTP UI強化（ntp-servers/sync-status/timezones） | v0.24.0実装済み |
 | ✅ Bandwidth監視強化（history/monthly/alert-config） | v0.24.0実装済み |
+| ✅ System Journal（全ログ/ユニット/ブート/カーネル/優先度別） | v0.25.0実装済み |
+| ✅ Backup & Restore UI（一覧/状態/ディスク使用量/ログ） | v0.25.0実装済み |
+| ✅ System Resource Alerts（閾値ルール/アクティブアラート/サマリ） | v0.26.0実装済み |
+| ✅ User Session Management（アクティブ/履歴/失敗ログイン/統計） | v0.26.0実装済み |
+| ✅ Log Search UI（全文検索/ファイル一覧/直近エラー集約） | v0.27.0実装済み |
 
 ---
 
