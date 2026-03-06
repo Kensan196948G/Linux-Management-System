@@ -11,6 +11,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.26.0] - 2026-03-06
+
+### Added (Steps 35-36)
+- User Session管理
+  - `GET /api/sessions/active` — アクティブセッション一覧 (who/w コマンド)
+  - `GET /api/sessions/history` — セッション履歴 (last コマンド)
+  - `GET /api/sessions/failed` — ログイン失敗一覧 (lastb コマンド)
+  - `GET /api/sessions/wtmp-summary` — wtmpサマリー統計
+  - `wrappers/adminui-sessions.sh` — allowlist方式ラッパー (active/history/failed/wtmp-summary)
+  - `frontend/dev/sessions.html` / `frontend/prod/sessions.html` — セッション管理WebUI (30秒自動更新)
+  - `tests/integration/test_sessions_api.py` — 21件テスト (全PASS)
+- System Resource Alerts管理
+  - `GET /api/alerts/rules` — アラートルール一覧 (CPU/MEM/DISK閾値)
+  - `GET /api/alerts/active` — アクティブアラート一覧
+  - `GET /api/alerts/summary` — アラートサマリー統計
+  - `frontend/dev/alerts.html` / `frontend/prod/alerts.html` — アラート管理WebUI (30秒自動更新)
+  - `tests/integration/test_alerts_api.py` — 23件テスト (全PASS)
+
+### Tests
+- **2365 PASS / 0 FAIL / 41 SKIP**
+- カバレッジ: 92.44%
+
+---
+
+## [v0.25.0] - 2026-03-01
+
+### Added (Steps 33-34)
+- System Journal/systemd ログUI
+  - `GET /api/journal/list` — journalctlログ一覧 (優先度/ユニットフィルタ対応)
+  - `GET /api/journal/units` — systemd ユニット一覧
+  - `GET /api/journal/unit-logs/{unit}` — ユニット別ログ
+  - `GET /api/journal/boot-logs` — ブートログ
+  - `GET /api/journal/kernel-logs` — カーネルログ
+  - `GET /api/journal/priority-logs/{priority}` — 優先度別ログ
+  - `wrappers/adminui-journal.sh` — allowlist方式ラッパー (新規作成)
+  - `frontend/dev/journal.html` / `frontend/prod/journal.html` — タブ型WebUI (新規作成)
+  - `tests/integration/test_journal_api.py` — 21件テスト (全PASS)
+- Backup & Restore UI
+  - `GET /api/backup/list` — バックアップファイル一覧
+  - `GET /api/backup/status` — バックアップ状態
+  - `GET /api/backup/disk-usage` — バックアップディスク使用量
+  - `GET /api/backup/recent-logs` — 最近のバックアップログ
+  - `wrappers/adminui-backup.sh` — allowlist方式ラッパー (新規作成)
+  - `frontend/dev/backup.html` / `frontend/prod/backup.html` — バックアップ管理UI (新規作成)
+  - `tests/integration/test_backup_api.py` — 18件テスト (全PASS)
+
+### Tests
+- **2323 PASS / 0 FAIL / 41 SKIP**
+- カバレッジ: ~92%
+
+---
+
 ## [v0.24.0] - 2026-03-01
 
 ### Added (Steps 29-30)

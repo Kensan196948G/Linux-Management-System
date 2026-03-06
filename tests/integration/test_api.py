@@ -101,6 +101,49 @@ class TestServiceEndpoints:
 
         assert response.status_code == 422  # Validation error
 
+    def test_service_restart_returns_error_status_403(self, test_client, auth_headers):
+        """ラッパーが status=error を返した場合は 403 を返す"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.restart_service") as mock:
+            mock.return_value = {"status": "error", "message": "Service not in allowlist"}
+            response = test_client.post(
+                "/api/services/restart",
+                json={"service_name": "nginx"},
+                headers=auth_headers,
+            )
+        assert response.status_code == 403
+
+    def test_service_restart_sudo_wrapper_error_returns_500(self, test_client, auth_headers):
+        """SudoWrapperError は 500 を返す"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.restart_service") as mock:
+            mock.side_effect = SudoWrapperError("sudo execution failed")
+            response = test_client.post(
+                "/api/services/restart",
+                json={"service_name": "nginx"},
+                headers=auth_headers,
+            )
+        assert response.status_code == 500
+
+    def test_service_restart_success_returns_result(self, test_client, auth_headers):
+        """正常再起動時は結果を返す"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.restart_service") as mock:
+            mock.return_value = {
+                "status": "success",
+                "service": "nginx",
+                "before": "active",
+                "after": "active",
+            }
+            response = test_client.post(
+                "/api/services/restart",
+                json={"service_name": "nginx"},
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["service"] == "nginx"
+        assert data["status"] == "success"
+
 
 class TestLogsEndpoints:
     """ログエンドポイント"""

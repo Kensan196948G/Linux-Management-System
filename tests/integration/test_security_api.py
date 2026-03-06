@@ -272,3 +272,81 @@ class TestBanditStatus:
             mock.return_value = SAMPLE_AUDIT_REPORT
             response = test_client.get("/api/security/audit-report", headers=viewer_headers)
         assert response.status_code == 200
+
+
+# ==============================================================================
+# Exception ハンドラ → 500 テスト（カバレッジ向上）
+# ==============================================================================
+
+
+class TestSecurityUnexpectedError:
+    """予期しない例外 (Exception) 時は 500 を返すこと"""
+
+    def test_audit_report_unexpected_error(self, test_client, auth_headers):
+        """audit-report で予期しない例外 → 500"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_security_audit_report") as mock:
+            mock.side_effect = RuntimeError("unexpected")
+            response = test_client.get("/api/security/audit-report", headers=auth_headers)
+        assert response.status_code == 500
+
+    def test_failed_logins_unexpected_error(self, test_client, auth_headers):
+        """failed-logins で予期しない例外 → 500"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_failed_logins") as mock:
+            mock.side_effect = RuntimeError("unexpected")
+            response = test_client.get("/api/security/failed-logins", headers=auth_headers)
+        assert response.status_code == 500
+
+    def test_sudo_logs_wrapper_error(self, test_client, auth_headers):
+        """sudo-logs で SudoWrapperError → 503"""
+        from backend.core.sudo_wrapper import SudoWrapperError
+
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_sudo_logs") as mock:
+            mock.side_effect = SudoWrapperError("wrapper failed")
+            response = test_client.get("/api/security/sudo-logs", headers=auth_headers)
+        assert response.status_code == 503
+
+    def test_sudo_logs_unexpected_error(self, test_client, auth_headers):
+        """sudo-logs で予期しない例外 → 500"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_sudo_logs") as mock:
+            mock.side_effect = RuntimeError("unexpected")
+            response = test_client.get("/api/security/sudo-logs", headers=auth_headers)
+        assert response.status_code == 500
+
+    def test_open_ports_unexpected_error(self, test_client, auth_headers):
+        """open-ports で予期しない例外 → 500"""
+        with patch("backend.core.sudo_wrapper.sudo_wrapper.get_open_ports") as mock:
+            mock.side_effect = RuntimeError("unexpected")
+            response = test_client.get("/api/security/open-ports", headers=auth_headers)
+        assert response.status_code == 500
+
+
+class TestBanditStatusEdgeCases:
+    """bandit-status エンドポイントのエッジケース（カバレッジ向上）"""
+
+    def test_bandit_timeout_returns_503(self, test_client, auth_headers):
+        """bandit スキャンがタイムアウトした場合は 503 を返す"""
+        import subprocess
+
+        with patch("backend.api.routes.security.subprocess.run",
+                   side_effect=subprocess.TimeoutExpired(cmd="bandit", timeout=60)):
+            response = test_client.get("/api/security/bandit-status", headers=auth_headers)
+        assert response.status_code == 503
+
+    def test_bandit_json_parse_error_returns_500(self, test_client, auth_headers):
+        """bandit 出力が不正な JSON の場合は 500 を返す"""
+        mock_proc = type("MockProc", (), {
+            "stdout": "this is not json {{{{",
+            "stderr": "",
+            "returncode": 2,
+        })()
+
+        with patch("backend.api.routes.security.subprocess.run", return_value=mock_proc):
+            response = test_client.get("/api/security/bandit-status", headers=auth_headers)
+        assert response.status_code == 500
+
+    def test_bandit_unexpected_error_returns_500(self, test_client, auth_headers):
+        """bandit 実行中の予期しない例外は 500 を返す"""
+        with patch("backend.api.routes.security.subprocess.run",
+                   side_effect=OSError("disk full")):
+            response = test_client.get("/api/security/bandit-status", headers=auth_headers)
+        assert response.status_code == 500
