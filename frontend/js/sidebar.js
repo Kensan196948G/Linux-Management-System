@@ -355,7 +355,7 @@ function renderSidebar(activePage) {
             </div>
 
             <!-- サーバー カテゴリ -->
-            <div class="accordion-item ${['servers','ssh','apache','postfix','dbmonitor'].includes(activePage) ? 'open' : ''}">
+            <div class="accordion-item ${['servers','ssh','apache','postfix','dbmonitor','containers','fail2ban','ssh-hosts','ansible','mysql','postgresql'].includes(activePage) ? 'open' : ''}">
                 <div class="accordion-header" onclick="toggleAccordion(this)">
                     <div class="accordion-title"><span>🖥️</span><span>サーバー</span></div>
                     <span class="accordion-icon">▼</span>
@@ -370,6 +370,14 @@ function renderSidebar(activePage) {
                             <div class="submenu-item-name">SSH Server</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
+                        <div class="submenu-item${a('ssh-hosts')}" onclick="location.href='ssh-hosts.html'">
+                            <div class="submenu-item-name">SSH接続先ホスト</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('multi-ssh')}" onclick="location.href='multi-ssh.html'">
+                            <div class="submenu-item-name">マルチSSH並列実行</div>
+                            <div class="submenu-item-badge">NEW</div>
+                        </div>
                         <div class="submenu-item${a('apache')}" onclick="location.href='apache.html'">
                             <div class="submenu-item-name">Apache Webサーバー</div>
                             <div class="submenu-item-badge">実装済み</div>
@@ -378,8 +386,28 @@ function renderSidebar(activePage) {
                             <div class="submenu-item-name">Postfix メール</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
+                        <div class="submenu-item${a('mysql')}" onclick="location.href='mysql.html'">
+                            <div class="submenu-item-name">MySQL管理</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('postgresql')}" onclick="location.href='postgresql.html'">
+                            <div class="submenu-item-name">PostgreSQL管理</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
                         <div class="submenu-item${a('dbmonitor')}" onclick="location.href='dbmonitor.html'">
                             <div class="submenu-item-name">DBモニター</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('containers')}" onclick="location.href='containers.html'">
+                            <div class="submenu-item-name">コンテナ管理</div>
+                            <div class="submenu-item-badge">NEW</div>
+                        </div>
+                        <div class="submenu-item${a('fail2ban')}" onclick="location.href='fail2ban.html'">
+                            <div class="submenu-item-name">Fail2ban統合</div>
+                            <div class="submenu-item-badge">NEW</div>
+                        </div>
+                        <div class="submenu-item${a('ansible')}" onclick="location.href='ansible.html'">
+                            <div class="submenu-item-name">Ansible Playbook</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
                     </div>
@@ -387,7 +415,7 @@ function renderSidebar(activePage) {
             </div>
 
             <!-- ネットワーク カテゴリ -->
-            <div class="accordion-item ${['network','bandwidth','firewall'].includes(activePage) ? 'open' : ''}">
+            <div class="accordion-item ${['network','bandwidth','firewall','nfs','netstat','routing'].includes(activePage) ? 'open' : ''}">
                 <div class="accordion-header" onclick="toggleAccordion(this)">
                     <div class="accordion-title"><span>🌐</span><span>ネットワーク</span></div>
                     <span class="accordion-icon">▼</span>
@@ -402,8 +430,84 @@ function renderSidebar(activePage) {
                             <div class="submenu-item-name">ファイアウォール</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
+                        <div class="submenu-item${a('netstat')}" onclick="location.href='netstat.html'">
+                            <div class="submenu-item-name">Netstat統計</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('routing')}" onclick="location.href='routing.html'">
+                            <div class="submenu-item-name">ルーティング</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
                         <div class="submenu-item${a('bandwidth')}" onclick="location.href='bandwidth.html'">
                             <div class="submenu-item-name">帯域幅モニタリング</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('nfs')}" onclick="location.href='nfs.html'">
+                            <div class="submenu-item-name">NFS管理</div>
+                            <div class="submenu-item-badge">NEW</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 監視・アラート カテゴリ -->
+            <div class="accordion-item ${['monitoring','realtime-alerts','journal','logsearch','logs'].includes(activePage) ? 'open' : ''}">
+                <div class="accordion-header" onclick="toggleAccordion(this)">
+                    <div class="accordion-title"><span>📊</span><span>監視・ログ</span></div>
+                    <span class="accordion-icon">▼</span>
+                </div>
+                <div class="accordion-content">
+                    <div class="accordion-submenu">
+                        <div class="submenu-item${a('monitoring')}" onclick="location.href='monitoring.html'">
+                            <div class="submenu-item-name">システム監視</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('realtime-alerts')}" onclick="location.href='realtime-alerts.html'">
+                            <div class="submenu-item-name">リアルタイムアラート</div>
+                            <div class="submenu-item-badge">NEW</div>
+                        </div>
+                        <div class="submenu-item${a('journal')}" onclick="location.href='journal.html'">
+                            <div class="submenu-item-name">Journal高度フィルタ</div>
+                            <div class="submenu-item-badge">NEW</div>
+                        </div>
+                        <div class="submenu-item${a('logsearch')}" onclick="location.href='logsearch.html'">
+                            <div class="submenu-item-name">ログ高度検索</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('logs')}" onclick="location.href='logs.html'">
+                            <div class="submenu-item-name">システムログ</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- セキュリティ カテゴリ -->
+            <div class="accordion-item ${['security','certificates','sessions','sshkeys','backup'].includes(activePage) ? 'open' : ''}">
+                <div class="accordion-header" onclick="toggleAccordion(this)">
+                    <div class="accordion-title"><span>🔒</span><span>セキュリティ</span></div>
+                    <span class="accordion-icon">▼</span>
+                </div>
+                <div class="accordion-content">
+                    <div class="accordion-submenu">
+                        <div class="submenu-item${a('security')}" onclick="location.href='security.html'">
+                            <div class="submenu-item-name">セキュリティレポート</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('certificates')}" onclick="location.href='certificates.html'">
+                            <div class="submenu-item-name">TLS/SSL証明書</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('sessions')}" onclick="location.href='sessions.html'">
+                            <div class="submenu-item-name">セッション管理</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('sshkeys')}" onclick="location.href='sshkeys.html'">
+                            <div class="submenu-item-name">SSH鍵管理</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('backup')}" onclick="location.href='backup.html'">
+                            <div class="submenu-item-name">バックアップ管理</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
                     </div>
@@ -411,7 +515,7 @@ function renderSidebar(activePage) {
             </div>
 
             <!-- ハードウェア カテゴリ -->
-            <div class="accordion-item ${['hardware','time','quotas','filemanager'].includes(activePage) ? 'open' : ''}">
+            <div class="accordion-item ${['hardware','time','quotas','filemanager','disk','smart','sensors','partitions'].includes(activePage) ? 'open' : ''}">
                 <div class="accordion-header" onclick="toggleAccordion(this)">
                     <div class="accordion-title"><span>🔧</span><span>ハードウェア</span></div>
                     <span class="accordion-icon">▼</span>
@@ -422,8 +526,24 @@ function renderSidebar(activePage) {
                             <div class="submenu-item-name">ハードウェア情報</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
+                        <div class="submenu-item${a('disk')}" onclick="location.href='disk.html'">
+                            <div class="submenu-item-name">ディスク使用状況</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('partitions')}" onclick="location.href='partitions.html'">
+                            <div class="submenu-item-name">パーティション管理</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('smart')}" onclick="location.href='smart.html'">
+                            <div class="submenu-item-name">SMARTドライブ診断</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('sensors')}" onclick="location.href='sensors.html'">
+                            <div class="submenu-item-name">センサー情報</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
                         <div class="submenu-item${a('filemanager')}" onclick="location.href='filemanager.html'">
-                            <div class="submenu-item-name">ファイルシステム</div>
+                            <div class="submenu-item-name">ファイルマネージャー</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
                         <div class="submenu-item${a('time')}" onclick="location.href='time.html'">
@@ -439,7 +559,7 @@ function renderSidebar(activePage) {
             </div>
 
             <!-- システム設定 -->
-            <div class="accordion-item ${['settings'].includes(activePage) ? 'open' : ''}">
+            <div class="accordion-item ${['settings','sysconfig'].includes(activePage) ? 'open' : ''}">
                 <div class="accordion-header" onclick="toggleAccordion(this)">
                     <div class="accordion-title"><span>⚡</span><span>システム設定</span></div>
                     <span class="accordion-icon">▼</span>
@@ -448,6 +568,10 @@ function renderSidebar(activePage) {
                     <div class="accordion-submenu">
                         <div class="submenu-item${a('settings')}" onclick="location.href='settings.html'">
                             <div class="submenu-item-name">統合設定</div>
+                            <div class="submenu-item-badge">実装済み</div>
+                        </div>
+                        <div class="submenu-item${a('sysconfig')}" onclick="location.href='sysconfig.html'">
+                            <div class="submenu-item-name">カーネル設定</div>
                             <div class="submenu-item-badge">実装済み</div>
                         </div>
                     </div>

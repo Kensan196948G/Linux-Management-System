@@ -270,7 +270,7 @@ async def list_allowed_commands(
     """
     audit_log.record(
         operation="multi_ssh_list_commands",
-        user_id=current_user.sub,
+        user_id=current_user.user_id,
         target="multi_ssh",
         status="success",
     )
@@ -336,7 +336,7 @@ async def execute_multi_ssh(
             "total_hosts": len(resolved),
             "success_count": 0,
             "failure_count": 0,
-            "requester": current_user.sub,
+            "requester": current_user.user_id,
             "reason": body.reason,
         }
 
@@ -344,7 +344,7 @@ async def execute_multi_ssh(
 
         audit_log.record(
             operation="multi_ssh_execute",
-            user_id=current_user.sub,
+            user_id=current_user.user_id,
             target=f"command={body.command} hosts={len(resolved)}",
             status="started",
             details={"job_id": job_id, "host_ids": body.host_ids},
@@ -368,16 +368,16 @@ async def execute_multi_ssh(
                 "command": body.command,
             },
             reason=body.reason,
-            requester_id=current_user.sub,
-            requester_name=getattr(current_user, "name", current_user.sub),
-            requester_role=getattr(current_user, "role", "operator"),
+            requester_id=current_user.user_id,
+            requester_name=getattr(current_user, "name", current_user.user_id),
+            requester_role=current_user.role,
         )
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     audit_log.record(
         operation="multi_ssh_approval_request",
-        user_id=current_user.sub,
+        user_id=current_user.user_id,
         target=f"command={body.command} hosts={len(resolved)}",
         status="pending",
         details={"job_id": job_id, "approval_id": approval_req.get("id")},
@@ -415,7 +415,7 @@ async def get_job_result(
 
     audit_log.record(
         operation="multi_ssh_get_result",
-        user_id=current_user.sub,
+        user_id=current_user.user_id,
         target=job_id,
         status="success",
     )
@@ -452,7 +452,7 @@ async def get_history(
 
     audit_log.record(
         operation="multi_ssh_history",
-        user_id=current_user.sub,
+        user_id=current_user.user_id,
         target="multi_ssh",
         status="success",
     )
