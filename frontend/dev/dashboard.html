@@ -30,6 +30,8 @@
         .ws-disconnected .ws-badge-dot { background:#9ca3af; }
         .ws-connecting { background:#fef3c7; color:#92400e; }
         .ws-connecting .ws-badge-dot { background:#f59e0b; }
+        .ws-reconnecting { background:#fef3c7; color:#92400e; }
+        .ws-reconnecting .ws-badge-dot { background:#f59e0b; animation: ws-pulse 0.8s infinite; }
         .ws-error { background:#fee2e2; color:#991b1b; }
         .ws-error .ws-badge-dot { background:#dc2626; }
         @keyframes ws-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
@@ -317,6 +319,7 @@
 
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
+<script src="../js/ws-reconnect.js"></script>
 <script src="../js/sidebar.js"></script>
 <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('dashboard')):renderSidebar('dashboard');</script>
 <script>
@@ -457,9 +460,8 @@ window.addEventListener('beforeunload', function() {
     disconnectWebSocket();
 });
 
-// ── WebSocket リアルタイム監視 ────────────────────────────
-var wsConn = null;
-var wsRetryTimer = null;
+// ── WebSocket リアルタイム監視（WSReconnect 自動再接続） ─────────
+var wsConn = null;   // WSReconnect instance
 var wsEnabled = false;
 
 function setWsBadge(state) {
@@ -468,62 +470,84 @@ function setWsBadge(state) {
     var btn = document.getElementById('ws-toggle-btn');
     if (!badge || !text) return;
     badge.className = 'ws-badge ws-' + state;
-    var labels = { connected: 'WS接続中', connecting: 'WS接続中...', disconnected: 'WS切断', error: 'WSエラー' };
+    var labels = {
+        connected:    'WS接続中',
+        connecting:   'WS接続中...',
+        reconnecting: 'WS再接続中',
+        disconnected: 'WS切断',
+        error:        'WSエラー'
+    };
     text.textContent = labels[state] || state;
-    if (btn) btn.textContent = (state === 'connected' || state === 'connecting') ? 'WS切断' : 'WS接続';
+    if (btn) btn.textContent = (state === 'connected' || state === 'connecting' || state === 'reconnecting') ? 'WS切断' : 'WS接続';
 }
 
 function connectWebSocket() {
     var token = localStorage.getItem('access_token');
     if (!token) return;
-    if (wsConn) { wsConn.close(); wsConn = null; }
-    if (wsRetryTimer) { clearTimeout(wsRetryTimer); wsRetryTimer = null; }
+    // 既存インスタンスを破棄
+    if (wsConn) { wsConn.disconnect(); wsConn = null; }
     wsEnabled = true;
     setWsBadge('connecting');
+
     var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var wsUrl = proto + '//' + window.location.host + '/api/ws/system';
-    try {
-        wsConn = new WebSocket(wsUrl);
-    } catch (e) {
-        setWsBadge('error');
-        return;
-    }
-    wsConn.onopen = function() {
+
+    wsConn = new WSReconnect(wsUrl, {
+        initialDelay: 1000,
+        maxDelay: 30000,
+        multiplier: 1.5,
+        jitter: 0.1,
+        maxAttempts: 0   // 無制限に再接続
+    });
+
+    wsConn.on('connected', function() {
         // トークンを最初のメッセージで送信（URLに含めない＝ログに残らない）
-        wsConn.send(JSON.stringify({ type: 'auth', token: token }));
+        wsConn.send(JSON.stringify({ type: 'auth', token: localStorage.getItem('access_token') }));
         setWsBadge('connected');
-    };
-    wsConn.onmessage = function(e) {
+        // SSE が動いていれば停止（WS が優先）
+        if (sseConn) { sseConn.close(); sseConn = null; }
+        if (sseRetryTimer) { clearTimeout(sseRetryTimer); sseRetryTimer = null; }
+        setSseBadge('disconnected');
+    });
+
+    wsConn.on('message', function(e) {
         try {
             var msg = JSON.parse(e.data);
             if (msg.type === 'system_update' && msg.data) {
                 var d = msg.data;
                 updateCharts(d.cpu_percent || 0, d.memory_percent || 0, 0, 0);
                 document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('ja-JP');
-                setWsBadge('connected');
             }
         } catch (err) { console.error('WS parse error', err); }
-    };
-    wsConn.onerror = function() { setWsBadge('error'); };
-    wsConn.onclose = function(ev) {
-        wsConn = null;
-        if (wsEnabled) {
-            setWsBadge('disconnected');
-            // SSE にフォールバック
+    });
+
+    wsConn.on('reconnecting', function(info) {
+        setWsBadge('reconnecting');
+        console.info('[WS] 再接続試行 #' + info.attempt + ' (' + info.delay + 'ms 後)');
+        // 再接続中は SSE でフォールバック
+        if (!sseConn) connectSSE();
+    });
+
+    wsConn.on('disconnected', function(info) {
+        if (!wsEnabled) return;
+        setWsBadge('disconnected');
+        if (info && info.maxAttemptsReached) {
+            console.warn('[WS] 最大再接続回数に達しました。SSE にフォールバックします。');
             connectSSE();
         }
-    };
+    });
+
+    wsConn.connect();
 }
 
 function disconnectWebSocket() {
     wsEnabled = false;
-    if (wsRetryTimer) { clearTimeout(wsRetryTimer); wsRetryTimer = null; }
-    if (wsConn) { wsConn.close(); wsConn = null; }
+    if (wsConn) { wsConn.disconnect(); wsConn = null; }
     setWsBadge('disconnected');
 }
 
 function toggleWebSocket() {
-    if (wsEnabled && wsConn && wsConn.readyState === WebSocket.OPEN) {
+    if (wsEnabled && wsConn && wsConn.getState() === 'connected') {
         disconnectWebSocket();
     } else {
         // SSE を停止して WebSocket を起動
