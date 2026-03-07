@@ -11,6 +11,7 @@ Linux管理WebUI プロジェクト ドキュメント集
 ```
 docs/
 ├── README.md                          ← 本ファイル
+├── 開発ロードマップ・実装予定一覧.md        ← ★ AIエージェント向け開発ガイド（入口）
 ├── 要件定義書_詳細設計仕様書.md           ← プロジェクト要件・設計（中核文書）
 ├── 開発環境仕様書.md                     ← ClaudeCode 開発環境詳細
 │
@@ -108,6 +109,7 @@ docs/
 
 | 目的 | 参照先 |
 |------|--------|
+| **AIエージェント向け開発ガイド** | [**開発ロードマップ・実装予定一覧.md**](./開発ロードマップ・実装予定一覧.md) |
 | WebUIの全仕様書を確認 | [webui-sample-docs/README.md](./webui-sample-docs/README.md) |
 | プロジェクト要件・設計 | [要件定義書_詳細設計仕様書.md](./要件定義書_詳細設計仕様書.md) |
 | 開発環境の構築 | [webui-sample-docs/14_dev-environment.md](./webui-sample-docs/14_dev-environment.md) |
