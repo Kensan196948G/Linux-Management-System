@@ -2536,7 +2536,7 @@ class SudoWrapper:
         Raises:
             SudoWrapperError: 実行失敗時
         """
-        return self._execute("adminui-logsearch.sh", ["recent-errors"], timeout=15)
+        return self._execute("adminui-logsearch.sh", ["recent-errors"], timeout=30)
 
     def get_log_tail_multi(self, lines: int = 30) -> Dict[str, Any]:
         """複数ログファイルの末尾を連結して取得する。

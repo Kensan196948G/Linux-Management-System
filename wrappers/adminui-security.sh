@@ -39,9 +39,9 @@ case "$SUBCOMMAND" in
 
         if [[ -r "$AUTH_LOG" ]]; then
             AUTH_COUNT=$(wc -l < "$AUTH_LOG" 2>/dev/null || echo 0)
-            ACCEPTED=$(grep -c "Accepted" "$AUTH_LOG" 2>/dev/null || echo 0)
-            FAILED=$(grep -c "Failed" "$AUTH_LOG" 2>/dev/null || echo 0)
-            SUDO_COUNT=$(grep -c "sudo:" "$AUTH_LOG" 2>/dev/null || echo 0)
+            ACCEPTED=$(grep --text -c "Accepted" "$AUTH_LOG" 2>/dev/null) || ACCEPTED=0
+            FAILED=$(grep --text -c "Failed" "$AUTH_LOG" 2>/dev/null) || FAILED=0
+            SUDO_COUNT=$(grep --text -c "sudo:" "$AUTH_LOG" 2>/dev/null) || SUDO_COUNT=0
         fi
 
         LAST_LOGIN=$(last -1 -w 2>/dev/null | head -1 || echo "N/A")
