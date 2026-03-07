@@ -7,16 +7,66 @@
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .log-area { background: #1e1e2e; color: #cdd6f4; font-family: monospace; font-size: 12px; padding: 14px; border-radius: 8px; height: 450px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+        /* ── ログ表示エリア ── */
+        .log-area {
+            background: #1e1e2e; color: #cdd6f4; font-family: monospace;
+            font-size: 12px; padding: 14px; border-radius: 8px;
+            height: 420px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+        }
         .log-line { line-height: 1.7; display: block; }
-        .log-line.error { color: #f38ba8; }
+        .log-line.error  { color: #f38ba8; }
+        .log-line.warn   { color: #fab387; }
+        .log-line.info   { color: #89dceb; }
+        .log-line.debug  { color: #a6e3a1; }
         .highlight { background: #f6c90e; color: #000; border-radius: 2px; padding: 0 2px; }
-        .stat-badge { background: #e0e7ff; color: #3730a3; border-radius: 12px; padding: 2px 10px; font-size: 12px; font-weight: 600; margin-left: 8px; }
-        .tab-btn { padding: 6px 18px; border-radius: 20px; border: 1.5px solid #d1d5db; background: #fff; color: #374151; font-size: 13px; cursor: pointer; transition: all 0.15s; margin-right: 6px; margin-bottom: 6px; }
-        .tab-btn.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+        /* ── バッジ・タブ ── */
+        .stat-badge {
+            background: #e0e7ff; color: #3730a3; border-radius: 12px;
+            padding: 2px 10px; font-size: 12px; font-weight: 600; margin-left: 8px;
+        }
+        .badge-error  { background: #fee2e2; color: #b91c1c; }
+        .badge-warn   { background: #fef3c7; color: #92400e; }
+        .badge-info   { background: #dbeafe; color: #1e40af; }
+        .badge-debug  { background: #d1fae5; color: #065f46; }
+        .tab-btn {
+            padding: 6px 18px; border-radius: 20px; border: 1.5px solid #d1d5db;
+            background: #fff; color: #374151; font-size: 13px; cursor: pointer;
+            transition: all 0.15s; margin-right: 6px; margin-bottom: 6px;
+        }
+        .tab-btn.active  { background: #2563eb; border-color: #2563eb; color: #fff; }
         .tab-btn:hover:not(.active) { background: #f3f4f6; border-color: #9ca3af; }
-        .error-log-area { background: #2d1b1b; color: #f38ba8; }
+
+        /* ── 高度検索フォーム ── */
+        .file-checkbox-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .file-checkbox-item label { font-size: 12px; cursor: pointer; }
+        .regex-toggle { display: flex; align-items: center; gap: 8px; }
+
+        /* ── 結果テーブル ── */
+        .result-table { font-size: 12px; }
+        .result-table thead th { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
+        .level-error { color: #b91c1c; font-weight: 700; }
+        .level-warn  { color: #92400e; font-weight: 600; }
+        .level-info  { color: #1e40af; }
+        .level-debug { color: #065f46; }
+        .result-message { white-space: pre-wrap; word-break: break-all; max-width: 600px; }
+
+        /* ── Chart ── */
+        .chart-wrap { position: relative; height: 280px; }
+
+        /* ── 保存フィルター ── */
+        .filter-card {
+            border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px;
+            margin-bottom: 8px; transition: background 0.1s;
+        }
+        .filter-card:hover { background: #f9fafb; }
+
+        /* ── ページネーション ── */
+        .pagination-info { font-size: 12px; color: #6b7280; }
+        .virtual-scroll-container { max-height: 500px; overflow-y: auto; }
     </style>
 <script src="../js/theme.js"></script>
 </head>
@@ -26,28 +76,117 @@
 
     <main class="main-content">
         <div class="main-header">
-            <h2 id="page-title">🔍 Log Search <small class="text-muted fs-6">ログ検索</small></h2>
-            <button class="btn btn-sm btn-outline-secondary" onclick="loadFileList()">🔄 リフレッシュ</button>
+            <h2 id="page-title">🔍 Log Search <small class="text-muted fs-6">ログ高度検索</small></h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadAllowedFiles()">🔄 リフレッシュ</button>
         </div>
 
         <div class="main-body">
             <div id="alert-area"></div>
 
-            <!-- タブ -->
+            <!-- ── タブ ── -->
             <div class="mb-3">
-                <button class="tab-btn active" onclick="showTab('search')" id="tab-search">🔍 検索</button>
-                <button class="tab-btn" onclick="showTab('errors')" id="tab-errors">🔴 直近エラー</button>
-                <button class="tab-btn" onclick="showTab('stream')" id="tab-stream">📡 リアルタイム</button>
+                <button class="tab-btn active" onclick="showTab('adv')"     id="tab-adv">🔍 高度検索</button>
+                <button class="tab-btn"        onclick="showTab('search')"  id="tab-search">📋 通常検索</button>
+                <button class="tab-btn"        onclick="showTab('stats')"   id="tab-stats">📊 統計</button>
+                <button class="tab-btn"        onclick="showTab('timeline')" id="tab-timeline">📈 タイムライン</button>
+                <button class="tab-btn"        onclick="showTab('filters')" id="tab-filters">⭐ 保存フィルター</button>
+                <button class="tab-btn"        onclick="showTab('errors')"  id="tab-errors">🔴 直近エラー</button>
+                <button class="tab-btn"        onclick="showTab('stream')"  id="tab-stream">📡 リアルタイム</button>
             </div>
 
-            <!-- 検索タブ -->
-            <div id="pane-search">
-                <!-- ログファイル選択パネル -->
+            <!-- ════════════════════════════════════════════
+                 高度検索タブ
+            ════════════════════════════════════════════ -->
+            <div id="pane-adv">
+                <!-- ファイル選択（チェックボックス） -->
                 <div class="card mb-3">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <span>📁 ログファイル選択</span>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="loadFileList()">🔄 リフレッシュ</button>
+                    <div class="card-header">📁 対象ファイル選択（allowlist）</div>
+                    <div class="card-body py-2">
+                        <div id="adv-file-list" class="file-checkbox-list">
+                            <span class="text-muted small">読み込み中...</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="toggleAllFiles()">全選択/解除</button>
                     </div>
+                </div>
+
+                <!-- 検索フォーム -->
+                <div class="card mb-3">
+                    <div class="card-header">🔍 検索条件</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label form-label-sm mb-1">検索キーワード / 正規表現</label>
+                                <input type="text" id="adv-query" class="form-control form-control-sm"
+                                    placeholder="例: Failed password  または  error.*connection"
+                                    onkeydown="if(event.key==='Enter') runAdvSearch()">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label form-label-sm mb-1">最大件数</label>
+                                <select id="adv-limit" class="form-select form-select-sm">
+                                    <option value="50">50件</option>
+                                    <option value="100" selected>100件</option>
+                                    <option value="300">300件</option>
+                                    <option value="1000">1000件</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label form-label-sm mb-1">開始日時</label>
+                                <input type="datetime-local" id="adv-from" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label form-label-sm mb-1">終了日時</label>
+                                <input type="datetime-local" id="adv-to" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-12 d-flex align-items-center gap-3 flex-wrap">
+                                <div class="form-check regex-toggle">
+                                    <input class="form-check-input" type="checkbox" id="adv-regex">
+                                    <label class="form-check-label" for="adv-regex">正規表現モード</label>
+                                </div>
+                                <button class="btn btn-primary btn-sm" onclick="runAdvSearch()" id="adv-search-btn">
+                                    🔍 検索実行
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="clearAdvResults()">✕ クリア</button>
+                                <button class="btn btn-outline-success btn-sm" onclick="openSaveFilterModal()">⭐ このフィルターを保存</button>
+                                <span id="adv-result-info" class="pagination-info"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 結果テーブル（仮想スクロール対応） -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>検索結果</span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span id="adv-page-info" class="pagination-info"></span>
+                            <button class="btn btn-sm btn-outline-secondary" id="btn-prev" onclick="changePage(-1)" disabled>◀</button>
+                            <button class="btn btn-sm btn-outline-secondary" id="btn-next" onclick="changePage(1)" disabled>▶</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0 virtual-scroll-container">
+                        <table class="table table-sm table-hover result-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:180px">ファイル</th>
+                                    <th style="width:60px">行</th>
+                                    <th style="width:70px">レベル</th>
+                                    <th>メッセージ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adv-results-body">
+                                <tr><td colspan="4" class="text-center text-muted py-4">検索を実行してください</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════
+                 通常検索タブ（既存機能）
+            ════════════════════════════════════════════ -->
+            <div id="pane-search" style="display:none">
+                <div class="card mb-3">
+                    <div class="card-header">📁 ログファイル選択</div>
                     <div class="card-body py-2">
                         <div class="d-flex align-items-center gap-3 flex-wrap">
                             <label for="file-select" class="form-label mb-0">ファイル:</label>
@@ -58,26 +197,24 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- 検索フォーム -->
                 <div class="card mb-3">
                     <div class="card-header">🔍 検索フォーム</div>
                     <div class="card-body">
                         <div class="row g-2 align-items-end">
                             <div class="col-md-5">
-                                <label for="keyword-input" class="form-label form-label-sm mb-1">検索キーワード</label>
+                                <label class="form-label form-label-sm mb-1">検索キーワード</label>
                                 <input type="text" id="keyword-input" class="form-control form-control-sm"
                                     placeholder="例: error, Failed, nginx"
                                     onkeydown="if(event.key==='Enter') searchLogs()">
                             </div>
                             <div class="col-md-3">
-                                <label for="logfile-select" class="form-label form-label-sm mb-1">ログファイル</label>
+                                <label class="form-label form-label-sm mb-1">ログファイル</label>
                                 <select id="logfile-select" class="form-select form-select-sm">
                                     <option value="syslog">syslog</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <label for="lines-select" class="form-label form-label-sm mb-1">表示行数</label>
+                                <label class="form-label form-label-sm mb-1">表示行数</label>
                                 <select id="lines-select" class="form-select form-select-sm">
                                     <option value="30">30行</option>
                                     <option value="50" selected>50行</option>
@@ -88,82 +225,123 @@
                             <div class="col-md-2 d-flex gap-2 flex-wrap">
                                 <button class="btn btn-primary btn-sm" onclick="searchLogs()">🔍 検索</button>
                                 <button class="btn btn-outline-secondary btn-sm" onclick="clearSearch()">✕ クリア</button>
-                                <button class="btn btn-outline-warning btn-sm"
-                                    onclick="saveQuery(document.getElementById('keyword-input').value, document.getElementById('logfile-select').value || 'syslog')">⭐ 保存</button>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <!-- 保存済みクエリ -->
                 <div class="card mb-3">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>⭐ 保存済みクエリ</span>
-                        <span class="stat-badge" id="saved-count">0</span>
+                        <span>⭐ 保存済みクエリ <span id="saved-count" class="stat-badge">0</span></span>
                     </div>
-                    <div class="card-body">
-                        <div id="saved-queries-list">
-                            <p class="text-muted small mb-0">保存済みクエリはありません</p>
-                        </div>
+                    <div class="card-body py-2" id="saved-queries-list">
+                        <p class="text-muted small mb-0">保存済みクエリはありません</p>
                     </div>
                 </div>
-
-                <!-- 検索結果 -->
                 <div class="card">
-                    <div class="card-header d-flex align-items-center">
-                        <span>📄 検索結果</span>
-                        <span id="search-count" class="stat-badge">-</span>
+                    <div class="card-header" id="search-result-header">検索結果</div>
+                    <div class="card-body p-0">
+                        <div class="log-area" id="search-results"><span class="text-muted">検索を実行してください</span></div>
                     </div>
-                    <div class="card-body p-2">
-                        <div class="log-area" id="log-search">
-                            <span class="text-muted" style="color:#6b7280;">キーワードを入力して検索してください</span>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════
+                 統計タブ
+            ════════════════════════════════════════════ -->
+            <div id="pane-stats" style="display:none">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">ログレベル別統計</h6>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadStats()">🔄 更新</button>
+                </div>
+                <div class="row g-3 mb-4" id="stats-cards">
+                    <div class="col-3"><div class="card text-center"><div class="card-body"><h3 id="stat-error">-</h3><small class="text-danger">ERROR</small></div></div></div>
+                    <div class="col-3"><div class="card text-center"><div class="card-body"><h3 id="stat-warn">-</h3><small class="text-warning">WARN</small></div></div></div>
+                    <div class="col-3"><div class="card text-center"><div class="card-body"><h3 id="stat-info">-</h3><small class="text-info">INFO</small></div></div></div>
+                    <div class="col-3"><div class="card text-center"><div class="card-body"><h3 id="stat-debug">-</h3><small class="text-success">DEBUG</small></div></div></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">ファイル別詳細</div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm table-hover mb-0" id="stats-table">
+                            <thead><tr><th>ファイル</th><th>ERROR</th><th>WARN</th><th>INFO</th><th>DEBUG</th></tr></thead>
+                            <tbody id="stats-body"><tr><td colspan="5" class="text-center text-muted py-3">読み込み中...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════
+                 タイムラインタブ
+            ════════════════════════════════════════════ -->
+            <div id="pane-timeline" style="display:none">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">24時間エラー推移</h6>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadTimeline()">🔄 更新</button>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="chart-wrap">
+                            <canvas id="timeline-chart"></canvas>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 直近エラータブ -->
+            <!-- ════════════════════════════════════════════
+                 保存フィルタータブ
+            ════════════════════════════════════════════ -->
+            <div id="pane-filters" style="display:none">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">保存済みフィルター <span id="filter-count" class="stat-badge">0</span></h6>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="loadSavedFilters()">🔄 更新</button>
+                        <button class="btn btn-sm btn-success" onclick="openSaveFilterModal()">＋ 新規保存</button>
+                    </div>
+                </div>
+                <div id="filters-list">
+                    <p class="text-muted">読み込み中...</p>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════
+                 直近エラータブ
+            ════════════════════════════════════════════ -->
             <div id="pane-errors" style="display:none">
                 <div class="card">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center">
-                            <span>🔴 直近エラー</span>
-                            <span id="error-count" class="stat-badge">-</span>
-                        </div>
-                        <button class="btn btn-sm btn-outline-danger" onclick="loadRecentErrors()">🔄 更新</button>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>🔴 直近エラーログ <span id="error-count" class="stat-badge">0</span></span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="loadRecentErrors()">🔄 更新</button>
                     </div>
-                    <div class="card-body p-2">
-                        <div class="log-area error-log-area" id="log-errors">読み込み中...</div>
+                    <div class="card-body p-0">
+                        <div class="log-area error-log-area" id="recent-errors-area" style="background:#2d1b1b;color:#f38ba8;"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- リアルタイムストリームタブ -->
+            <!-- ════════════════════════════════════════════
+                 リアルタイムストリームタブ
+            ════════════════════════════════════════════ -->
             <div id="pane-stream" style="display:none">
                 <div class="card mb-3">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>📡 リアルタイムログストリーム</span>
-                        <div class="d-flex gap-2 align-items-center">
-                            <select id="stream-file-select" class="form-select form-select-sm" style="width:auto">
+                    <div class="card-header">📡 リアルタイムログ</div>
+                    <div class="card-body py-2">
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <select id="stream-file" class="form-select form-select-sm" style="max-width:200px">
                                 <option value="syslog">syslog</option>
                                 <option value="auth.log">auth.log</option>
                                 <option value="kern.log">kern.log</option>
                                 <option value="dpkg.log">dpkg.log</option>
                             </select>
-                            <button id="stream-start-btn" class="btn btn-sm btn-success" onclick="startStream()">▶ 開始</button>
-                            <button id="stream-stop-btn" class="btn btn-sm btn-danger" onclick="stopStream()" style="display:none">⏹ 停止</button>
-                            <span id="stream-status" class="stat-badge">停止中</span>
-                        </div>
-                    </div>
-                    <div class="card-body p-0">
-                        <div id="stream-log" class="log-area" style="height:500px">
-                            <span style="color:#666">▶ 開始ボタンを押すとリアルタイムストリーミングを開始します</span>
+                            <button id="btn-stream-start" class="btn btn-sm btn-success" onclick="startStream()">▶ 開始</button>
+                            <button id="btn-stream-stop"  class="btn btn-sm btn-danger" onclick="stopStream()" disabled>⏹ 停止</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="clearStream()">✕ クリア</button>
+                            <span id="stream-status" class="badge bg-secondary">停止中</span>
                         </div>
                     </div>
                 </div>
                 <div class="card">
-                    <div class="card-body py-2">
-                        <small class="text-muted">⚡ tail -f 相当のリアルタイム表示 | 最大500行保持 | 自動スクロール</small>
+                    <div class="card-body p-0">
+                        <div class="log-area" id="stream-log"></div>
                     </div>
                 </div>
             </div>
@@ -171,314 +349,584 @@
     </main>
 </div>
 
-<script src="../js/auth.js"></script>
-<script src="../js/sidebar.js"></script>
-<script>
-    const API_BASE = '/api/logsearch/';
-
-    function escapeHtml(str) {
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
-    function showAlert(msg, type = 'danger') {
-        document.getElementById('alert-area').innerHTML =
-            `<div class="alert alert-${type} alert-dismissible fade show">${escapeHtml(msg)}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
-    }
-
-    function getToken() {
-        return localStorage.getItem('access_token');
-    }
-
-    async function apiGet(url) {
-        const token = getToken();
-        const resp = await fetch(url, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!resp.ok) {
-            const err = await resp.json().catch(() => ({ detail: resp.statusText }));
-            throw new Error(err.detail || `HTTP ${resp.status}`);
-        }
-        return resp.json();
-    }
-
-    function highlightPattern(text, pattern) {
-        if (!pattern) return escapeHtml(text);
-        try {
-            const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const re = new RegExp(`(${escaped})`, 'gi');
-            return escapeHtml(text).replace(
-                new RegExp(`(${escaped.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')})`, 'gi'),
-                '<span class="highlight">$1</span>'
-            );
-        } catch (e) {
-            return escapeHtml(text);
-        }
-    }
-
-    function renderLogLines(lines, containerId, pattern) {
-        const area = document.getElementById(containerId);
-        if (!lines || lines.length === 0) {
-            area.innerHTML = '<span style="color:#6b7280;">一致する行がありません</span>';
-            return;
-        }
-        area.innerHTML = lines.map(line => {
-            const lower = line.toLowerCase();
-            const isError = /\berr\b|error|crit|emerg|alert|fail|fatal/.test(lower);
-            const cls = 'log-line' + (isError ? ' error' : '');
-            const html = pattern ? highlightPattern(line, pattern) : escapeHtml(line);
-            return `<span class="${cls}">${html}</span>`;
-        }).join('');
-        area.scrollTop = area.scrollHeight;
-    }
-
-    async function loadFileList() {
-        try {
-            const data = await apiGet(`${API_BASE}files`);
-            const files = data.files || [];
-            const selectIds = ['file-select', 'logfile-select'];
-            selectIds.forEach(id => {
-                const sel = document.getElementById(id);
-                const prev = sel.value;
-                sel.innerHTML = '';
-                files.forEach(f => {
-                    const basename = f.split('/').pop();
-                    const opt = document.createElement('option');
-                    opt.value = basename;
-                    opt.textContent = basename;
-                    sel.appendChild(opt);
-                });
-                if (files.some(f => f.split('/').pop() === prev)) sel.value = prev;
-                else if (files.some(f => f.split('/').pop() === 'syslog')) sel.value = 'syslog';
-            });
-            document.getElementById('file-count').textContent = `${files.length} ファイル`;
-        } catch (e) {
-            showAlert('ファイル一覧の取得に失敗しました: ' + e.message);
-        }
-    }
-
-    async function searchLogs() {
-        const pattern = document.getElementById('keyword-input').value.trim();
-        const logfile = document.getElementById('logfile-select').value;
-        const lines = document.getElementById('lines-select').value;
-
-        if (!pattern) {
-            showAlert('検索キーワードを入力してください', 'warning');
-            return;
-        }
-
-        const area = document.getElementById('log-search');
-        area.innerHTML = '<span style="color:#6b7280;">検索中...</span>';
-        document.getElementById('search-count').textContent = '-';
-
-        try {
-            const params = new URLSearchParams({ pattern, logfile, lines });
-            const data = await apiGet(`${API_BASE}search?${params}`);
-            renderLogLines(data.lines || [], 'log-search', pattern);
-            document.getElementById('search-count').textContent = `${data.count ?? (data.lines || []).length} 件`;
-        } catch (e) {
-            area.innerHTML = `<span style="color:#f38ba8;">エラー: ${escapeHtml(e.message)}</span>`;
-            showAlert('検索に失敗しました: ' + e.message);
-        }
-    }
-
-    function clearSearch() {
-        document.getElementById('keyword-input').value = '';
-        document.getElementById('log-search').innerHTML = '<span style="color:#6b7280;">キーワードを入力して検索してください</span>';
-        document.getElementById('search-count').textContent = '-';
-    }
-
-    async function loadRecentErrors() {
-        const area = document.getElementById('log-errors');
-        area.innerHTML = '<span style="color:#f38ba8;">読み込み中...</span>';
-        document.getElementById('error-count').textContent = '-';
-        try {
-            const data = await apiGet(`${API_BASE}recent-errors`);
-            renderLogLines(data.lines || [], 'log-errors', null);
-            document.getElementById('error-count').textContent = `${data.count ?? (data.lines || []).length} 件`;
-        } catch (e) {
-            area.innerHTML = `<span style="color:#f38ba8;">エラー: ${escapeHtml(e.message)}</span>`;
-            showAlert('直近エラーの取得に失敗しました: ' + e.message);
-        }
-    }
-
-    let currentTab = 'search';
-
-    function showTab(tab) {
-        ['search', 'errors', 'stream'].forEach(t => {
-            document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
-            document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
-        });
-        // ストリームタブ以外に切り替えた場合はストリームを停止
-        if (tab !== 'stream') stopStream();
-        currentTab = tab;
-        if (tab === 'errors') loadRecentErrors();
-    }
-
-    // ===== リアルタイムストリーム =====
-    let streamEventSource = null;
-    let streamLines = [];
-    const MAX_STREAM_LINES = 500;
-
-    function startStream() {
-        const logfile = document.getElementById('stream-file-select').value;
-        const token = getToken();
-        if (!token) { showAlert('認証が必要です', 'danger'); return; }
-
-        stopStream(); // 既存ストリームを停止
-
-        const url = `/api/logsearch/stream?logfile=${encodeURIComponent(logfile)}&token=${encodeURIComponent(token)}`;
-        streamEventSource = new EventSource(url);
-
-        document.getElementById('stream-start-btn').style.display = 'none';
-        document.getElementById('stream-stop-btn').style.display = '';
-        document.getElementById('stream-status').textContent = '接続中...';
-        document.getElementById('stream-status').style.background = '#fef3c7';
-        document.getElementById('stream-status').style.color = '#92400e';
-        streamLines = [];
-        document.getElementById('stream-log').innerHTML = '';
-
-        streamEventSource.onmessage = (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (data.type === 'connected') {
-                    document.getElementById('stream-status').textContent = '接続済み ●';
-                    document.getElementById('stream-status').style.background = '#d1fae5';
-                    document.getElementById('stream-status').style.color = '#065f46';
-                } else if (data.type === 'log') {
-                    appendStreamLine(data.line);
-                } else if (data.type === 'heartbeat') {
-                    // noop
-                } else if (data.type === 'error') {
-                    showAlert('ストリームエラー: ' + data.message, 'danger');
-                    stopStream();
-                }
-            } catch {}
-        };
-
-        streamEventSource.onerror = () => {
-            document.getElementById('stream-status').textContent = '切断';
-            document.getElementById('stream-status').style.background = '#fee2e2';
-            document.getElementById('stream-status').style.color = '#991b1b';
-        };
-    }
-
-    function stopStream() {
-        if (streamEventSource) {
-            streamEventSource.close();
-            streamEventSource = null;
-        }
-        const startBtn = document.getElementById('stream-start-btn');
-        const stopBtn = document.getElementById('stream-stop-btn');
-        const statusEl = document.getElementById('stream-status');
-        if (startBtn) startBtn.style.display = '';
-        if (stopBtn) stopBtn.style.display = 'none';
-        if (statusEl) {
-            statusEl.textContent = '停止中';
-            statusEl.style.background = '';
-            statusEl.style.color = '';
-        }
-    }
-
-    function appendStreamLine(line) {
-        streamLines.push(line);
-        if (streamLines.length > MAX_STREAM_LINES) streamLines.shift();
-        const container = document.getElementById('stream-log');
-        const span = document.createElement('span');
-        span.className = 'log-line' + (line.match(/error|critical|fatal/i) ? ' error' : '');
-        span.textContent = line;
-        container.appendChild(span);
-        container.appendChild(document.createElement('br'));
-        // 最大行数超過時に先頭削除
-        while (container.children.length > MAX_STREAM_LINES * 2) {
-            container.removeChild(container.firstChild);
-        }
-        // 自動スクロール
-        container.scrollTop = container.scrollHeight;
-    }
-
-    // 初期ロード
-    loadFileList();
-    loadRecentErrors();
-    initDefaultQueries();
-
-    // ===== 保存クエリ管理 =====
-    const STORAGE_KEY = 'lms_saved_queries';
-
-    const DEFAULT_QUERIES = [
-        { pattern: 'error',            logfile: 'syslog'   },
-        { pattern: 'Failed password',  logfile: 'auth.log' },
-        { pattern: 'OOM|Out of memory', logfile: 'syslog'  },
-        { pattern: 'critical',         logfile: 'syslog'   },
-    ];
-
-    function getSavedQueries() {
-        try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-        catch { return []; }
-    }
-
-    function saveQuery(pattern, logfile) {
-        if (!pattern.trim()) { showAlert('検索キーワードを入力してから保存してください', 'warning'); return; }
-        const queries = getSavedQueries();
-        if (queries.some(q => q.pattern === pattern && q.logfile === logfile)) {
-            showAlert('このクエリは既に保存済みです', 'info');
-            return;
-        }
-        queries.unshift({ id: Date.now(), pattern, logfile, savedAt: new Date().toISOString() });
-        if (queries.length > 20) queries.splice(20);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(queries));
-        renderSavedQueries();
-        showAlert(`「${pattern}」を保存しました`, 'success');
-    }
-
-    function deleteSavedQuery(id) {
-        const queries = getSavedQueries().filter(q => q.id !== id);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(queries));
-        renderSavedQueries();
-    }
-
-    function renderSavedQueries() {
-        const queries = getSavedQueries();
-        const container = document.getElementById('saved-queries-list');
-        if (!container) return;
-        document.getElementById('saved-count').textContent = queries.length;
-        if (queries.length === 0) {
-            container.innerHTML = '<p class="text-muted small mb-0">保存済みクエリはありません</p>';
-            return;
-        }
-        container.innerHTML = queries.map(q => `
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <button class="btn btn-sm btn-outline-primary flex-grow-1 text-start"
-                        onclick="applyQuery(${JSON.stringify(q.pattern)}, ${JSON.stringify(q.logfile)})">
-                    <span class="fw-semibold">${escapeHtml(q.pattern)}</span>
-                    <small class="text-muted ms-2">${escapeHtml(q.logfile)}</small>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteSavedQuery(${q.id})" title="削除">🗑</button>
+<!-- ════════════════════════════════════════════
+     フィルター保存モーダル
+════════════════════════════════════════════ -->
+<div class="modal fade" id="saveFilterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">⭐ フィルターを保存</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-        `).join('');
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">フィルター名 <span class="text-danger">*</span></label>
+                    <input type="text" id="modal-filter-name" class="form-control" placeholder="例: SSHエラー監視">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">クエリ</label>
+                    <input type="text" id="modal-filter-query" class="form-control" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">対象ファイル</label>
+                    <div id="modal-filter-files" class="form-control" style="min-height:38px;font-size:12px;"></div>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="modal-filter-regex" disabled>
+                    <label class="form-check-label">正規表現モード</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-success" onclick="saveFilterToServer()">💾 保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════════
+// グローバル状態
+// ════════════════════════════════════════════════════════════════
+let allowedFiles   = [];
+let advResults     = [];
+let currentPage    = 0;
+const PAGE_SIZE    = 50;
+let timelineChart  = null;
+let streamSource   = null;
+const MAX_STREAM_LINES = 500;
+let streamLines    = [];
+
+// ════════════════════════════════════════════════════════════════
+// ユーティリティ
+// ════════════════════════════════════════════════════════════════
+function showAlert(msg, type = 'info') {
+    const area = document.getElementById('alert-area');
+    area.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${escapeHtml(msg)}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+}
+function escapeHtml(t) {
+    return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function apiHeaders() {
+    const token = localStorage.getItem('access_token');
+    return { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) };
+}
+
+// ════════════════════════════════════════════════════════════════
+// タブ切り替え
+// ════════════════════════════════════════════════════════════════
+function showTab(name) {
+    ['adv','search','stats','timeline','filters','errors','stream'].forEach(t => {
+        document.getElementById('pane-'+t).style.display  = t === name ? '' : 'none';
+        document.getElementById('tab-'+t).classList.toggle('active', t === name);
+    });
+    if (name === 'stats')    loadStats();
+    if (name === 'timeline') loadTimeline();
+    if (name === 'filters')  loadSavedFilters();
+    if (name === 'errors')   loadRecentErrors();
+}
+
+// ════════════════════════════════════════════════════════════════
+// allowlist ファイル一覧読み込み
+// ════════════════════════════════════════════════════════════════
+async function loadAllowedFiles() {
+    try {
+        const r = await fetch('/api/logs/allowed-files', { headers: apiHeaders() });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        allowedFiles = data.files || [];
+        renderFileCheckboxes();
+        populateLegacySelects(allowedFiles.map(f => f.name));
+        document.getElementById('file-count').textContent = allowedFiles.length + '件';
+    } catch (e) {
+        console.warn('allowed-files fallback:', e);
+        // フォールバック
+        allowedFiles = [
+            { path:'/var/log/syslog',   name:'syslog',   exists:true },
+            { path:'/var/log/auth.log', name:'auth.log', exists:true },
+            { path:'/var/log/kern.log', name:'kern.log', exists:true },
+        ];
+        renderFileCheckboxes();
+    }
+}
+
+function renderFileCheckboxes() {
+    const div = document.getElementById('adv-file-list');
+    div.innerHTML = allowedFiles.map(f => `
+        <div class="file-checkbox-item form-check">
+            <input class="form-check-input" type="checkbox" id="fc-${f.name}"
+                   value="${escapeHtml(f.path)}" checked ${!f.exists ? 'title="ファイルが存在しません"' : ''}>
+            <label class="form-check-label ${!f.exists ? 'text-muted' : ''}" for="fc-${f.name}">
+                ${escapeHtml(f.name)}${!f.exists ? ' (未存在)' : ''}
+            </label>
+        </div>
+    `).join('');
+}
+
+function toggleAllFiles() {
+    const cbs = document.querySelectorAll('#adv-file-list input[type=checkbox]');
+    const allChecked = Array.from(cbs).every(c => c.checked);
+    cbs.forEach(c => c.checked = !allChecked);
+}
+
+function getCheckedFiles() {
+    return Array.from(document.querySelectorAll('#adv-file-list input[type=checkbox]:checked'))
+                .map(c => c.value);
+}
+
+// ════════════════════════════════════════════════════════════════
+// 高度検索
+// ════════════════════════════════════════════════════════════════
+async function runAdvSearch() {
+    const query = document.getElementById('adv-query').value.trim();
+    if (!query) { showAlert('検索キーワードを入力してください', 'warning'); return; }
+    const files = getCheckedFiles();
+    if (!files.length) { showAlert('対象ファイルを1つ以上選択してください', 'warning'); return; }
+
+    const btn = document.getElementById('adv-search-btn');
+    btn.disabled = true; btn.textContent = '🔄 検索中...';
+
+    const body = {
+        query,
+        files,
+        regex:  document.getElementById('adv-regex').checked,
+        limit:  parseInt(document.getElementById('adv-limit').value),
+        from_time: document.getElementById('adv-from').value || null,
+        to_time:   document.getElementById('adv-to').value   || null,
+    };
+
+    try {
+        const r = await fetch('/api/logs/search', {
+            method: 'POST',
+            headers: apiHeaders(),
+            body: JSON.stringify(body),
+        });
+        if (!r.ok) {
+            const err = await r.json();
+            showAlert('エラー: ' + (err.detail || r.statusText), 'danger');
+            return;
+        }
+        const data = await r.json();
+        advResults  = data.results || [];
+        currentPage = 0;
+        renderAdvResults();
+        document.getElementById('adv-result-info').textContent =
+            `${data.matches} 件マッチ / ${data.files_searched.length} ファイル検索`;
+    } catch (e) {
+        showAlert('通信エラー: ' + e.message, 'danger');
+    } finally {
+        btn.disabled = false; btn.textContent = '🔍 検索実行';
+    }
+}
+
+function renderAdvResults() {
+    const tbody = document.getElementById('adv-results-body');
+    const start = currentPage * PAGE_SIZE;
+    const page  = advResults.slice(start, start + PAGE_SIZE);
+    const total = advResults.length;
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+
+    if (!page.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">マッチなし</td></tr>';
+        document.getElementById('adv-page-info').textContent = '';
+        document.getElementById('btn-prev').disabled = true;
+        document.getElementById('btn-next').disabled = true;
+        return;
     }
 
-    function applyQuery(pattern, logfile) {
-        document.getElementById('keyword-input').value = pattern;
-        const sel = document.getElementById('logfile-select');
-        if (sel) {
-            const opt = Array.from(sel.options).find(o => o.value === logfile);
-            if (opt) sel.value = logfile;
-        }
-        searchLogs();
-    }
+    const query = document.getElementById('adv-query').value;
+    tbody.innerHTML = page.map(r => {
+        const lvl = (r.level || 'UNKNOWN').toLowerCase();
+        const levelClass = ['error','warn','info','debug'].includes(lvl) ? `level-${lvl}` : '';
+        const msg = escapeHtml(r.message || '').replace(
+            new RegExp(escapeHtml(query).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'),
+            m => `<mark>${m}</mark>`
+        );
+        return `<tr>
+            <td class="text-truncate" style="max-width:150px" title="${escapeHtml(r.file)}">${escapeHtml((r.file||'').split('/').pop())}</td>
+            <td>${r.lineno || '-'}</td>
+            <td class="${levelClass}">${escapeHtml(r.level || 'UNKNOWN')}</td>
+            <td class="result-message">${msg}</td>
+        </tr>`;
+    }).join('');
 
-    function initDefaultQueries() {
-        if (getSavedQueries().length === 0) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(
-                DEFAULT_QUERIES.map((q, i) => ({ ...q, id: i + 1, savedAt: new Date().toISOString() }))
-            ));
-        }
-        renderSavedQueries();
+    document.getElementById('adv-page-info').textContent =
+        `${start+1}–${Math.min(start+PAGE_SIZE, total)} / ${total}件 (ページ ${currentPage+1}/${totalPages})`;
+    document.getElementById('btn-prev').disabled = currentPage === 0;
+    document.getElementById('btn-next').disabled = currentPage >= totalPages - 1;
+}
+
+function changePage(delta) {
+    const totalPages = Math.ceil(advResults.length / PAGE_SIZE);
+    currentPage = Math.max(0, Math.min(currentPage + delta, totalPages - 1));
+    renderAdvResults();
+}
+
+function clearAdvResults() {
+    advResults = []; currentPage = 0;
+    document.getElementById('adv-query').value = '';
+    document.getElementById('adv-results-body').innerHTML =
+        '<tr><td colspan="4" class="text-center text-muted py-4">検索を実行してください</td></tr>';
+    document.getElementById('adv-result-info').textContent = '';
+    document.getElementById('adv-page-info').textContent = '';
+}
+
+// ════════════════════════════════════════════════════════════════
+// 統計
+// ════════════════════════════════════════════════════════════════
+async function loadStats() {
+    try {
+        const r = await fetch('/api/logs/stats', { headers: apiHeaders() });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        const t = data.totals || {};
+        document.getElementById('stat-error').textContent = t.ERROR ?? '-';
+        document.getElementById('stat-warn').textContent  = t.WARN  ?? '-';
+        document.getElementById('stat-info').textContent  = t.INFO  ?? '-';
+        document.getElementById('stat-debug').textContent = t.DEBUG ?? '-';
+
+        const tbody = document.getElementById('stats-body');
+        const pf = data.per_file || {};
+        const rows = Object.entries(pf).map(([file, counts]) =>
+            `<tr>
+                <td class="text-truncate" style="max-width:200px" title="${escapeHtml(file)}">${escapeHtml(file.split('/').pop())}</td>
+                <td class="text-danger">${counts.ERROR ?? 0}</td>
+                <td class="text-warning">${counts.WARN  ?? 0}</td>
+                <td class="text-info">${counts.INFO   ?? 0}</td>
+                <td class="text-success">${counts.DEBUG  ?? 0}</td>
+            </tr>`
+        );
+        tbody.innerHTML = rows.length
+            ? rows.join('')
+            : '<tr><td colspan="5" class="text-center text-muted">データなし（ログファイルが読み取れない場合があります）</td></tr>';
+    } catch (e) {
+        showAlert('統計取得エラー: ' + e.message, 'danger');
     }
+}
+
+// ════════════════════════════════════════════════════════════════
+// タイムライン（Chart.js）
+// ════════════════════════════════════════════════════════════════
+async function loadTimeline() {
+    try {
+        const r = await fetch('/api/logs/timeline', { headers: apiHeaders() });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        renderTimelineChart(data.labels, data.datasets[0]?.data || []);
+    } catch (e) {
+        showAlert('タイムライン取得エラー: ' + e.message, 'danger');
+    }
+}
+
+function renderTimelineChart(labels, values) {
+    const ctx = document.getElementById('timeline-chart').getContext('2d');
+    if (timelineChart) timelineChart.destroy();
+    timelineChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'エラー/警告数',
+                data: values,
+                backgroundColor: values.map(v => v > 10 ? 'rgba(239,68,68,0.7)' : v > 3 ? 'rgba(245,158,11,0.7)' : 'rgba(99,102,241,0.5)'),
+                borderColor:     values.map(v => v > 10 ? '#ef4444' : v > 3 ? '#f59e0b' : '#6366f1'),
+                borderWidth: 1,
+            }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: true }, tooltip: { mode: 'index' } },
+            scales: {
+                x: { title: { display: true, text: '時刻（過去24時間）' } },
+                y: { beginAtZero: true, title: { display: true, text: '件数' }, ticks: { stepSize: 1 } },
+            },
+        },
+    });
+}
+
+// ════════════════════════════════════════════════════════════════
+// 保存フィルター（サーバー側永続化）
+// ════════════════════════════════════════════════════════════════
+async function loadSavedFilters() {
+    try {
+        const r = await fetch('/api/logs/saved-filters', { headers: apiHeaders() });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        renderSavedFiltersList(data.filters || []);
+        document.getElementById('filter-count').textContent = data.count || 0;
+    } catch (e) {
+        document.getElementById('filters-list').innerHTML =
+            `<div class="alert alert-warning">フィルター読み込みエラー: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function renderSavedFiltersList(filters) {
+    const div = document.getElementById('filters-list');
+    if (!filters.length) {
+        div.innerHTML = '<p class="text-muted">保存済みフィルターはありません</p>';
+        return;
+    }
+    div.innerHTML = filters.map(f => `
+        <div class="filter-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>${escapeHtml(f.name)}</strong>
+                    <span class="badge ${f.regex ? 'bg-warning text-dark' : 'bg-secondary'} ms-2" style="font-size:10px">
+                        ${f.regex ? '正規表現' : 'テキスト'}
+                    </span>
+                </div>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-primary"
+                        onclick='applyFilter(${JSON.stringify(f)})'>▶ 適用</button>
+                    <button class="btn btn-sm btn-outline-danger"
+                        onclick="deleteFilter('${escapeHtml(f.id)}', '${escapeHtml(f.name)}')">🗑</button>
+                </div>
+            </div>
+            <div class="mt-1" style="font-size:12px">
+                <code>${escapeHtml(f.query)}</code>
+                <span class="text-muted ms-2">${(f.files||[]).map(p=>p.split('/').pop()).join(', ')}</span>
+            </div>
+            <div style="font-size:11px;color:#9ca3af">作成: ${escapeHtml(f.created_at||'')} by ${escapeHtml(f.created_by||'')}</div>
+        </div>
+    `).join('');
+}
+
+async function deleteFilter(id, name) {
+    if (!confirm(`「${name}」を削除しますか?`)) return;
+    try {
+        const r = await fetch(`/api/logs/saved-filters/${encodeURIComponent(id)}`, {
+            method: 'DELETE', headers: apiHeaders(),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        showAlert(`「${name}」を削除しました`, 'success');
+        await loadSavedFilters();
+    } catch (e) {
+        showAlert('削除エラー: ' + e.message, 'danger');
+    }
+}
+
+function applyFilter(f) {
+    // 高度検索タブへ値をセット
+    showTab('adv');
+    document.getElementById('adv-query').value = f.query;
+    document.getElementById('adv-regex').checked = !!f.regex;
+    // ファイルチェックボックスを対象ファイルに合わせる
+    const cbs = document.querySelectorAll('#adv-file-list input[type=checkbox]');
+    cbs.forEach(cb => cb.checked = (f.files||[]).includes(cb.value));
+    showAlert(`フィルター「${f.name}」を適用しました。検索を実行してください。`, 'info');
+}
+
+// フィルター保存モーダルを開く
+function openSaveFilterModal() {
+    const query = document.getElementById('adv-query').value.trim();
+    if (!query) { showAlert('先に検索キーワードを入力してください', 'warning'); return; }
+    document.getElementById('modal-filter-name').value  = '';
+    document.getElementById('modal-filter-query').value = query;
+    document.getElementById('modal-filter-regex').checked = document.getElementById('adv-regex').checked;
+    const files = getCheckedFiles();
+    document.getElementById('modal-filter-files').textContent = files.join(', ') || '(なし)';
+    new bootstrap.Modal(document.getElementById('saveFilterModal')).show();
+}
+
+async function saveFilterToServer() {
+    const name  = document.getElementById('modal-filter-name').value.trim();
+    const query = document.getElementById('modal-filter-query').value;
+    const regex = document.getElementById('adv-regex').checked;
+    const files = getCheckedFiles();
+    if (!name)  { alert('フィルター名を入力してください'); return; }
+    if (!files.length) { alert('対象ファイルを選択してください'); return; }
+    try {
+        const r = await fetch('/api/logs/saved-filters', {
+            method: 'POST',
+            headers: apiHeaders(),
+            body: JSON.stringify({ name, query, files, regex }),
+        });
+        if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+        bootstrap.Modal.getInstance(document.getElementById('saveFilterModal'))?.hide();
+        showAlert(`「${name}」を保存しました`, 'success');
+        if (document.getElementById('pane-filters').style.display !== 'none') loadSavedFilters();
+    } catch (e) {
+        showAlert('保存エラー: ' + e.message, 'danger');
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 通常検索（既存機能）
+// ════════════════════════════════════════════════════════════════
+async function searchLogs() {
+    const q = document.getElementById('keyword-input').value.trim();
+    if (!q) { showAlert('検索キーワードを入力してください', 'warning'); return; }
+    const file  = document.getElementById('logfile-select').value || 'syslog';
+    const lines = parseInt(document.getElementById('lines-select').value) || 50;
+    const area  = document.getElementById('search-results');
+    area.innerHTML = '<span class="text-muted">検索中...</span>';
+    try {
+        const r = await fetch(`/api/logsearch/search?pattern=${encodeURIComponent(q)}&logfile=${encodeURIComponent(file)}&lines=${lines}`, { headers: apiHeaders() });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        const results = data.results || [];
+        document.getElementById('search-result-header').textContent = `検索結果: ${results.length} 件 (${file})`;
+        area.innerHTML = results.length
+            ? results.map(line => {
+                const lvl = /error|critical|fatal/i.test(line) ? ' error' : '';
+                const highlighted = escapeHtml(line).replace(new RegExp(escapeHtml(q),'gi'), m=>`<mark>${m}</mark>`);
+                return `<span class="log-line${lvl}">${highlighted}</span>`;
+            }).join('\n')
+            : '<span class="text-muted">マッチなし</span>';
+    } catch (e) {
+        area.innerHTML = `<span class="text-danger">エラー: ${escapeHtml(e.message)}</span>`;
+    }
+}
+
+function clearSearch() {
+    document.getElementById('keyword-input').value = '';
+    document.getElementById('search-results').innerHTML = '<span class="text-muted">検索を実行してください</span>';
+    document.getElementById('search-result-header').textContent = '検索結果';
+}
+
+// ════════════════════════════════════════════════════════════════
+// 直近エラー
+// ════════════════════════════════════════════════════════════════
+async function loadRecentErrors() {
+    const area = document.getElementById('recent-errors-area');
+    area.innerHTML = '読み込み中...';
+    try {
+        const r = await fetch('/api/logsearch/recent-errors', { headers: apiHeaders() });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        const errors = data.errors || [];
+        document.getElementById('error-count').textContent = errors.length;
+        area.innerHTML = errors.map(l => `<span class="log-line error">${escapeHtml(l)}</span>`).join('\n') || '直近エラーなし';
+    } catch (e) {
+        area.innerHTML = `<span style="color:#f38ba8">エラー: ${escapeHtml(e.message)}</span>`;
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// レガシーセレクト同期（通常検索タブ）
+// ════════════════════════════════════════════════════════════════
+function populateLegacySelects(fileNames) {
+    ['file-select','logfile-select'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = fileNames.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+        if (fileNames.includes(cur)) sel.value = cur;
+    });
+}
+
+// ════════════════════════════════════════════════════════════════
+// リアルタイムストリーム（SSE）
+// ════════════════════════════════════════════════════════════════
+function startStream() {
+    if (streamSource) streamSource.close();
+    const logfile = document.getElementById('stream-file').value;
+    const token   = localStorage.getItem('access_token') || '';
+    const url     = `/api/logsearch/stream?logfile=${encodeURIComponent(logfile)}&token=${encodeURIComponent(token)}`;
+    streamSource  = new EventSource(url);
+    document.getElementById('stream-status').className   = 'badge bg-success';
+    document.getElementById('stream-status').textContent = '接続中';
+    document.getElementById('btn-stream-start').disabled = true;
+    document.getElementById('btn-stream-stop').disabled  = false;
+
+    streamSource.onmessage = (e) => {
+        try {
+            const payload = JSON.parse(e.data);
+            if (payload.type === 'log')   appendStreamLine(payload.line);
+        } catch {}
+    };
+    streamSource.onerror = () => {
+        document.getElementById('stream-status').className   = 'badge bg-danger';
+        document.getElementById('stream-status').textContent = 'エラー';
+    };
+}
+
+function stopStream() {
+    if (streamSource) { streamSource.close(); streamSource = null; }
+    document.getElementById('stream-status').className   = 'badge bg-secondary';
+    document.getElementById('stream-status').textContent = '停止中';
+    document.getElementById('btn-stream-start').disabled = false;
+    document.getElementById('btn-stream-stop').disabled  = true;
+}
+
+function clearStream() {
+    document.getElementById('stream-log').innerHTML = '';
+    streamLines = [];
+}
+
+function appendStreamLine(line) {
+    streamLines.push(line);
+    if (streamLines.length > MAX_STREAM_LINES) streamLines.shift();
+    const container = document.getElementById('stream-log');
+    const span = document.createElement('span');
+    span.className = 'log-line' + (/error|critical|fatal/i.test(line) ? ' error' : '');
+    span.textContent = line;
+    container.appendChild(span);
+    container.appendChild(document.createTextNode('\n'));
+    while (container.childNodes.length > MAX_STREAM_LINES * 2) {
+        container.removeChild(container.firstChild);
+    }
+    container.scrollTop = container.scrollHeight;
+}
+
+// ════════════════════════════════════════════════════════════════
+// 保存クエリ（localStorage — 通常検索タブ）
+// ════════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'lms_saved_queries';
+const DEFAULT_QUERIES = [
+    { pattern: 'error',           logfile: 'syslog'   },
+    { pattern: 'Failed password', logfile: 'auth.log' },
+    { pattern: 'Out of memory',   logfile: 'syslog'   },
+    { pattern: 'critical',        logfile: 'syslog'   },
+];
+function getSavedQueries() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+}
+function renderSavedQueries() {
+    const queries   = getSavedQueries();
+    const container = document.getElementById('saved-queries-list');
+    if (!container) return;
+    document.getElementById('saved-count').textContent = queries.length;
+    if (!queries.length) { container.innerHTML = '<p class="text-muted small mb-0">保存済みクエリはありません</p>'; return; }
+    container.innerHTML = queries.map(q => `
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <button class="btn btn-sm btn-outline-primary flex-grow-1 text-start"
+                    onclick="applyLocalQuery(${JSON.stringify(q.pattern)}, ${JSON.stringify(q.logfile)})">
+                <span class="fw-semibold">${escapeHtml(q.pattern)}</span>
+                <small class="text-muted ms-2">${escapeHtml(q.logfile)}</small>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteSavedQuery(${q.id})" title="削除">🗑</button>
+        </div>
+    `).join('');
+}
+function deleteSavedQuery(id) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(getSavedQueries().filter(q=>q.id!==id)));
+    renderSavedQueries();
+}
+function applyLocalQuery(pattern, logfile) {
+    document.getElementById('keyword-input').value = pattern;
+    const sel = document.getElementById('logfile-select');
+    if (sel) { const opt = [...sel.options].find(o=>o.value===logfile); if(opt) sel.value=logfile; }
+    searchLogs();
+}
+
+// ════════════════════════════════════════════════════════════════
+// 初期化
+// ════════════════════════════════════════════════════════════════
+(async () => {
+    // localStorage 初期クエリ
+    if (!getSavedQueries().length) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_QUERIES.map((q,i)=>({...q,id:i+1,savedAt:new Date().toISOString()}))));
+    }
+    renderSavedQueries();
+    await loadAllowedFiles();
+    showTab('adv');
+})();
 </script>
 </body>
 </html>

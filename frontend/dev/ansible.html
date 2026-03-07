@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ansible管理 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .table-compact td, .table-compact th { padding: 6px 10px; font-size: 13px; }
+
+        /* ホストカード */
+        .host-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .host-card .ping-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .ping-dot.online  { background: #22c55e; }
+        .ping-dot.offline { background: #ef4444; }
+        .ping-dot.unknown { background: #d1d5db; }
+        .host-card .host-info { flex: 1; min-width: 0; }
+        .host-card .host-name { font-weight: 600; font-size: 14px; }
+        .host-card .host-meta { font-size: 12px; color: #6b7280; margin-top: 2px; }
+        .host-card .host-badge {
+            font-size: 11px;
+            padding: 2px 7px;
+            border-radius: 4px;
+            background: #eff6ff;
+            color: #1e40af;
+            margin-left: 6px;
+        }
+
+        /* Playbookカード */
+        .playbook-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+        }
+        .playbook-card .playbook-name { font-weight: 600; font-size: 14px; font-family: monospace; }
+        .playbook-card .playbook-desc { font-size: 13px; color: #374151; margin-top: 4px; }
+        .playbook-card .playbook-meta { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .playbook-content-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 6px;
+            padding: 14px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* 履歴テーブル */
+        .history-result-success { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .history-result-error   { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .history-result-pending { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .history-result-other   { background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+
+        /* Ping中アニメーション */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner-inline {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid #d1d5db;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+
+        .approval-notice {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #1e40af;
+            margin-bottom: 16px;
+        }
+        .ansible-not-installed {
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 16px;
+            color: #92400e;
+            font-size: 14px;
+        }
+    </style>
+<script src="../js/theme.js"></script>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">Ansible Management - マルチサーバー管理</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshCurrentTab()" id="refresh-btn">
+                更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-3" id="ansible-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" onclick="showTab('hosts')" id="tab-hosts">
+                        🖥️ ホスト一覧
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('playbooks')" id="tab-playbooks">
+                        📋 Playbookライブラリ
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('history')" id="tab-history">
+                        📜 実行履歴
+                    </a>
+                </li>
+            </ul>
+
+            <!-- ===== タブ1: ホスト一覧 ===== -->
+            <div id="pane-hosts">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div id="hosts-summary" class="text-muted" style="font-size:13px;"></div>
+                    <button class="btn btn-sm btn-primary" onclick="startPing()" id="ping-btn">
+                        🔔 全ホストPing
+                    </button>
+                </div>
+                <div id="ping-status-bar" style="display:none;" class="alert alert-info py-2 mb-3" role="alert"></div>
+                <div id="hosts-loading" class="text-muted py-3">読み込み中...</div>
+                <div id="hosts-content" style="display:none;"></div>
+            </div>
+
+            <!-- ===== タブ2: Playbookライブラリ ===== -->
+            <div id="pane-playbooks" style="display:none;">
+                <div class="approval-notice">
+                    ⚠️ Playbook実行は<strong>承認フロー</strong>経由です。実行ボタンを押すと承認申請が作成されます。
+                </div>
+                <div id="playbooks-loading" class="text-muted py-3">読み込み中...</div>
+                <div id="playbooks-content" style="display:none;"></div>
+            </div>
+
+            <!-- ===== タブ3: 実行履歴 ===== -->
+            <div id="pane-history" style="display:none;">
+                <div id="history-loading" class="text-muted py-3">読み込み中...</div>
+                <div id="history-content" style="display:none;"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Playbook実行確認ダイアログ -->
+<div class="modal fade" id="run-modal" tabindex="-1" aria-labelledby="run-modal-label" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="run-modal-label">Playbook実行申請</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">対象Playbook</label>
+                    <div id="modal-playbook-name" class="text-monospace bg-light p-2 rounded" style="font-family:monospace;"></div>
+                </div>
+                <div class="alert alert-warning py-2 small">
+                    ⚠️ この操作は承認者による承認が必要です。承認後に実行されます。
+                </div>
+                <div class="mb-3">
+                    <label for="run-reason" class="form-label">実行理由 <span class="text-danger">*</span></label>
+                    <textarea id="run-reason" class="form-control" rows="3" placeholder="実行理由を入力してください..." maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-primary" onclick="submitPlaybookRun()" id="run-submit-btn">
+                    承認申請を送信
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Playbookコンテンツ表示モーダル -->
+<div class="modal fade" id="view-modal" tabindex="-1" aria-labelledby="view-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="view-modal-label">Playbookコンテンツ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="view-modal-content" class="playbook-content-block">読み込み中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('ansible')):renderSidebar('ansible');</script>
+<script>
+'use strict';
+
+// ===================================================================
+// 状態管理
+// ===================================================================
+let currentTab = 'hosts';
+let currentPlaybook = null;
+let pingPollTimer = null;
+
+// ===================================================================
+// タブ切り替え
+// ===================================================================
+function showTab(tab) {
+    currentTab = tab;
+    ['hosts', 'playbooks', 'history'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+        document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
+    });
+    if (tab === 'hosts' && document.getElementById('hosts-content').style.display === 'none') loadHosts();
+    if (tab === 'playbooks' && document.getElementById('playbooks-content').style.display === 'none') loadPlaybooks();
+    if (tab === 'history' && document.getElementById('history-content').style.display === 'none') loadHistory();
+}
+
+function refreshCurrentTab() {
+    if (currentTab === 'hosts') loadHosts();
+    else if (currentTab === 'playbooks') loadPlaybooks();
+    else if (currentTab === 'history') loadHistory();
+}
+
+// ===================================================================
+// ユーティリティ
+// ===================================================================
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function showAlert(type, message) {
+    const area = document.getElementById('alert-area');
+    area.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show py-2" role="alert">
+        ${escapeHtml(message)}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+function pingStatusClass(status) {
+    if (status === 'online')  return 'online';
+    if (status === 'offline') return 'offline';
+    return 'unknown';
+}
+
+function pingStatusIcon(status) {
+    if (status === 'online')  return '🟢';
+    if (status === 'offline') return '🔴';
+    return '⚪';
+}
+
+function resultBadge(result) {
+    const r = (result || '').toLowerCase();
+    if (r === 'success') return `<span class="history-result-success">成功</span>`;
+    if (r === 'error' || r === 'failure') return `<span class="history-result-error">エラー</span>`;
+    if (r.includes('pending') || r.includes('requested')) return `<span class="history-result-pending">承認待ち</span>`;
+    return `<span class="history-result-other">${escapeHtml(result)}</span>`;
+}
+
+// ===================================================================
+// ホスト一覧
+// ===================================================================
+async function loadHosts() {
+    document.getElementById('hosts-loading').style.display = '';
+    document.getElementById('hosts-content').style.display = 'none';
+    try {
+        const data = await api.get('/ansible/hosts');
+        renderHosts(data);
+    } catch (e) {
+        document.getElementById('hosts-content').innerHTML = `<div class="alert alert-danger">取得エラー: ${escapeHtml(String(e))}</div>`;
+        document.getElementById('hosts-content').style.display = '';
+    } finally {
+        document.getElementById('hosts-loading').style.display = 'none';
+    }
+}
+
+function renderHosts(data) {
+    const container = document.getElementById('hosts-content');
+    const summary = document.getElementById('hosts-summary');
+
+    if (data.status === 'ansible_not_installed') {
+        container.innerHTML = `<div class="ansible-not-installed">⚠️ Ansibleがインストールされていません。<br><code>sudo apt install ansible</code> でインストールできます。</div>`;
+        container.style.display = '';
+        return;
+    }
+
+    summary.textContent = `合計: ${data.total} ホスト　🟢 オンライン: ${data.online}　🔴 オフライン: ${data.offline}　⚪ 不明: ${data.unknown}`;
+
+    if (!data.hosts || data.hosts.length === 0) {
+        container.innerHTML = '<div class="text-muted py-3">ホストが見つかりません。/etc/ansible/hosts を確認してください。</div>';
+        container.style.display = '';
+        return;
+    }
+
+    let html = '';
+    for (const host of data.hosts) {
+        const dot = pingStatusClass(host.ping_status);
+        const icon = pingStatusIcon(host.ping_status);
+        const lastSeen = host.last_seen ? new Date(host.last_seen).toLocaleString('ja-JP') : '-';
+        html += `
+        <div class="host-card">
+            <span class="ping-dot ${dot}" title="${escapeHtml(host.ping_status)}"></span>
+            <div class="host-info">
+                <div class="host-name">
+                    ${icon} ${escapeHtml(host.hostname)}
+                    ${host.group ? `<span class="host-badge">${escapeHtml(host.group)}</span>` : ''}
+                </div>
+                <div class="host-meta">
+                    IP: ${escapeHtml(host.ip || '-')} &nbsp;|&nbsp;
+                    OS: ${escapeHtml(host.os || '-')} &nbsp;|&nbsp;
+                    最終確認: ${lastSeen}
+                </div>
+            </div>
+            <span class="badge ${dot === 'online' ? 'bg-success' : dot === 'offline' ? 'bg-danger' : 'bg-secondary'}">
+                ${escapeHtml(host.ping_status)}
+            </span>
+        </div>`;
+    }
+    container.innerHTML = html;
+    container.style.display = '';
+}
+
+// ===================================================================
+// Ping実行
+// ===================================================================
+async function startPing() {
+    const btn = document.getElementById('ping-btn');
+    const bar = document.getElementById('ping-status-bar');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-inline"></span>Ping実行中...';
+    bar.innerHTML = '<span class="spinner-inline"></span>全ホストにPingを送信しています...';
+    bar.style.display = '';
+
+    try {
+        const data = await api.post('/ansible/ping', {});
+        if (data.status === 'already_running') {
+            bar.innerHTML = '⏳ Pingはすでに実行中です。しばらくお待ちください。';
+        } else {
+            bar.innerHTML = '✅ Pingを開始しました。結果は数秒後に更新されます。';
+            // 5秒後にホスト一覧を更新
+            setTimeout(() => loadHosts(), 5000);
+        }
+    } catch (e) {
+        bar.innerHTML = `❌ Ping開始エラー: ${escapeHtml(String(e))}`;
+        bar.className = 'alert alert-danger py-2 mb-3';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '🔔 全ホストPing';
+        setTimeout(() => { bar.style.display = 'none'; bar.className = 'alert alert-info py-2 mb-3'; }, 8000);
+    }
+}
+
+// ===================================================================
+// Playbookライブラリ
+// ===================================================================
+async function loadPlaybooks() {
+    document.getElementById('playbooks-loading').style.display = '';
+    document.getElementById('playbooks-content').style.display = 'none';
+    try {
+        const data = await api.get('/ansible/playbooks');
+        renderPlaybooks(data);
+    } catch (e) {
+        document.getElementById('playbooks-content').innerHTML = `<div class="alert alert-danger">取得エラー: ${escapeHtml(String(e))}</div>`;
+        document.getElementById('playbooks-content').style.display = '';
+    } finally {
+        document.getElementById('playbooks-loading').style.display = 'none';
+    }
+}
+
+function renderPlaybooks(data) {
+    const container = document.getElementById('playbooks-content');
+
+    if (!data.playbooks || data.playbooks.length === 0) {
+        container.innerHTML = '<div class="text-muted py-3">Playbookが見つかりません。/etc/ansible/playbooks/ に .yml ファイルを配置してください。</div>';
+        container.style.display = '';
+        return;
+    }
+
+    let html = `<div class="mb-2 text-muted" style="font-size:13px;">${data.count} 件のPlaybookが利用可能</div>`;
+    for (const pb of data.playbooks) {
+        const modified = pb.modified_at ? new Date(pb.modified_at).toLocaleString('ja-JP') : '-';
+        const sizeKb = pb.size_bytes > 0 ? (pb.size_bytes / 1024).toFixed(1) + ' KB' : '-';
+        html += `
+        <div class="playbook-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <span class="playbook-name">📄 ${escapeHtml(pb.name)}</span>
+                    ${pb.description ? `<div class="playbook-desc">${escapeHtml(pb.description)}</div>` : ''}
+                    <div class="playbook-meta">
+                        タスク数: ${pb.task_count} &nbsp;|&nbsp; サイズ: ${sizeKb} &nbsp;|&nbsp; 更新: ${modified}
+                    </div>
+                </div>
+                <div class="d-flex gap-2 ms-3 flex-shrink-0">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="viewPlaybook('${escapeHtml(pb.name)}')">
+                        👁️ 表示
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="openRunDialog('${escapeHtml(pb.name)}')">
+                        ▶ 実行申請
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+    container.style.display = '';
+}
+
+// ===================================================================
+// Playbookコンテンツ表示
+// ===================================================================
+async function viewPlaybook(name) {
+    const modal = new bootstrap.Modal(document.getElementById('view-modal'));
+    document.getElementById('view-modal-label').textContent = `Playbook: ${name}`;
+    document.getElementById('view-modal-content').textContent = '読み込み中...';
+    modal.show();
+    try {
+        const data = await api.get(`/ansible/playbooks/${encodeURIComponent(name)}`);
+        document.getElementById('view-modal-content').textContent = data.content || '(空)';
+    } catch (e) {
+        document.getElementById('view-modal-content').textContent = `エラー: ${String(e)}`;
+    }
+}
+
+// ===================================================================
+// Playbook実行申請ダイアログ
+// ===================================================================
+function openRunDialog(name) {
+    currentPlaybook = name;
+    document.getElementById('modal-playbook-name').textContent = name;
+    document.getElementById('run-reason').value = '';
+    const modal = new bootstrap.Modal(document.getElementById('run-modal'));
+    modal.show();
+}
+
+async function submitPlaybookRun() {
+    if (!currentPlaybook) return;
+    const reason = document.getElementById('run-reason').value.trim();
+    if (!reason) {
+        alert('実行理由を入力してください。');
+        return;
+    }
+
+    const btn = document.getElementById('run-submit-btn');
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+
+    try {
+        const data = await api.post(`/ansible/playbooks/${encodeURIComponent(currentPlaybook)}/run`, {
+            reason: reason
+        });
+        bootstrap.Modal.getInstance(document.getElementById('run-modal')).hide();
+        showAlert('success', `✅ 承認申請を送信しました。リクエストID: ${data.request_id}`);
+        // 履歴を更新
+        if (currentTab === 'history') loadHistory();
+    } catch (e) {
+        showAlert('danger', `❌ 申請エラー: ${String(e)}`);
+        bootstrap.Modal.getInstance(document.getElementById('run-modal')).hide();
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '承認申請を送信';
+    }
+}
+
+// ===================================================================
+// 実行履歴
+// ===================================================================
+async function loadHistory() {
+    document.getElementById('history-loading').style.display = '';
+    document.getElementById('history-content').style.display = 'none';
+    try {
+        const data = await api.get('/ansible/history?limit=50');
+        renderHistory(data);
+    } catch (e) {
+        document.getElementById('history-content').innerHTML = `<div class="alert alert-danger">取得エラー: ${escapeHtml(String(e))}</div>`;
+        document.getElementById('history-content').style.display = '';
+    } finally {
+        document.getElementById('history-loading').style.display = 'none';
+    }
+}
+
+function renderHistory(data) {
+    const container = document.getElementById('history-content');
+    if (!data.history || data.history.length === 0) {
+        container.innerHTML = '<div class="text-muted py-3">実行履歴がありません。</div>';
+        container.style.display = '';
+        return;
+    }
+
+    let html = `<div class="mb-2 text-muted" style="font-size:13px;">${data.count} 件の履歴</div>
+    <table class="table table-compact table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>タイムスタンプ</th>
+                <th>操作</th>
+                <th>対象</th>
+                <th>実行者</th>
+                <th>結果</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    for (const entry of data.history) {
+        const ts = entry.timestamp ? new Date(entry.timestamp).toLocaleString('ja-JP') : '-';
+        html += `<tr>
+            <td style="white-space:nowrap;">${ts}</td>
+            <td><code style="font-size:11px;">${escapeHtml(entry.operation)}</code></td>
+            <td>${escapeHtml(entry.target)}</td>
+            <td>${escapeHtml(entry.user_id)}</td>
+            <td>${resultBadge(entry.result)}</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+    container.style.display = '';
+}
+
+// ===================================================================
+// 初期化
+// ===================================================================
+document.addEventListener('DOMContentLoaded', async function() {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+    api.setToken(token);
+    loadHosts();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>

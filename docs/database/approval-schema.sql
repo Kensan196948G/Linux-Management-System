@@ -288,6 +288,15 @@ VALUES
      1,
      24,
      0,
+     'HIGH'),
+
+    ('backup_restore',
+     'バックアップリストア',
+     1,
+     '["Admin", "Approver"]',
+     1,
+     24,
+     0,
      'HIGH');
 
 

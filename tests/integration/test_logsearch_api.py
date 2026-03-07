@@ -535,3 +535,456 @@ class TestLogsearchStreamEndpoint:
                 for _ in resp.iter_bytes():
                     pass
         mock_proc.terminate.assert_called_once()
+
+
+# ==============================================================================
+# 高度検索エンドポイント - POST /api/logs/search
+# GET /api/logs/allowed-files, /stats, /timeline
+# CRUD /api/logs/saved-filters
+# ==============================================================================
+
+import io
+import json
+import os
+import tempfile
+from unittest.mock import MagicMock, mock_open, patch
+
+
+# ------------------------------------------------------------------------------
+# ヘルパー: ファイル読み込みモック
+# ------------------------------------------------------------------------------
+
+SAMPLE_SYSLOG_CONTENT = (
+    "Jan  1 00:00:01 host kernel: error detected\n"
+    "Jan  1 01:00:00 host sshd[123]: info: connection ok\n"
+    "Jan  1 02:00:00 host kernel: warning: low memory\n"
+    "Jan  1 03:00:00 host kernel: critical: disk failure\n"
+    "Jan  1 04:00:00 host sshd[456]: debug: test\n"
+    "Jan  1 05:00:00 host postfix: info: message sent\n"
+)
+
+SAMPLE_AUTH_CONTENT = (
+    "Jan  1 00:10:00 host sshd[789]: Failed password for admin from 10.0.0.1\n"
+    "Jan  1 00:20:00 host sshd[790]: Failed password for root from 10.0.0.2\n"
+    "Jan  1 01:00:00 host sudo: operator: command ok\n"
+)
+
+
+# ==============================================================================
+# POST /api/logs/search — 高度検索
+# ==============================================================================
+
+
+class TestAdvancedSearch:
+    """POST /api/logs/search 高度フルテキスト検索テスト"""
+
+    def test_advanced_search_basic(self, test_client, admin_headers):
+        """allowlist ファイルへの通常検索が正常動作すること"""
+        with patch("builtins.open", mock_open(read_data=SAMPLE_SYSLOG_CONTENT)):
+            resp = test_client.post(
+                "/api/logs/search",
+                json={"query": "error", "files": ["/var/log/syslog"], "regex": False, "limit": 50},
+                headers=admin_headers,
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "results" in data
+        assert data["query"] == "error"
+        assert data["matches"] >= 0
+
+    def test_advanced_search_regex(self, test_client, admin_headers):
+        """正規表現モードでマッチすること"""
+        with patch("builtins.open", mock_open(read_data=SAMPLE_SYSLOG_CONTENT)):
+            resp = test_client.post(
+                "/api/logs/search",
+                json={"query": "err.*detected", "files": ["/var/log/syslog"], "regex": True},
+                headers=admin_headers,
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["regex"] is True
+
+    def test_advanced_search_invalid_regex(self, test_client, admin_headers):
+        """不正な正規表現は 400 を返すこと"""
+        with patch("builtins.open", mock_open(read_data=SAMPLE_SYSLOG_CONTENT)):
+            resp = test_client.post(
+                "/api/logs/search",
+                json={"query": "[invalid(regex", "files": ["/var/log/syslog"], "regex": True},
+                headers=admin_headers,
+            )
+        assert resp.status_code == 400
+
+    def test_advanced_search_forbidden_file(self, test_client, admin_headers):
+        """allowlist 外ファイルは 400 を返すこと"""
+        resp = test_client.post(
+            "/api/logs/search",
+            json={"query": "test", "files": ["/etc/passwd"], "regex": False},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 400
+        body = resp.json()
+        msg = body.get("message") or body.get("detail") or ""
+        assert "allowlist" in str(msg).lower()
+
+    def test_advanced_search_multiple_files(self, test_client, admin_headers):
+        """複数ファイル横断検索が動作すること"""
+        with patch("builtins.open", mock_open(read_data=SAMPLE_SYSLOG_CONTENT)):
+            resp = test_client.post(
+                "/api/logs/search",
+                json={
+                    "query": "error",
+                    "files": ["/var/log/syslog", "/var/log/auth.log"],
+                    "regex": False,
+                    "limit": 100,
+                },
+                headers=admin_headers,
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "files_searched" in data
+        assert len(data["files_searched"]) == 2
+
+    def test_advanced_search_limit_enforced(self, test_client, admin_headers):
+        """limit パラメータが結果件数を制限すること"""
+        many_lines = "Jan  1 00:00:00 host sshd: error line\n" * 200
+        with patch("builtins.open", mock_open(read_data=many_lines)):
+            resp = test_client.post(
+                "/api/logs/search",
+                json={"query": "error", "files": ["/var/log/syslog"], "regex": False, "limit": 10},
+                headers=admin_headers,
+            )
+        assert resp.status_code == 200
+        assert resp.json()["matches"] <= 10
+
+    def test_advanced_search_no_match(self, test_client, admin_headers):
+        """一致なしで空結果が返ること"""
+        with patch("builtins.open", mock_open(read_data=SAMPLE_SYSLOG_CONTENT)):
+            resp = test_client.post(
+                "/api/logs/search",
+                json={"query": "xyznonexistent123", "files": ["/var/log/syslog"], "regex": False},
+                headers=admin_headers,
+            )
+        assert resp.status_code == 200
+        assert resp.json()["matches"] == 0
+
+    def test_advanced_search_forbidden_chars_blocked(self, test_client, admin_headers):
+        """非 regex モードで禁止文字を含むクエリは 400 を返すこと"""
+        resp = test_client.post(
+            "/api/logs/search",
+            json={"query": "error; rm -rf /", "files": ["/var/log/syslog"], "regex": False},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 400
+
+    def test_advanced_search_permission_denied_file(self, test_client, admin_headers):
+        """読み取り権限なしファイルはエラーメッセージを含む結果を返すこと"""
+        # audit_log のファイル書き込みは通過させ、対象ログファイルのみ PermissionError にする
+        original_open = open
+
+        def selective_open(file, *args, **kwargs):
+            if str(file) in ("/var/log/syslog", "/var/log/auth.log", "/var/log/kern.log"):
+                raise PermissionError("Permission denied")
+            return original_open(file, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=selective_open):
+            resp = test_client.post(
+                "/api/logs/search",
+                json={"query": "error", "files": ["/var/log/syslog"], "regex": False},
+                headers=admin_headers,
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert any("Permission denied" in r["message"] for r in data["results"])
+
+    def test_advanced_search_no_auth(self, test_client):
+        """未認証で 401/403 を返すこと"""
+        resp = test_client.post(
+            "/api/logs/search",
+            json={"query": "error", "files": ["/var/log/syslog"]},
+        )
+        assert resp.status_code in (401, 403)
+
+    def test_advanced_search_sql_injection_safe(self, test_client, admin_headers):
+        """SQLインジェクション風文字列も安全に処理されること（非regexエスケープ）"""
+        with patch("builtins.open", mock_open(read_data=SAMPLE_SYSLOG_CONTENT)):
+            resp = test_client.post(
+                "/api/logs/search",
+                json={"query": "' OR '1'='1", "files": ["/var/log/syslog"], "regex": False},
+                headers=admin_headers,
+            )
+        # 禁止文字なし → 200 で空結果
+        assert resp.status_code == 200
+
+    def test_advanced_search_result_has_level_field(self, test_client, admin_headers):
+        """結果にログレベルフィールドが含まれること"""
+        with patch("builtins.open", mock_open(read_data=SAMPLE_SYSLOG_CONTENT)):
+            resp = test_client.post(
+                "/api/logs/search",
+                json={"query": "error", "files": ["/var/log/syslog"], "regex": False},
+                headers=admin_headers,
+            )
+        assert resp.status_code == 200
+        for item in resp.json()["results"]:
+            assert "level" in item
+            assert "file" in item
+            assert "lineno" in item
+            assert "message" in item
+
+
+# ==============================================================================
+# GET /api/logs/allowed-files
+# ==============================================================================
+
+
+class TestAllowedFiles:
+    """GET /api/logs/allowed-files テスト"""
+
+    def test_allowed_files_returns_list(self, test_client, admin_headers):
+        """ファイル一覧が返ること"""
+        resp = test_client.get("/api/logs/allowed-files", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "files" in data
+        assert "file_count" in data
+        assert data["file_count"] > 0
+
+    def test_allowed_files_contains_syslog(self, test_client, admin_headers):
+        """syslog が allowlist に含まれること"""
+        resp = test_client.get("/api/logs/allowed-files", headers=admin_headers)
+        assert resp.status_code == 200
+        paths = [f["path"] for f in resp.json()["files"]]
+        assert "/var/log/syslog" in paths
+
+    def test_allowed_files_no_auth(self, test_client):
+        """未認証で 401/403 を返すこと"""
+        resp = test_client.get("/api/logs/allowed-files")
+        assert resp.status_code in (401, 403)
+
+
+# ==============================================================================
+# GET /api/logs/stats
+# ==============================================================================
+
+
+class TestLogStats:
+    """GET /api/logs/stats テスト"""
+
+    def test_stats_returns_totals(self, test_client, admin_headers):
+        """stats が totals を含むこと"""
+        with patch("builtins.open", mock_open(read_data=SAMPLE_SYSLOG_CONTENT)):
+            with patch("pathlib.Path.exists", return_value=True):
+                resp = test_client.get("/api/logs/stats", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "totals" in data
+        assert "ERROR" in data["totals"]
+        assert "WARN" in data["totals"]
+        assert "INFO" in data["totals"]
+        assert "DEBUG" in data["totals"]
+
+    def test_stats_totals_are_integers(self, test_client, admin_headers):
+        """totals の値が整数であること"""
+        with patch("builtins.open", mock_open(read_data=SAMPLE_SYSLOG_CONTENT)):
+            with patch("pathlib.Path.exists", return_value=True):
+                resp = test_client.get("/api/logs/stats", headers=admin_headers)
+        assert resp.status_code == 200
+        totals = resp.json()["totals"]
+        for key in ("ERROR", "WARN", "INFO", "DEBUG"):
+            assert isinstance(totals[key], int)
+
+    def test_stats_no_auth(self, test_client):
+        """未認証で 401/403 を返すこと"""
+        resp = test_client.get("/api/logs/stats")
+        assert resp.status_code in (401, 403)
+
+    def test_stats_has_timestamp(self, test_client, admin_headers):
+        """レスポンスに timestamp が含まれること"""
+        with patch("pathlib.Path.exists", return_value=False):
+            resp = test_client.get("/api/logs/stats", headers=admin_headers)
+        assert resp.status_code == 200
+        assert "timestamp" in resp.json()
+
+
+# ==============================================================================
+# GET /api/logs/timeline
+# ==============================================================================
+
+
+class TestLogTimeline:
+    """GET /api/logs/timeline テスト"""
+
+    def test_timeline_returns_labels_and_datasets(self, test_client, admin_headers):
+        """timeline が labels と datasets を含むこと"""
+        with patch("pathlib.Path.exists", return_value=False):
+            resp = test_client.get("/api/logs/timeline", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "labels" in data
+        assert "datasets" in data
+
+    def test_timeline_labels_count_24(self, test_client, admin_headers):
+        """labels が 24 個であること（24 時間分）"""
+        with patch("pathlib.Path.exists", return_value=False):
+            resp = test_client.get("/api/logs/timeline", headers=admin_headers)
+        assert resp.status_code == 200
+        assert len(resp.json()["labels"]) == 24
+
+    def test_timeline_data_count_24(self, test_client, admin_headers):
+        """datasets[0].data が 24 要素であること"""
+        with patch("pathlib.Path.exists", return_value=False):
+            resp = test_client.get("/api/logs/timeline", headers=admin_headers)
+        assert resp.status_code == 200
+        assert len(resp.json()["datasets"][0]["data"]) == 24
+
+    def test_timeline_no_auth(self, test_client):
+        """未認証で 401/403 を返すこと"""
+        resp = test_client.get("/api/logs/timeline")
+        assert resp.status_code in (401, 403)
+
+    def test_timeline_data_are_integers(self, test_client, admin_headers):
+        """timeline データ値が整数であること"""
+        with patch("pathlib.Path.exists", return_value=False):
+            resp = test_client.get("/api/logs/timeline", headers=admin_headers)
+        assert resp.status_code == 200
+        for v in resp.json()["datasets"][0]["data"]:
+            assert isinstance(v, int)
+
+
+# ==============================================================================
+# CRUD /api/logs/saved-filters
+# ==============================================================================
+
+
+class TestSavedFilters:
+    """POST/GET/DELETE /api/logs/saved-filters テスト"""
+
+    def _make_tmp_filter_file(self, tmp_path: "Path") -> "Path":  # noqa: F821
+        """テスト用一時フィルターファイルを作成する"""
+        p = tmp_path / "saved_log_filters.json"
+        p.write_text(json.dumps({"filters": []}), encoding="utf-8")
+        return p
+
+    def test_create_filter_success(self, test_client, admin_headers, tmp_path):
+        """フィルター作成が 201 を返すこと"""
+        tmp_filter = self._make_tmp_filter_file(tmp_path)
+        with patch("backend.api.routes.logs.SAVED_FILTERS_PATH", tmp_filter):
+            resp = test_client.post(
+                "/api/logs/saved-filters",
+                json={
+                    "name": "SSHエラー監視",
+                    "query": "Failed password",
+                    "files": ["/var/log/auth.log"],
+                    "regex": False,
+                },
+                headers=admin_headers,
+            )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["name"] == "SSHエラー監視"
+        assert "id" in data
+        assert "created_at" in data
+
+    def test_create_filter_invalid_file(self, test_client, admin_headers, tmp_path):
+        """allowlist 外ファイルでフィルター作成は 400 を返すこと"""
+        tmp_filter = self._make_tmp_filter_file(tmp_path)
+        with patch("backend.api.routes.logs.SAVED_FILTERS_PATH", tmp_filter):
+            resp = test_client.post(
+                "/api/logs/saved-filters",
+                json={
+                    "name": "悪意フィルター",
+                    "query": "test",
+                    "files": ["/etc/shadow"],
+                },
+                headers=admin_headers,
+            )
+        assert resp.status_code == 400
+
+    def test_list_filters_returns_list(self, test_client, admin_headers, tmp_path):
+        """フィルター一覧が返ること"""
+        initial = {
+            "filters": [
+                {
+                    "id": "aaa",
+                    "name": "テスト",
+                    "query": "error",
+                    "files": ["/var/log/syslog"],
+                    "regex": False,
+                    "created_by": "admin",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                }
+            ]
+        }
+        tmp_filter = tmp_path / "saved_log_filters.json"
+        tmp_filter.write_text(json.dumps(initial), encoding="utf-8")
+        with patch("backend.api.routes.logs.SAVED_FILTERS_PATH", tmp_filter):
+            resp = test_client.get("/api/logs/saved-filters", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "filters" in data
+        assert "count" in data
+        assert data["count"] == 1
+
+    def test_delete_filter_success(self, test_client, admin_headers, tmp_path):
+        """フィルター削除が成功すること"""
+        initial = {
+            "filters": [
+                {
+                    "id": "del-test-id",
+                    "name": "削除対象",
+                    "query": "error",
+                    "files": ["/var/log/syslog"],
+                    "regex": False,
+                    "created_by": "admin",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                }
+            ]
+        }
+        tmp_filter = tmp_path / "saved_log_filters.json"
+        tmp_filter.write_text(json.dumps(initial), encoding="utf-8")
+        with patch("backend.api.routes.logs.SAVED_FILTERS_PATH", tmp_filter):
+            resp = test_client.delete("/api/logs/saved-filters/del-test-id", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["deleted"] == "del-test-id"
+
+    def test_delete_filter_not_found(self, test_client, admin_headers, tmp_path):
+        """存在しないフィルター削除は 404 を返すこと"""
+        tmp_filter = self._make_tmp_filter_file(tmp_path)
+        with patch("backend.api.routes.logs.SAVED_FILTERS_PATH", tmp_filter):
+            resp = test_client.delete("/api/logs/saved-filters/nonexistent-id", headers=admin_headers)
+        assert resp.status_code == 404
+
+    def test_create_then_list_then_delete(self, test_client, admin_headers, tmp_path):
+        """作成→一覧→削除の一連フロー"""
+        tmp_filter = self._make_tmp_filter_file(tmp_path)
+        with patch("backend.api.routes.logs.SAVED_FILTERS_PATH", tmp_filter):
+            # 作成
+            create_resp = test_client.post(
+                "/api/logs/saved-filters",
+                json={"name": "フローテスト", "query": "warn", "files": ["/var/log/syslog"]},
+                headers=admin_headers,
+            )
+            assert create_resp.status_code == 201
+            filter_id = create_resp.json()["id"]
+
+            # 一覧確認
+            list_resp = test_client.get("/api/logs/saved-filters", headers=admin_headers)
+            assert list_resp.status_code == 200
+            ids = [f["id"] for f in list_resp.json()["filters"]]
+            assert filter_id in ids
+
+            # 削除
+            del_resp = test_client.delete(f"/api/logs/saved-filters/{filter_id}", headers=admin_headers)
+            assert del_resp.status_code == 200
+
+            # 削除後一覧確認
+            list_resp2 = test_client.get("/api/logs/saved-filters", headers=admin_headers)
+            ids2 = [f["id"] for f in list_resp2.json()["filters"]]
+            assert filter_id not in ids2
+
+    def test_saved_filters_no_auth(self, test_client):
+        """未認証で 401/403 を返すこと"""
+        assert test_client.get("/api/logs/saved-filters").status_code in (401, 403)
+        assert test_client.post(
+            "/api/logs/saved-filters",
+            json={"name": "x", "query": "y", "files": ["/var/log/syslog"]},
+        ).status_code in (401, 403)

@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from ..core import settings
 from .routes import (
     alerts,
+    ansible,
     apache,
     websocket as ws_router,
     approval,
@@ -65,6 +66,7 @@ from .routes import (
     system,
     system_time,
     users,
+    monitoring,
 )
 
 # ログ設定
@@ -158,9 +160,11 @@ app.include_router(backup.router, prefix="/api/backup", tags=["backup"])
 app.include_router(journal.router, prefix="/api/journal", tags=["journal"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
 app.include_router(alerts.router, prefix="/api")
+app.include_router(ansible.router, prefix="/api")
 app.include_router(logsearch.router, prefix="/api/logsearch", tags=["logsearch"])
 app.include_router(notifications.router, prefix="/api")
 app.include_router(ws_router.router, prefix="/api")
+app.include_router(monitoring.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信

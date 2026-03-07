@@ -1,0 +1,31 @@
+{
+  "filters": [
+    {
+      "id": "filter-ssh-error-default-001",
+      "name": "SSHエラー監視",
+      "query": "Failed password",
+      "files": ["/var/log/auth.log"],
+      "regex": false,
+      "created_by": "admin",
+      "created_at": "2026-01-01T00:00:00+00:00"
+    },
+    {
+      "id": "filter-oom-killer-default-002",
+      "name": "OOMキラー検知",
+      "query": "Out of memory",
+      "files": ["/var/log/syslog"],
+      "regex": false,
+      "created_by": "admin",
+      "created_at": "2026-01-01T00:00:00+00:00"
+    },
+    {
+      "id": "filter-kernel-error-default-003",
+      "name": "カーネルエラー",
+      "query": "kernel.*error",
+      "files": ["/var/log/kern.log"],
+      "regex": true,
+      "created_by": "admin",
+      "created_at": "2026-01-01T00:00:00+00:00"
+    }
+  ]
+}

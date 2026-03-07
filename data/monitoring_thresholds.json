@@ -1,0 +1,8 @@
+{
+  "cpu_warn": 75.0,
+  "cpu_critical": 90.0,
+  "mem_warn": 70.0,
+  "mem_critical": 88.0,
+  "disk_warn": 80.0,
+  "disk_critical": 92.0
+}
