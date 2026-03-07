@@ -5,7 +5,7 @@ set -euo pipefail
 
 SUBCOMMAND="${1:-}"
 
-ALLOWED_SUBCOMMANDS=("list" "stat" "read" "search")
+ALLOWED_SUBCOMMANDS=("list" "stat" "read" "search" "chmod" "upload")
 
 ALLOWED_BASE_DIRS=(
     "/var/log"
@@ -128,5 +128,37 @@ case "${SUBCOMMAND}" in
         validate_path "${SEARCH_DIR}"
         validate_pattern "${PATTERN}"
         find "${SEARCH_DIR}" -maxdepth 2 -name "${PATTERN}" -print 2>/dev/null || true
+        ;;
+
+    chmod)
+        TARGET_PATH="${2:-}"
+        MODE="${3:-}"
+        validate_path "${TARGET_PATH}"
+        # octalモード検証 (3-4桁の0-7)
+        if ! [[ "${MODE}" =~ ^[0-7]{3,4}$ ]]; then
+            echo "Error: Invalid chmod mode: ${MODE}" >&2
+            exit 1
+        fi
+        chmod "${MODE}" "${TARGET_PATH}"
+        echo "Changed permissions of ${TARGET_PATH} to ${MODE}"
+        ;;
+
+    upload)
+        TMP_SRC="${2:-}"
+        DEST_DIR="${3:-}"
+        FILENAME="${4:-}"
+        validate_path "${DEST_DIR}"
+        # ファイル名検証 (英数字・-_.のみ)
+        if ! echo "${FILENAME}" | grep -qE '^[a-zA-Z0-9._-]+$'; then
+            echo "Error: Invalid filename" >&2
+            exit 1
+        fi
+        # 一時ファイル存在確認
+        if [[ ! -f "${TMP_SRC}" ]]; then
+            echo "Error: Source file not found" >&2
+            exit 1
+        fi
+        cp "${TMP_SRC}" "${DEST_DIR}/${FILENAME}"
+        echo "Uploaded ${FILENAME} to ${DEST_DIR}"
         ;;
 esac

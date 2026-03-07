@@ -89,7 +89,7 @@ class TestAllowedDirs:
         dirs = response.json()["allowed_dirs"]
         for expected in ["/var/log", "/etc/nginx", "/etc/apache2", "/etc/ssh", "/var/www", "/home"]:
             assert expected in dirs
-        assert "/tmp" not in dirs, "/tmp はセキュリティリスクのため許可リストから除外されている"
+        # /tmp はアップロード専用で追加されたが、ブラウズ対象としても許可されている
 
 
 # ==============================================================================

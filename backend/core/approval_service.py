@@ -741,6 +741,14 @@ class ApprovalService:
                         )
                     else:
                         raise ValueError(f"Unknown firewall action: {action}")
+                elif request_type == "package_install":
+                    return sudo_wrapper.install_package(
+                        package_name=payload["package_name"],
+                    )
+                elif request_type == "package_remove":
+                    return sudo_wrapper.remove_package(
+                        package_name=payload["package_name"],
+                    )
                 else:
                     raise NotImplementedError(f"No executor defined for operation_type: '{request_type}'")
 

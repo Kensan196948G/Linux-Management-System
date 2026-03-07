@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="../css/sidebar.css">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SortableJS: ドラッグ&ドロップ -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <style>
         .db-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
         .db-header-right { display:flex; align-items:center; gap:10px; }
@@ -52,6 +54,16 @@
         .health-comp-label { font-size:11px; color:#6b7280; margin-bottom:3px; display:flex; justify-content:space-between; }
         .health-comp-bar-bg { background:#f3f4f6; border-radius:4px; height:8px; overflow:hidden; }
         .health-comp-bar { height:8px; border-radius:4px; transition:width 0.5s; }
+        /* ドラッグ&ドロップ */
+        .charts-grid { cursor: default; }
+        .chart-card[data-widget-id] .drag-handle {
+            display:inline-block; cursor:grab; color:#9ca3af; font-size:14px; margin-right:6px; user-select:none;
+        }
+        .chart-card[data-widget-id] .drag-handle:active { cursor:grabbing; }
+        .chart-card.sortable-ghost { opacity:0.4; border:2px dashed #3b82f6; }
+        .chart-card.sortable-chosen { box-shadow:0 4px 16px rgba(59,130,246,0.25); }
+        .drag-reset-btn { font-size:11px; padding:3px 10px; border-radius:12px; border:1px solid #d1d5db; background:#fff; cursor:pointer; color:#6b7280; }
+        .drag-reset-btn:hover { background:#f9fafb; }
     </style>
 <script src="../js/theme.js"></script>
 </head>
@@ -72,16 +84,17 @@
                         <span id="ws-status-text">WS切断</span>
                     </span>
                     <button id="ws-toggle-btn" class="ws-toggle-btn" onclick="toggleWebSocket()">WS接続</button>
+                    <button class="drag-reset-btn" onclick="resetWidgetLayout()" title="ウィジェット順をリセット">↺ 並び順リセット</button>
                     <span class="last-updated">最終更新: <span id="last-updated">--:--:--</span></span>
                 </div>
             </div>
         </div>
         <div class="main-body">
-            <div class="charts-grid">
+            <div class="charts-grid" id="widgets-grid">
                 <!-- System Health Score -->
-                <div class="health-score-card">
+                <div class="health-score-card" data-widget-id="health-score">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                        <h3 style="margin:0;font-size:14px;font-weight:600;color:#374151">🏥 システムヘルススコア</h3>
+                        <h3 style="margin:0;font-size:14px;font-weight:600;color:#374151"><span class="drag-handle" title="ドラッグで移動">⠿</span>🏥 システムヘルススコア</h3>
                         <div style="display:flex;align-items:center;gap:8px">
                             <span id="health-updated" style="font-size:11px;color:#9ca3af"></span>
                             <button onclick="loadHealthScore()" style="font-size:11px;padding:2px 10px;border-radius:12px;border:1px solid #d1d5db;background:#fff;cursor:pointer">🔄</button>
@@ -99,8 +112,8 @@
                     </div>
                 </div>
                 <!-- CPU リングチャート -->
-                <div class="chart-card">
-                    <h3>CPU 使用率</h3>
+                <div class="chart-card" data-widget-id="cpu-ring">
+                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>CPU 使用率</h3>
                     <div class="ring-wrap">
                         <div class="ring-canvas-wrap"><canvas id="cpuRing"></canvas></div>
                         <div class="metric-value" id="cpuValue">--%</div>
@@ -108,24 +121,24 @@
                     </div>
                 </div>
                 <!-- CPU 折れ線グラフ (過去60秒) -->
-                <div class="chart-card">
-                    <h3>CPU 推移（過去60秒）</h3>
+                <div class="chart-card" data-widget-id="cpu-line">
+                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>CPU 推移（過去60秒）</h3>
                     <div class="chart-canvas-wrap"><canvas id="cpuLine"></canvas></div>
                 </div>
                 <!-- メモリ バーチャート -->
-                <div class="chart-card">
-                    <h3>メモリ使用率</h3>
+                <div class="chart-card" data-widget-id="mem-bar">
+                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>メモリ使用率</h3>
                     <div class="chart-canvas-wrap"><canvas id="memBar"></canvas></div>
                 </div>
                 <!-- ネットワーク IN/OUT 折れ線グラフ -->
-                <div class="chart-card" style="grid-column:1/-1">
-                    <h3>ネットワーク IN/OUT（過去60秒, bytes/s）</h3>
+                <div class="chart-card" style="grid-column:1/-1" data-widget-id="net-line">
+                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>ネットワーク IN/OUT（過去60秒, bytes/s）</h3>
                     <div class="chart-canvas-wrap"><canvas id="netLine"></canvas></div>
                 </div>
                 <!-- 直近エラーログウィジェット -->
-                <div class="chart-card" style="grid-column:1/-1; margin-top:16px">
+                <div class="chart-card" style="grid-column:1/-1; margin-top:16px" data-widget-id="error-log">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                        <h3 style="margin:0">🔴 直近エラーログ <span id="error-count-badge" style="font-size:11px; background:#fee2e2; color:#991b1b; border-radius:10px; padding:2px 8px; margin-left:6px">0件</span></h3>
+                        <h3 style="margin:0"><span class="drag-handle" title="ドラッグで移動">⠿</span>🔴 直近エラーログ <span id="error-count-badge" style="font-size:11px; background:#fee2e2; color:#991b1b; border-radius:10px; padding:2px 8px; margin-left:6px">0件</span></h3>
                         <div style="display:flex; gap:8px; align-items:center">
                             <span id="error-update-time" style="font-size:11px; color:#9ca3af"></span>
                             <a href="logsearch.html" style="font-size:12px; color:#3b82f6">🔍 詳細検索</a>
@@ -138,9 +151,9 @@
                 </div>
 
                 <!-- NIC統計ウィジェット -->
-                <div class="chart-card" style="grid-column:1/-1; margin-top:0">
+                <div class="chart-card" style="grid-column:1/-1; margin-top:0" data-widget-id="nic-stats">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                        <h3 style="margin:0">🌐 NIC統計</h3>
+                        <h3 style="margin:0"><span class="drag-handle" title="ドラッグで移動">⠿</span>🌐 NIC統計</h3>
                         <span id="nic-update-time" style="font-size:11px;color:#9ca3af"></span>
                     </div>
                     <div id="nic-stats-area" style="font-size:12px;font-family:monospace">
@@ -499,6 +512,66 @@ async function loadHealthScore() {
         if (updEl && d.generated_at) updEl.textContent = '更新: ' + d.generated_at.slice(11, 19) + ' UTC';
     } catch(e) {}
 }
+
+// ── ダッシュボードドラッグ&ドロップ ─────────────────────────
+var WIDGET_ORDER_KEY = 'lms_dashboard_widget_order';
+
+function initDragDrop() {
+    var grid = document.getElementById('widgets-grid');
+    if (!grid || typeof Sortable === 'undefined') return;
+
+    // 保存済みの順序を復元
+    restoreWidgetOrder();
+
+    Sortable.create(grid, {
+        handle: '.drag-handle',
+        animation: 200,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        onEnd: function() {
+            saveWidgetOrder();
+        }
+    });
+}
+
+function saveWidgetOrder() {
+    var grid = document.getElementById('widgets-grid');
+    if (!grid) return;
+    var ids = Array.from(grid.children).map(function(el) {
+        return el.getAttribute('data-widget-id') || '';
+    }).filter(Boolean);
+    localStorage.setItem(WIDGET_ORDER_KEY, JSON.stringify(ids));
+}
+
+function restoreWidgetOrder() {
+    var stored = localStorage.getItem(WIDGET_ORDER_KEY);
+    if (!stored) return;
+    try {
+        var order = JSON.parse(stored);
+        var grid = document.getElementById('widgets-grid');
+        if (!grid) return;
+        order.forEach(function(id) {
+            var el = grid.querySelector('[data-widget-id="' + id + '"]');
+            if (el) grid.appendChild(el);
+        });
+    } catch(e) {}
+}
+
+function resetWidgetLayout() {
+    localStorage.removeItem(WIDGET_ORDER_KEY);
+    location.reload();
+}
+
+// DOMContentLoaded後にドラッグ&ドロップ初期化
+document.addEventListener('DOMContentLoaded', function() {
+    // SortableJSが確実に読み込まれた後に初期化
+    if (typeof Sortable !== 'undefined') {
+        initDragDrop();
+    } else {
+        // fallback: 少し待ってリトライ
+        setTimeout(initDragDrop, 500);
+    }
+});
 </script>
 </body>
 </html>

@@ -78,6 +78,29 @@
             font-size: 14px;
         }
         .dark-mode .warning-alert { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
+        /* Dashboard new sections */
+        .dashboard-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+        .dashboard-col { flex: 1; min-width: 280px; }
+        .score-chart-wrap { display: flex; align-items: center; justify-content: center; gap: 24px; flex-wrap: wrap; }
+        .score-canvas-wrap { width: 180px; height: 180px; position: relative; }
+        .score-value-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 2rem; font-weight: 700; pointer-events: none;
+        }
+        .score-details { font-size: 13px; }
+        .score-details .stat-row { font-size: 13px; }
+        .port-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .port-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid #e5e7eb; font-size: 12px; color: #6b7280; }
+        .port-table td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; }
+        .dark-mode .port-table th { border-color: #334155; color: #94a3b8; }
+        .dark-mode .port-table td { border-color: #334155; }
+        .port-table tr.row-danger td { background: #fef2f2; }
+        .dark-mode .port-table tr.row-danger td { background: #450a0a; }
+        .history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .history-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid #e5e7eb; font-size: 12px; color: #6b7280; }
+        .history-table td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; word-break: break-all; }
+        .dark-mode .history-table th { border-color: #334155; color: #94a3b8; }
+        .dark-mode .history-table td { border-color: #334155; }
     </style>
 <script src="../js/theme.js"></script>
 </head>
@@ -141,10 +164,63 @@
                 <div class="text-muted">読み込み中...</div>
             </div>
         </div>
+
+        <!-- ===== DASHBOARD: Security Score + Failed Login Chart ===== -->
+        <div class="dashboard-row">
+            <!-- A. Failed Login Hourly Chart -->
+            <div class="dashboard-col audit-card" style="min-width:320px;">
+                <div class="audit-card-title">
+                    <i class="bi bi-graph-up-arrow text-danger"></i> 失敗ログイン時系列 (過去24時間)
+                    <span id="failed-logins-total-badge" class="ms-auto"></span>
+                </div>
+                <div id="failed-logins-alert-new"></div>
+                <canvas id="failedLoginsChart" height="140"></canvas>
+                <div id="failed-logins-chart-error" class="text-danger mt-2" style="display:none;"></div>
+            </div>
+
+            <!-- C. Security Score Gauge -->
+            <div class="dashboard-col audit-card" style="min-width:260px; max-width:340px;">
+                <div class="audit-card-title">
+                    <i class="bi bi-shield-check text-success"></i> セキュリティスコア
+                </div>
+                <div class="score-chart-wrap">
+                    <div class="score-canvas-wrap">
+                        <canvas id="securityScoreChart"></canvas>
+                        <div class="score-value-overlay" id="scoreValueText">-</div>
+                    </div>
+                    <div class="score-details" id="score-details-content">
+                        <div class="text-muted">読み込み中...</div>
+                    </div>
+                </div>
+                <div id="score-chart-error" class="text-danger mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- B. Open Ports Table -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-hdd-network text-info"></i> 開放ポート一覧 (psutil)
+                <span id="open-ports-count-badge" class="ms-auto"></span>
+            </div>
+            <div id="open-ports-table-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- D. Sudo History Table -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-clock-history text-warning"></i> sudo 操作履歴 (最新20件)
+            </div>
+            <div id="sudo-history-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
     </div>
 </div>
 
 <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="../js/sidebar.js"></script>
 <script src="../js/auth.js"></script>
 <script>
@@ -221,6 +297,156 @@
     } catch (e) {
         document.getElementById('open-ports-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
     }
+
+    // ===== DASHBOARD SECTIONS =====
+
+    // A. Failed Login Hourly Chart
+    (async function () {
+        try {
+            const d = await apiFetch('/api/security/failed-logins');
+            const total = d.total || 0;
+            const uniqueIPs = d.unique_ips || 0;
+            const badge = document.getElementById('failed-logins-total-badge');
+            badge.innerHTML = total >= 10
+                ? `<span class="badge-danger">${total}件</span>`
+                : `<span class="badge-ok">${total}件</span>`;
+            if (total >= 10) {
+                document.getElementById('failed-logins-alert-new').innerHTML =
+                    `<div class="warning-alert mb-2"><i class="bi bi-exclamation-triangle-fill"></i> 警告: 過去24時間にログイン失敗が ${total} 件 (${uniqueIPs} IP) あります。</div>`;
+            }
+            const labels = (d.hourly || []).map(h => h.hour.slice(11, 16));
+            const counts = (d.hourly || []).map(h => h.count);
+            const ctx = document.getElementById('failedLoginsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: '失敗ログイン数',
+                        data: counts,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239,68,68,0.15)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                        x: { ticks: { maxTicksLimit: 12 } }
+                    }
+                }
+            });
+        } catch (e) {
+            const el = document.getElementById('failed-logins-chart-error');
+            el.textContent = 'エラー: ' + e.message;
+            el.style.display = '';
+        }
+    })();
+
+    // B. Open Ports Structured Table
+    (async function () {
+        try {
+            const d = await apiFetch('/api/security/open-ports');
+            const ports = d.ports || [];
+            const badge = document.getElementById('open-ports-count-badge');
+            const dangerCount = ports.filter(p => p.dangerous).length;
+            badge.innerHTML = dangerCount > 0
+                ? `<span class="badge-danger">${ports.length}件 (危険: ${dangerCount})</span>`
+                : `<span class="badge-ok">${ports.length}件</span>`;
+            if (ports.length === 0) {
+                document.getElementById('open-ports-table-content').innerHTML = '<div class="text-muted">開放ポートなし</div>';
+                return;
+            }
+            const rows = ports.map(p => {
+                const dangerClass = p.dangerous ? ' class="row-danger"' : '';
+                const dangerFlag = p.dangerous ? ' <span class="badge-danger" style="font-size:10px">危険</span>' : '';
+                return `<tr${dangerClass}>
+                    <td><strong>${escape(String(p.port))}</strong>${dangerFlag}</td>
+                    <td>${escape(p.proto || 'tcp')}</td>
+                    <td>${escape(p.state || 'LISTEN')}</td>
+                    <td>${p.name ? escape(p.name) : '<span class="text-muted">-</span>'}</td>
+                    <td>${p.pid != null ? escape(String(p.pid)) : '<span class="text-muted">-</span>'}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('open-ports-table-content').innerHTML = `
+                <table class="port-table">
+                    <thead><tr><th>ポート</th><th>プロトコル</th><th>状態</th><th>プロセス名</th><th>PID</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        } catch (e) {
+            document.getElementById('open-ports-table-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
+        }
+    })();
+
+    // C. Security Score Gauge
+    (async function () {
+        try {
+            const d = await apiFetch('/api/security/score');
+            const score = d.score;
+            const color = score >= 80 ? '#22c55e' : score >= 60 ? '#f59e0b' : '#ef4444';
+            document.getElementById('scoreValueText').textContent = score;
+            document.getElementById('scoreValueText').style.color = color;
+            const ctx = document.getElementById('securityScoreChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [score, 100 - score],
+                        backgroundColor: [color, '#e5e7eb'],
+                        borderWidth: 0,
+                    }]
+                },
+                options: {
+                    cutout: '72%',
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    animation: { animateRotate: true }
+                }
+            });
+            const det = d.details || {};
+            document.getElementById('score-details-content').innerHTML = `
+                <div class="stat-row"><span class="stat-label">失敗ログインリスク</span><span class="stat-value">${escape(String(det.failed_login_risk ?? '-'))}</span></div>
+                <div class="stat-row"><span class="stat-label">開放ポートリスク</span><span class="stat-value">${escape(String(det.open_ports_risk ?? '-'))}</span></div>
+                <div class="stat-row"><span class="stat-label">直近sudo操作数</span><span class="stat-value">${escape(String(det.recent_sudo_ops ?? '-'))}</span></div>`;
+        } catch (e) {
+            const el = document.getElementById('score-chart-error');
+            el.textContent = 'エラー: ' + e.message;
+            el.style.display = '';
+        }
+    })();
+
+    // D. Sudo History Table
+    (async function () {
+        try {
+            const d = await apiFetch('/api/security/sudo-history');
+            const history = d.history || [];
+            if (history.length === 0) {
+                document.getElementById('sudo-history-content').innerHTML = '<div class="text-muted">sudo 操作履歴なし</div>';
+                return;
+            }
+            const rows = history.map(h => {
+                const badge = h.result === 'success'
+                    ? `<span class="badge-ok">${escape(h.result)}</span>`
+                    : `<span class="badge-danger">${escape(h.result)}</span>`;
+                return `<tr>
+                    <td style="white-space:nowrap;font-size:12px">${escape(h.timestamp.slice(0, 19).replace('T', ' '))}</td>
+                    <td>${escape(h.user || '-')}</td>
+                    <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${escape(h.operation)}</td>
+                    <td>${badge}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('sudo-history-content').innerHTML = `
+                <table class="history-table">
+                    <thead><tr><th>日時</th><th>ユーザー</th><th>操作</th><th>結果</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        } catch (e) {
+            document.getElementById('sudo-history-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
+        }
+    })();
 
     // --- Bandit Status ---
     try {

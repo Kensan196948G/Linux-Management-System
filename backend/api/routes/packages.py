@@ -12,6 +12,10 @@
   GET  /api/packages/search           - パッケージ検索 (v0.23)
   GET  /api/packages/info/{pkg}       - パッケージ詳細情報 (v0.23)
   GET  /api/packages/security-updates - セキュリティアップデート一覧 (v0.23)
+  GET  /api/packages/upgradable       - アップグレード可能パッケージ一覧（構造化・セキュリティフラグ付き）
+  GET  /api/packages/show/{pkg}       - パッケージ詳細情報（apt-cache show）
+  POST /api/packages/install          - パッケージインストール承認リクエスト
+  POST /api/packages/remove           - パッケージ削除承認リクエスト
 """
 
 import logging
@@ -22,12 +26,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
 
 from ...core import require_permission, sudo_wrapper
+from ...core.approval_service import ApprovalService
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
+from ...core.config import settings
 from ...core.sudo_wrapper import SudoWrapperError
 from ._utils import parse_wrapper_result
 
 logger = logging.getLogger(__name__)
+
+# ApprovalService インスタンス（パッケージ操作の承認フロー用）
+_approval_service = ApprovalService(db_path=settings.database.path)
 
 router = APIRouter(prefix="/packages", tags=["packages"])
 
@@ -468,4 +477,228 @@ async def get_security_updates_v2(
         return {"updates": lines, "count": len(lines), "timestamp": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
         logger.error("get_security_updates_v2 error: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+# ===================================================================
+# 承認フロー連携エンドポイント (v0.3 拡張)
+# ===================================================================
+
+
+class UpgradablePackageInfo(BaseModel):
+    """アップグレード可能パッケージ情報（構造化）"""
+
+    name: str
+    current_version: str = ""
+    available_version: str = ""
+    repository: str = ""
+    arch: str = ""
+    is_security: bool = False
+
+
+class UpgradablePackagesResponse(BaseModel):
+    """アップグレード可能パッケージ一覧レスポンス"""
+
+    packages: list[UpgradablePackageInfo]
+    total: int
+    security_count: int
+
+
+class PackageActionRequest(BaseModel):
+    """パッケージ操作リクエスト（インストール・削除共通）"""
+
+    package_name: str = Field(..., min_length=1, max_length=128, description="パッケージ名")
+    reason: str = Field(..., min_length=1, max_length=1000, description="申請理由")
+
+    @field_validator("package_name")
+    @classmethod
+    def validate_package_name(cls, v: str) -> str:
+        """パッケージ名バリデーション（dpkg 準拠）"""
+        forbidden = [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?", "{", "}", "[", "]", " "]
+        for char in forbidden:
+            if char in v:
+                raise ValueError(f"Forbidden character in package name: {char}")
+        if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9._+-]*$", v):
+            raise ValueError("Invalid package name format")
+        return v
+
+
+class PackageApprovalResponse(BaseModel):
+    """パッケージ操作承認リクエストレスポンス"""
+
+    request_id: str
+    status: str
+    package_name: str
+    operation: str
+
+
+@router.get(
+    "/upgradable",
+    summary="アップグレード可能パッケージ一覧（構造化）",
+    description="セキュリティアップデートを is_security フラグで識別して返します",
+)
+async def get_upgradable_packages(
+    current_user: TokenData = Depends(require_permission("read:packages")),
+) -> UpgradablePackagesResponse:
+    """アップグレード可能なパッケージを構造化形式で取得する"""
+    from datetime import datetime, timezone
+
+    try:
+        result = sudo_wrapper.get_packages_updates()
+        parsed = parse_wrapper_result(result)
+
+        raw_updates: list[dict] = parsed.get("updates", [])
+        packages: list[UpgradablePackageInfo] = []
+        for item in raw_updates:
+            name = item.get("name", "")
+            repo = item.get("repository", "")
+            is_sec = "security" in repo.lower() or "security" in name.lower()
+            packages.append(
+                UpgradablePackageInfo(
+                    name=name,
+                    current_version=item.get("current_version", ""),
+                    available_version=item.get("new_version", ""),
+                    repository=repo,
+                    arch=item.get("arch", ""),
+                    is_security=is_sec,
+                )
+            )
+
+        security_count = sum(1 for p in packages if p.is_security)
+        audit_log.record(
+            operation="packages_upgradable_read",
+            user_id=current_user.user_id,
+            target="packages",
+            status="success",
+            details={"total": len(packages), "security_count": security_count},
+        )
+        return UpgradablePackagesResponse(
+            packages=packages,
+            total=len(packages),
+            security_count=security_count,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_upgradable_packages error: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+@router.get(
+    "/show/{package_name}",
+    summary="パッケージ詳細情報（apt-cache show）",
+    description="apt-cache show でパッケージの詳細情報を取得します",
+)
+async def show_package(
+    package_name: str,
+    current_user: TokenData = Depends(require_permission("read:packages")),
+) -> dict:
+    """パッケージ詳細情報を取得する（apt-cache show）"""
+    forbidden = _FORBIDDEN_CHARS + [" "]
+    for char in forbidden:
+        if char in package_name:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid package name")
+    if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9._+-]*$", package_name):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid package name format")
+    try:
+        result = sudo_wrapper.show_package(package_name)
+        if result.get("returncode", 0) != 0 or not result.get("output", "").strip():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Package '{package_name}' not found")
+        audit_log.record(
+            operation="packages_show",
+            user_id=current_user.user_id,
+            target=package_name,
+            status="success",
+        )
+        return {"package": package_name, "info": result.get("output", "")}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        logger.error("show_package error: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+@router.post(
+    "/install",
+    summary="パッケージインストール申請（承認フロー経由）",
+    description="パッケージインストールの承認リクエストを作成します。承認後に自動実行されます。",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_package_install(
+    request: PackageActionRequest,
+    current_user: TokenData = Depends(require_permission("write:packages")),
+) -> PackageApprovalResponse:
+    """パッケージインストール承認リクエストを作成する"""
+    try:
+        result = await _approval_service.create_request(
+            request_type="package_install",
+            payload={"package_name": request.package_name},
+            reason=request.reason,
+            requester_id=current_user.user_id,
+            requester_name=current_user.username,
+            requester_role=current_user.role,
+        )
+        audit_log.record(
+            operation="package_install_requested",
+            user_id=current_user.user_id,
+            target=request.package_name,
+            status="success",
+            details={"request_id": result["request_id"], "reason": request.reason},
+        )
+        return PackageApprovalResponse(
+            request_id=result["request_id"],
+            status=result["status"],
+            package_name=request.package_name,
+            operation="install",
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        logger.error("request_package_install error: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+@router.post(
+    "/remove",
+    summary="パッケージ削除申請（承認フロー経由）",
+    description="パッケージ削除の承認リクエストを作成します。承認後に自動実行されます。",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_package_remove(
+    request: PackageActionRequest,
+    current_user: TokenData = Depends(require_permission("write:packages")),
+) -> PackageApprovalResponse:
+    """パッケージ削除承認リクエストを作成する"""
+    try:
+        result = await _approval_service.create_request(
+            request_type="package_remove",
+            payload={"package_name": request.package_name},
+            reason=request.reason,
+            requester_id=current_user.user_id,
+            requester_name=current_user.username,
+            requester_role=current_user.role,
+        )
+        audit_log.record(
+            operation="package_remove_requested",
+            user_id=current_user.user_id,
+            target=request.package_name,
+            status="success",
+            details={"request_id": result["request_id"], "reason": request.reason},
+        )
+        return PackageApprovalResponse(
+            request_id=result["request_id"],
+            status=result["status"],
+            package_name=request.package_name,
+            operation="remove",
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        logger.error("request_package_remove error: %s", e)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))

@@ -114,6 +114,7 @@ ROLES = {
             "read:postfix",
             # File Manager
             "read:filemanager",
+            "write:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
             # モジュール管理
@@ -193,6 +194,7 @@ ROLES = {
             "read:postfix",
             # File Manager
             "read:filemanager",
+            "write:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
             # モジュール管理
@@ -279,6 +281,7 @@ ROLES = {
             "read:postfix",
             # File Manager
             "read:filemanager",
+            "write:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
             # モジュール管理
@@ -378,6 +381,7 @@ ROLES = {
             "read:postfix",
             # File Manager
             "read:filemanager",
+            "write:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
             # モジュール管理

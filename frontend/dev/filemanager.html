@@ -22,6 +22,17 @@
         .breadcrumb-item.active { color: #374151; cursor: default; text-decoration: none; }
         .dir-icon { color: #f59e0b; }
         .file-icon { color: #6b7280; }
+        /* ファイルアップロード進捗 */
+        .upload-area { border:2px dashed #d1d5db; border-radius:8px; padding:20px; text-align:center; cursor:pointer; transition:border-color 0.2s; }
+        .upload-area:hover, .upload-area.drag-over { border-color:#3b82f6; background:#eff6ff; }
+        .upload-progress-bar-bg { background:#e5e7eb; border-radius:4px; height:8px; margin-top:8px; overflow:hidden; display:none; }
+        .upload-progress-bar { background:#3b82f6; height:8px; border-radius:4px; transition:width 0.2s; width:0%; }
+        /* パーミッション変更 */
+        .perm-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:9999; align-items:center; justify-content:center; }
+        .perm-modal.active { display:flex; }
+        .perm-dialog { background:#fff; border-radius:12px; padding:24px; width:400px; max-width:95vw; }
+        .perm-checkbox-group { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+        .perm-checkbox-group label { font-size:13px; min-width:70px; }
     </style>
 <script src="../js/theme.js"></script>
 </head>
@@ -87,8 +98,62 @@
                 </div>
                 <pre id="file-stat-pre" class="content-pre"></pre>
             </div>
+
+            <!-- ファイルアップロード -->
+            <div class="fm-card" id="upload-area-card">
+                <div class="fm-title">📤 ファイルアップロード</div>
+                <div class="upload-area" id="upload-drop-area" onclick="document.getElementById('upload-file-input').click()">
+                    <i class="bi bi-cloud-upload" style="font-size:24px;color:#9ca3af"></i>
+                    <div style="font-size:13px;color:#6b7280;margin-top:8px">クリックまたはドラッグ&ドロップでファイルを選択</div>
+                    <div style="font-size:11px;color:#9ca3af;margin-top:4px" id="upload-dest-label">アップロード先: 現在のディレクトリ</div>
+                    <input type="file" id="upload-file-input" style="display:none" onchange="handleUpload(this.files)" multiple>
+                </div>
+                <div class="upload-progress-bar-bg" id="upload-progress-bg">
+                    <div class="upload-progress-bar" id="upload-progress-bar"></div>
+                </div>
+                <div id="upload-status" style="font-size:12px;margin-top:6px;color:#6b7280"></div>
+            </div>
         </div>
     </main>
+</div>
+
+<!-- パーミッション変更モーダル -->
+<div class="perm-modal" id="perm-modal">
+    <div class="perm-dialog">
+        <h3 style="font-size:15px;font-weight:600;margin-bottom:4px">🔒 パーミッション変更</h3>
+        <p id="perm-modal-path" style="font-size:12px;color:#6b7280;margin-bottom:12px;word-break:break-all"></p>
+        <table style="width:100%;font-size:13px;margin-bottom:12px">
+            <thead><tr><th>対象</th><th>読(r)</th><th>書(w)</th><th>実(x)</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>オーナー</td>
+                    <td><input type="checkbox" id="perm-ur"></td>
+                    <td><input type="checkbox" id="perm-uw"></td>
+                    <td><input type="checkbox" id="perm-ux"></td>
+                </tr>
+                <tr>
+                    <td>グループ</td>
+                    <td><input type="checkbox" id="perm-gr"></td>
+                    <td><input type="checkbox" id="perm-gw"></td>
+                    <td><input type="checkbox" id="perm-gx"></td>
+                </tr>
+                <tr>
+                    <td>その他</td>
+                    <td><input type="checkbox" id="perm-or"></td>
+                    <td><input type="checkbox" id="perm-ow"></td>
+                    <td><input type="checkbox" id="perm-ox"></td>
+                </tr>
+            </tbody>
+        </table>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <span style="font-size:13px;color:#374151">Octal:</span>
+            <input type="text" id="perm-octal" class="form-control form-control-sm" style="width:80px;font-family:monospace" placeholder="644" maxlength="4">
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn btn-sm btn-outline-secondary" onclick="closePermModal()">キャンセル</button>
+            <button class="btn btn-sm btn-primary" onclick="applyPermission()">適用</button>
+        </div>
+    </div>
 </div>
 
 <script src="../js/env-config.js"></script>
@@ -172,10 +237,12 @@ function renderFileList(output) {
         var fullPath = currentPath.replace(/\/$/, '') + '/' + name;
         var actions = '';
         if (isDir) {
-            actions = '<button class="btn btn-xs btn-outline-primary btn-sm py-0 px-1" onclick="navigateTo(\'' + escapeHtml(fullPath) + '\')"><i class="bi bi-folder2-open"></i> 開く</button>';
+            actions = '<button class="btn btn-xs btn-outline-primary btn-sm py-0 px-1" onclick="navigateTo(\'' + escapeHtml(fullPath) + '\')"><i class="bi bi-folder2-open"></i> 開く</button>' +
+                ' <button class="btn btn-xs btn-outline-warning btn-sm py-0 px-1" onclick="openPermModal(\'' + escapeHtml(fullPath) + '\',\'' + escapeHtml(perms) + '\')"><i class="bi bi-shield-lock"></i></button>';
         } else {
             actions = '<button class="btn btn-xs btn-outline-success btn-sm py-0 px-1 me-1" onclick="readFile(\'' + escapeHtml(fullPath) + '\')"><i class="bi bi-eye"></i> 表示</button>' +
-                '<button class="btn btn-xs btn-outline-secondary btn-sm py-0 px-1" onclick="statFile(\'' + escapeHtml(fullPath) + '\')"><i class="bi bi-info-circle"></i> 属性</button>';
+                '<button class="btn btn-xs btn-outline-secondary btn-sm py-0 px-1 me-1" onclick="statFile(\'' + escapeHtml(fullPath) + '\')"><i class="bi bi-info-circle"></i> 属性</button>' +
+                '<button class="btn btn-xs btn-outline-warning btn-sm py-0 px-1" onclick="openPermModal(\'' + escapeHtml(fullPath) + '\',\'' + escapeHtml(perms) + '\')"><i class="bi bi-shield-lock"></i> chmod</button>';
         }
         html += '<tr>' +
             '<td>' + icon + '</td>' +
@@ -240,6 +307,106 @@ async function loadAllowedDirs() {
     }
 }
 
+// ── ファイルアップロード ─────────────────────────────────────
+var dropArea = null;
+function initUploadDrop() {
+    dropArea = document.getElementById('upload-drop-area');
+    if (!dropArea) return;
+    ['dragenter','dragover'].forEach(function(ev) {
+        dropArea.addEventListener(ev, function(e) { e.preventDefault(); dropArea.classList.add('drag-over'); });
+    });
+    ['dragleave','drop'].forEach(function(ev) {
+        dropArea.addEventListener(ev, function(e) { e.preventDefault(); dropArea.classList.remove('drag-over'); });
+    });
+    dropArea.addEventListener('drop', function(e) { handleUpload(e.dataTransfer.files); });
+}
+
+async function handleUpload(files) {
+    if (!files || !files.length) return;
+    var destPath = currentPath || '/tmp';
+    document.getElementById('upload-dest-label').textContent = 'アップロード先: ' + destPath;
+    var progressBg = document.getElementById('upload-progress-bg');
+    var progressBar = document.getElementById('upload-progress-bar');
+    var statusEl = document.getElementById('upload-status');
+    progressBg.style.display = '';
+    var succeeded = 0;
+    var failed = 0;
+    for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        progressBar.style.width = (((i) / files.length) * 100) + '%';
+        statusEl.textContent = 'アップロード中: ' + f.name + ' (' + (i+1) + '/' + files.length + ')';
+        try {
+            var formData = new FormData();
+            formData.append('file', f);
+            formData.append('dest_path', destPath);
+            var token = localStorage.getItem('access_token');
+            var resp = await fetch((window.API_BASE_URL || '') + '/api/files/upload', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token },
+                body: formData
+            });
+            if (resp.ok) { succeeded++; } else {
+                var err = await resp.json();
+                showAlert(f.name + ': ' + (err.detail || 'アップロード失敗'), 'warning');
+                failed++;
+            }
+        } catch(e) { failed++; showAlert(f.name + ': ネットワークエラー', 'danger'); }
+    }
+    progressBar.style.width = '100%';
+    statusEl.textContent = '完了: ' + succeeded + '件成功' + (failed ? '、' + failed + '件失敗' : '');
+    statusEl.style.color = failed ? '#dc2626' : '#059669';
+    setTimeout(function() { progressBg.style.display = 'none'; progressBar.style.width = '0%'; }, 2000);
+    if (succeeded > 0 && currentPath) setTimeout(function() { navigateTo(currentPath); }, 500);
+}
+
+// ── パーミッション変更モーダル ─────────────────────────────
+var _permTargetPath = '';
+function openPermModal(path, permsStr) {
+    _permTargetPath = path;
+    document.getElementById('perm-modal-path').textContent = path;
+    // rwxrwxrwx or drwxr-xr-x 形式を解析
+    var p = (permsStr || '').replace(/^[dl-]/, '');
+    function ch(s) { return s === '-' ? false : true; }
+    var idxMap = {'ur':0,'uw':1,'ux':2,'gr':3,'gw':4,'gx':5,'or':6,'ow':7,'ox':8};
+    Object.keys(idxMap).forEach(function(id) {
+        var el = document.getElementById('perm-' + id);
+        if (el) el.checked = ch(p[idxMap[id]] || '-');
+    });
+    updateOctal();
+    document.getElementById('perm-modal').classList.add('active');
+    // チェックボックス変更時にoctalを更新
+    ['ur','uw','ux','gr','gw','gx','or','ow','ox'].forEach(function(id) {
+        var el = document.getElementById('perm-' + id);
+        if (el) el.onchange = updateOctal;
+    });
+}
+
+function updateOctal() {
+    var bits = ['ur','uw','ux','gr','gw','gx','or','ow','ox'].map(function(id) {
+        var el = document.getElementById('perm-' + id);
+        return el && el.checked ? 1 : 0;
+    });
+    var o = (bits[0]*4 + bits[1]*2 + bits[2]) + '' + (bits[3]*4 + bits[4]*2 + bits[5]) + '' + (bits[6]*4 + bits[7]*2 + bits[8]);
+    document.getElementById('perm-octal').value = o;
+}
+
+function closePermModal() { document.getElementById('perm-modal').classList.remove('active'); }
+
+async function applyPermission() {
+    var octal = document.getElementById('perm-octal').value.trim();
+    if (!/^[0-7]{3,4}$/.test(octal)) {
+        showAlert('Octal値が不正です (例: 644)', 'warning'); return;
+    }
+    try {
+        await api.request('POST', '/api/files/chmod', { path: _permTargetPath, mode: octal });
+        showAlert('パーミッションを ' + octal + ' に変更しました', 'success');
+        closePermModal();
+        if (currentPath) navigateTo(currentPath);
+    } catch(e) {
+        showAlert('変更失敗: ' + (e.message || String(e)), 'danger');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
     var token = localStorage.getItem('access_token');
     if (!token) {
@@ -249,6 +416,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     api.setToken(token);
     await loadAllowedDirs();
     document.getElementById('lines-group').classList.remove('d-none');
+    initUploadDrop();
 });
 </script>
 <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>

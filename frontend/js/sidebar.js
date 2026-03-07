@@ -342,6 +342,12 @@ function renderSidebar(activePage) {
                 <span id="approval-pending-badge" class="badge bg-warning text-dark ms-1" style="display:none">0</span>
             </div>
 
+            <!-- リソースアラート -->
+            <div class="menu-item${a('alerts')}" onclick="location.href='alerts.html'">
+                <span class="menu-item-icon">⚠️</span>
+                <span>リソースアラート <span id="alert-badge" class="badge bg-danger ms-1" style="display:none">0</span></span>
+            </div>
+
             <!-- 通知設定 -->
             <div class="menu-item${a('notifications')}" onclick="location.href='notifications.html'">
                 <span class="menu-item-icon">🔔</span>
@@ -539,4 +545,27 @@ async function updateApprovalBadge() {
 document.addEventListener('DOMContentLoaded', function() {
     updateApprovalBadge();
     setInterval(updateApprovalBadge, 30000);
+    updateAlertBadge();
+    setInterval(updateAlertBadge, 30000);
 });
+
+/**
+ * サイドバーのアラート未読件数バッジを更新する
+ */
+async function updateAlertBadge() {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+        const resp = await fetch('/api/alerts/unread-count', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const count = data.count || 0;
+        const badgeEl = document.getElementById('alert-badge');
+        if (badgeEl) {
+            badgeEl.textContent = count;
+            badgeEl.style.display = count > 0 ? '' : 'none';
+        }
+    } catch {}
+}

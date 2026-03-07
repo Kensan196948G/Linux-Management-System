@@ -3,17 +3,21 @@
 読み取り専用のファイルブラウジングを提供。パストラバーサル攻撃を防ぐ。
 
 エンドポイント:
-  GET /api/files/allowed-dirs  - アクセス許可ディレクトリ一覧 (認証不要)
-  GET /api/files/list          - ディレクトリ内容一覧
-  GET /api/files/stat          - ファイル属性
-  GET /api/files/read          - ファイル内容 (1-200行)
-  GET /api/files/search        - ファイル検索
+  GET  /api/files/allowed-dirs  - アクセス許可ディレクトリ一覧 (認証不要)
+  GET  /api/files/list          - ディレクトリ内容一覧
+  GET  /api/files/stat          - ファイル属性
+  GET  /api/files/read          - ファイル内容 (1-200行)
+  GET  /api/files/search        - ファイル検索
+  POST /api/files/upload        - ファイルアップロード (許可ディレクトリのみ)
+  POST /api/files/chmod         - パーミッション変更
 """
 
 import logging
 import os
+import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from pydantic import BaseModel
 
 from ...core import require_permission, sudo_wrapper
 from ...core.audit_log import audit_log
@@ -25,6 +29,7 @@ router = APIRouter(prefix="/files", tags=["filemanager"])
 
 # アクセス許可ベースディレクトリ
 ALLOWED_BASE_DIRS = [
+    "/tmp",
     "/var/log",
     "/etc/nginx",
     "/etc/apache2",
@@ -186,3 +191,81 @@ async def search_files(
     except SudoWrapperError as e:
         logger.error("filemanager search failed: %s", e)
         raise HTTPException(status_code=500, detail="File search failed")
+
+
+class ChmodRequest(BaseModel):
+    """パーミッション変更リクエスト"""
+    path: str
+    mode: str
+
+
+# ファイルアップロード許可ディレクトリ (書き込み可能ディレクトリのみ)
+UPLOAD_ALLOWED_DIRS = ["/var/www", "/home", "/tmp"]
+
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+@router.post("/upload", status_code=status.HTTP_200_OK)
+async def upload_file(
+    file: UploadFile = File(...),
+    dest_path: str = Form(...),
+    current_user: TokenData = Depends(require_permission("write:filemanager")),
+):
+    """ファイルをアップロードする (許可ディレクトリのみ・最大10MB)"""
+    # アップロード先パス検証
+    validated_dest = validate_path(dest_path)
+    allowed = any(validated_dest.startswith(d) for d in UPLOAD_ALLOWED_DIRS)
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Upload not allowed in this directory")
+
+    # ファイル名検証
+    filename = os.path.basename(file.filename or "")
+    if not filename or not re.match(r'^[a-zA-Z0-9._\-]+$', filename):
+        raise HTTPException(status_code=422, detail="Invalid filename")
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large (max 10MB)")
+
+    try:
+        result = sudo_wrapper.upload_file(validated_dest, filename, content)
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("stderr", "Upload failed"))
+        audit_log.record(
+            operation="filemanager_upload",
+            user_id=current_user.user_id,
+            target=f"{validated_dest}/{filename}",
+            status="success",
+            details={"size": len(content)},
+        )
+        return {"status": "success", "path": f"{validated_dest}/{filename}", "size": len(content)}
+    except (SudoWrapperError, ValueError) as e:
+        logger.error("filemanager upload failed: %s", e)
+        raise HTTPException(status_code=500, detail="File upload failed")
+
+
+@router.post("/chmod", status_code=status.HTTP_200_OK)
+async def chmod_file(
+    req: ChmodRequest,
+    current_user: TokenData = Depends(require_permission("write:filemanager")),
+):
+    """ファイル/ディレクトリのパーミッションを変更する (octal: 例 644, 755)"""
+    if not re.match(r'^[0-7]{3,4}$', req.mode):
+        raise HTTPException(status_code=422, detail="Invalid mode: must be 3-4 octal digits")
+
+    validated_path = validate_path(req.path)
+    try:
+        result = sudo_wrapper.chmod_file(validated_path, req.mode)
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("stderr", "chmod failed"))
+        audit_log.record(
+            operation="filemanager_chmod",
+            user_id=current_user.user_id,
+            target=validated_path,
+            status="success",
+            details={"mode": req.mode},
+        )
+        return {"status": "success", "path": validated_path, "mode": req.mode}
+    except (SudoWrapperError, ValueError) as e:
+        logger.error("filemanager chmod failed: %s", e)
+        raise HTTPException(status_code=500, detail="chmod failed")

@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-ALLOWED_SUBCOMMANDS=("list" "updates" "security" "upgrade" "upgrade-all" "upgrade-dryrun" "upgradeable" "search" "info" "installed" "security-updates")
+ALLOWED_SUBCOMMANDS=("list" "updates" "security" "upgrade" "upgrade-all" "upgrade-dryrun" "upgradeable" "search" "info" "installed" "security-updates" "show" "install" "remove")
 
 if [ "$#" -ne 1 ]; then
     echo '{"status":"error","message":"Usage: adminui-packages.sh <subcommand>"}' >&2
@@ -327,6 +327,91 @@ fi
 
 if [ "$SUBCOMMAND" = "security-updates" ]; then
     apt list --upgradeable 2>/dev/null | grep -i security || true
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: show <package> - パッケージ詳細情報 (apt-cache show)
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "show" ]; then
+    PACKAGE="${2:-}"
+    if [ -z "$PACKAGE" ]; then
+        echo '{"status":"error","message":"show requires a package name argument"}' >&2
+        exit 1
+    fi
+    validate_input "${PACKAGE}"
+    OUTPUT=$(apt-cache show "${PACKAGE}" 2>/dev/null)
+    if [ $? -eq 0 ] && [ -n "$OUTPUT" ]; then
+        echo "${OUTPUT}"
+    else
+        echo "{\"status\":\"error\",\"message\":\"Package '${PACKAGE}' not found\"}" >&2
+        exit 1
+    fi
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: install <package> - パッケージインストール
+# （承認フロー経由でのみ呼び出すこと）
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "install" ]; then
+    PACKAGE_NAME="${2:-}"
+    if [ -z "$PACKAGE_NAME" ]; then
+        echo '{"status":"error","message":"install requires a package name argument"}' >&2
+        exit 1
+    fi
+    validate_input "${PACKAGE_NAME}"
+    # パッケージ名は英数字, -, ., + のみ許可
+    if ! echo "${PACKAGE_NAME}" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9._+-]*$'; then
+        echo '{"status":"error","message":"Invalid package name format"}' >&2
+        exit 1
+    fi
+    if ! command -v apt-get >/dev/null 2>&1; then
+        echo '{"status":"error","message":"apt-get not available"}' >&2
+        exit 1
+    fi
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "${PACKAGE_NAME}" 2>&1
+    EXIT_CODE=$?
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "{\"status\":\"success\",\"message\":\"Package '${PACKAGE_NAME}' installed successfully\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    else
+        echo "{\"status\":\"error\",\"message\":\"Failed to install package '${PACKAGE_NAME}'\",\"exit_code\":${EXIT_CODE}}" >&2
+        exit 1
+    fi
+    exit 0
+fi
+
+# ==============================================================================
+# subcommand: remove <package> - パッケージ削除
+# （承認フロー経由でのみ呼び出すこと）
+# ==============================================================================
+
+if [ "$SUBCOMMAND" = "remove" ]; then
+    PACKAGE_NAME="${2:-}"
+    if [ -z "$PACKAGE_NAME" ]; then
+        echo '{"status":"error","message":"remove requires a package name argument"}' >&2
+        exit 1
+    fi
+    validate_input "${PACKAGE_NAME}"
+    # パッケージ名は英数字, -, ., + のみ許可
+    if ! echo "${PACKAGE_NAME}" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9._+-]*$'; then
+        echo '{"status":"error","message":"Invalid package name format"}' >&2
+        exit 1
+    fi
+    if ! command -v apt-get >/dev/null 2>&1; then
+        echo '{"status":"error","message":"apt-get not available"}' >&2
+        exit 1
+    fi
+    DEBIAN_FRONTEND=noninteractive apt-get remove -y "${PACKAGE_NAME}" 2>&1
+    EXIT_CODE=$?
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "{\"status\":\"success\",\"message\":\"Package '${PACKAGE_NAME}' removed successfully\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    else
+        echo "{\"status\":\"error\",\"message\":\"Failed to remove package '${PACKAGE_NAME}'\",\"exit_code\":${EXIT_CODE}}" >&2
+        exit 1
+    fi
     exit 0
 fi
 

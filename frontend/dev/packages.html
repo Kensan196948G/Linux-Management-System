@@ -89,6 +89,22 @@
                         ドライラン
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('upgradable')" id="tab-upgradable">
+                        <span class="badge bg-danger" id="upgradable-badge" style="display:none"></span>
+                        アップグレード申請
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('install')" id="tab-install">
+                        インストール申請
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('pending')" id="tab-pending">
+                        承認待ち一覧
+                    </a>
+                </li>
             </ul>
 
             <!-- タブ1: インストール済み -->
@@ -127,6 +143,64 @@
                 </button>
                 <div id="dryrun-loading" class="text-center py-4 text-muted" style="display:none">実行中...</div>
                 <div id="dryrun-content" style="display:none"></div>
+            </div>
+
+            <!-- タブ5: アップグレード申請 -->
+            <div id="pane-upgradable" style="display:none">
+                <div class="approval-notice">
+                    <strong>承認フロー経由:</strong> 各パッケージの「インストール申請」ボタンから承認リクエストを送信できます。セキュリティ更新は赤バッジで表示されます。
+                </div>
+                <div class="pkg-count" id="upgradable-count"></div>
+                <div id="upgradable-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="upgradable-content" style="display:none"></div>
+            </div>
+
+            <!-- タブ6: インストール申請 -->
+            <div id="pane-install" style="display:none">
+                <div class="approval-notice">
+                    <strong>承認フロー経由:</strong> パッケージ名と申請理由を入力して承認リクエストを送信します。
+                </div>
+                <div class="card mb-3" style="max-width:500px;">
+                    <div class="card-body">
+                        <h6 class="card-title">パッケージ操作申請</h6>
+                        <div class="mb-3">
+                            <label for="action-pkg-name" class="form-label">パッケージ名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="action-pkg-name"
+                                   placeholder="例: htop" maxlength="128" pattern="^[a-zA-Z0-9][a-zA-Z0-9._+\-]*$">
+                            <div class="form-text">英数字・ハイフン・ドット・プラスのみ使用可</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="action-reason" class="form-label">申請理由 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="action-reason"
+                                   placeholder="例: モニタリング用ツールとして必要" maxlength="500">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">操作種別</label>
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="action-type" id="action-install" value="install" checked>
+                                    <label class="form-check-label" for="action-install">インストール</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="action-type" id="action-remove" value="remove">
+                                    <label class="form-check-label text-danger" for="action-remove">削除</label>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="submitPackageAction()">承認申請</button>
+                        <div id="action-result" class="mt-2" style="display:none"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- タブ7: 承認待ち一覧 -->
+            <div id="pane-pending" style="display:none">
+                <div class="pkg-count" id="pending-count"></div>
+                <div id="pending-loading" class="text-center py-4 text-muted">読み込み中...</div>
+                <div id="pending-content" style="display:none"></div>
+                <div id="pending-link" class="mt-3" style="display:none">
+                    <a href="approval.html" class="btn btn-sm btn-outline-primary">承認ワークフローページへ →</a>
+                </div>
             </div>
         </div>
     </main>
@@ -246,7 +320,7 @@ function showToast(msg, type) {
 // タブ制御
 // ===================================================================
 function showTab(tab) {
-    ['installed', 'updates', 'security', 'dryrun'].forEach(function(t) {
+    ['installed', 'updates', 'security', 'dryrun', 'upgradable', 'install', 'pending'].forEach(function(t) {
         document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
         document.getElementById('tab-' + t).classList.toggle('active', t === tab);
     });
@@ -254,6 +328,8 @@ function showTab(tab) {
     if (tab === 'installed') loadInstalled();
     else if (tab === 'updates') loadUpdates();
     else if (tab === 'security') loadSecurity();
+    else if (tab === 'upgradable') loadUpgradable();
+    else if (tab === 'pending') loadPendingApprovals();
 }
 
 function refreshCurrentTab() {
@@ -515,6 +591,145 @@ async function executeUpgradeAll() {
 function truncate(str, len) {
     if (!str) return '';
     return str.length > len ? str.substring(0, len) + '...' : str;
+}
+
+// ===================================================================
+// タブ5: アップグレード申請（構造化・セキュリティフラグ付き）
+// ===================================================================
+async function loadUpgradable() {
+    document.getElementById('upgradable-loading').style.display = '';
+    document.getElementById('upgradable-content').style.display = 'none';
+    try {
+        const data = await api.get('/api/packages/upgradable');
+        const packages = data.packages || [];
+        document.getElementById('upgradable-count').textContent =
+            `${data.total} 件のアップグレード可能パッケージ（セキュリティ: ${data.security_count} 件）`;
+
+        // セキュリティバッジ更新
+        const badge = document.getElementById('upgradable-badge');
+        if (data.security_count > 0) {
+            badge.textContent = data.security_count;
+            badge.style.display = '';
+        } else {
+            badge.style.display = 'none';
+        }
+
+        let html = '<table class="table table-sm table-compact table-hover"><thead><tr>' +
+            '<th>パッケージ</th><th>現在のバージョン</th><th>利用可能なバージョン</th><th>リポジトリ</th><th>操作</th>' +
+            '</tr></thead><tbody>';
+        packages.forEach(function(pkg) {
+            const secBadge = pkg.is_security
+                ? '<span class="urgency-high ms-1">SECURITY</span>'
+                : '';
+            html += `<tr>
+                <td><strong>${escapeHtml(pkg.name)}</strong>${secBadge}</td>
+                <td>${escapeHtml(pkg.current_version)}</td>
+                <td>${escapeHtml(pkg.available_version)}</td>
+                <td><small class="text-muted">${escapeHtml(pkg.repository)}</small></td>
+                <td><button class="btn btn-xs btn-sm btn-outline-primary py-0 px-2"
+                    onclick="openInstallModal('${escapeHtml(pkg.name)}', '${escapeHtml(pkg.available_version)}')">インストール申請</button></td>
+            </tr>`;
+        });
+        if (packages.length === 0) {
+            html += '<tr><td colspan="5" class="text-center text-muted py-3">アップグレード可能なパッケージはありません</td></tr>';
+        }
+        html += '</tbody></table>';
+        document.getElementById('upgradable-content').innerHTML = html;
+        document.getElementById('upgradable-content').style.display = '';
+    } catch (e) {
+        document.getElementById('upgradable-content').innerHTML =
+            `<div class="alert alert-danger">取得エラー: ${escapeHtml(String(e))}</div>`;
+        document.getElementById('upgradable-content').style.display = '';
+    } finally {
+        document.getElementById('upgradable-loading').style.display = 'none';
+    }
+}
+
+function openInstallModal(pkgName, version) {
+    document.getElementById('action-pkg-name').value = pkgName;
+    document.getElementById('action-install').checked = true;
+    document.getElementById('action-reason').value =
+        version ? `${pkgName} を ${version} へアップグレード` : '';
+    showTab('install');
+}
+
+// ===================================================================
+// タブ6: パッケージ操作申請（インストール・削除）
+// ===================================================================
+async function submitPackageAction() {
+    const pkgName = document.getElementById('action-pkg-name').value.trim();
+    const reason = document.getElementById('action-reason').value.trim();
+    const actionType = document.querySelector('input[name="action-type"]:checked').value;
+    const resultDiv = document.getElementById('action-result');
+
+    if (!pkgName) { resultDiv.innerHTML = '<div class="alert alert-warning py-1">パッケージ名を入力してください</div>'; resultDiv.style.display = ''; return; }
+    if (!reason) { resultDiv.innerHTML = '<div class="alert alert-warning py-1">申請理由を入力してください</div>'; resultDiv.style.display = ''; return; }
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._+\-]*$/.test(pkgName)) {
+        resultDiv.innerHTML = '<div class="alert alert-danger py-1">パッケージ名に使用できない文字が含まれています</div>';
+        resultDiv.style.display = '';
+        return;
+    }
+
+    resultDiv.innerHTML = '<div class="text-muted">送信中...</div>';
+    resultDiv.style.display = '';
+    try {
+        const endpoint = actionType === 'install' ? '/api/packages/install' : '/api/packages/remove';
+        const data = await api.post(endpoint, { package_name: pkgName, reason: reason });
+        resultDiv.innerHTML = `<div class="alert alert-success py-1">
+            承認リクエストを送信しました。リクエストID: <code>${escapeHtml(data.request_id)}</code>
+            <br><a href="approval.html" class="alert-link">承認ワークフローページで確認 →</a>
+        </div>`;
+        document.getElementById('action-pkg-name').value = '';
+        document.getElementById('action-reason').value = '';
+    } catch (e) {
+        resultDiv.innerHTML = `<div class="alert alert-danger py-1">エラー: ${escapeHtml(String(e))}</div>`;
+    }
+}
+
+// ===================================================================
+// タブ7: 承認待ち一覧（パッケージ操作）
+// ===================================================================
+async function loadPendingApprovals() {
+    document.getElementById('pending-loading').style.display = '';
+    document.getElementById('pending-content').style.display = 'none';
+    document.getElementById('pending-link').style.display = 'none';
+    try {
+        const data = await api.get('/api/approval/list?status=pending');
+        const requests = (data.requests || []).filter(function(r) {
+            return r.request_type === 'package_install' || r.request_type === 'package_remove';
+        });
+        document.getElementById('pending-count').textContent = `承認待ち: ${requests.length} 件`;
+
+        let html = '<table class="table table-sm table-compact table-hover"><thead><tr>' +
+            '<th>種別</th><th>パッケージ</th><th>申請者</th><th>理由</th><th>申請日時</th></tr></thead><tbody>';
+        requests.forEach(function(r) {
+            const opBadge = r.request_type === 'package_install'
+                ? '<span class="urgency-medium">インストール</span>'
+                : '<span class="urgency-high">削除</span>';
+            let pkgName = '';
+            try { pkgName = JSON.parse(r.request_payload || '{}').package_name || ''; } catch(e) {}
+            html += `<tr>
+                <td>${opBadge}</td>
+                <td><strong>${escapeHtml(pkgName)}</strong></td>
+                <td>${escapeHtml(r.requester_name)}</td>
+                <td class="text-truncate-50">${escapeHtml(r.reason)}</td>
+                <td><small>${escapeHtml(r.created_at || '').replace('T', ' ').substring(0, 16)}</small></td>
+            </tr>`;
+        });
+        if (requests.length === 0) {
+            html += '<tr><td colspan="5" class="text-center text-muted py-3">承認待ちのパッケージ操作リクエストはありません</td></tr>';
+        }
+        html += '</tbody></table>';
+        document.getElementById('pending-content').innerHTML = html;
+        document.getElementById('pending-content').style.display = '';
+        document.getElementById('pending-link').style.display = '';
+    } catch (e) {
+        document.getElementById('pending-content').innerHTML =
+            `<div class="alert alert-danger">取得エラー: ${escapeHtml(String(e))}</div>`;
+        document.getElementById('pending-content').style.display = '';
+    } finally {
+        document.getElementById('pending-loading').style.display = 'none';
+    }
 }
 
 // ===================================================================

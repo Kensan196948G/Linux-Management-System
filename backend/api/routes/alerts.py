@@ -9,7 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from ...core import require_permission
+from ...core.audit_log import audit_log
 from ...core.auth import TokenData
+
+# 既読アラートID のインメモリセット（プロセス再起動でリセット）
+_read_alerts: set[str] = set()
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -259,3 +263,64 @@ async def stream_alerts(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/unread-count")
+async def get_unread_count(current_user: TokenData = Depends(require_permission("read:alerts"))):
+    """未読アラート数を返す（アクティブアラートのうち既読でないもの）"""
+    try:
+        cpu = get_current_cpu_usage()
+        mem = get_current_memory_usage()
+        load = get_load_average()
+        disk_root = get_disk_usage_pct("/")
+        disk_home = get_disk_usage_pct("/home")
+
+        current_values = {"cpu": cpu, "memory": mem, "load": load, "disk:/": disk_root, "disk:/home": disk_home}
+
+        unread_count = 0
+        for rule in DEFAULT_RULES:
+            if not rule["enabled"]:
+                continue
+            resource = rule["resource"]
+            current = current_values.get(resource, 0.0)
+            triggered = current >= rule["threshold"] if rule["comparison"] == "gte" else current <= rule["threshold"]
+            if triggered and rule["id"] not in _read_alerts:
+                unread_count += 1
+
+        return {"count": unread_count}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/{alert_id}/mark-read")
+async def mark_alert_read(alert_id: str, current_user: TokenData = Depends(require_permission("read:alerts"))):
+    """指定アラートを既読にする"""
+    # allowlist チェック: 既知のアラートIDのみ許可
+    valid_ids = {r["id"] for r in DEFAULT_RULES}
+    if alert_id not in valid_ids:
+        raise HTTPException(status_code=404, detail=f"Alert '{alert_id}' not found")
+
+    _read_alerts.add(alert_id)
+    audit_log.record(
+        operation="alert_mark_read",
+        user_id=current_user.user_id,
+        target=alert_id,
+        status="success",
+    )
+    return {"alert_id": alert_id, "read": True}
+
+
+@router.post("/mark-all-read")
+async def mark_all_alerts_read(current_user: TokenData = Depends(require_permission("read:alerts"))):
+    """全アラートを既読にする"""
+    all_ids = [r["id"] for r in DEFAULT_RULES]
+    _read_alerts.update(all_ids)
+    audit_log.record(
+        operation="alert_mark_all_read",
+        user_id=current_user.user_id,
+        target="all",
+        status="success",
+    )
+    return {"marked": len(all_ids), "read": True}

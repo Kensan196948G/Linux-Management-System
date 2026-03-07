@@ -1259,6 +1259,63 @@ class SudoWrapper:
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
+    def show_package(self, package_name: str) -> Dict[str, Any]:
+        """パッケージ詳細情報を取得する (apt-cache show 経由)
+
+        Args:
+            package_name: 詳細を取得するパッケージ名
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            ValueError: 不正なパッケージ名
+            SudoWrapperError: 実行失敗時
+        """
+        FORBIDDEN = [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?", "{", "}", "[", "]", " "]
+        for char in FORBIDDEN:
+            if char in package_name:
+                raise ValueError(f"Forbidden character in package name: {char}")
+        return self._execute("adminui-packages.sh", ["show", package_name], timeout=30)
+
+    def install_package(self, package_name: str) -> Dict[str, Any]:
+        """パッケージをインストールする（承認フロー経由でのみ呼び出すこと）
+
+        Args:
+            package_name: インストール対象パッケージ名
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            ValueError: 不正なパッケージ名
+            SudoWrapperError: 実行失敗時
+        """
+        FORBIDDEN = [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?", "{", "}", "[", "]", " "]
+        for char in FORBIDDEN:
+            if char in package_name:
+                raise ValueError(f"Forbidden character in package name: {char}")
+        return self._execute("adminui-packages.sh", ["install", package_name], timeout=120)
+
+    def remove_package(self, package_name: str) -> Dict[str, Any]:
+        """パッケージを削除する（承認フロー経由でのみ呼び出すこと）
+
+        Args:
+            package_name: 削除対象パッケージ名
+
+        Returns:
+            実行結果の辞書
+
+        Raises:
+            ValueError: 不正なパッケージ名
+            SudoWrapperError: 実行失敗時
+        """
+        FORBIDDEN = [";", "|", "&", "$", "(", ")", "`", ">", "<", "*", "?", "{", "}", "[", "]", " "]
+        for char in FORBIDDEN:
+            if char in package_name:
+                raise ValueError(f"Forbidden character in package name: {char}")
+        return self._execute("adminui-packages.sh", ["remove", package_name], timeout=120)
+
     # ------------------------------------------------------------------
     # SSH設定（読み取り専用）
     # ------------------------------------------------------------------
@@ -2276,6 +2333,52 @@ class SudoWrapper:
         self._validate_filemanager_arg(directory)
         self._validate_filemanager_arg(pattern)
         return self._execute("adminui-filemanager.sh", ["search", directory, pattern], timeout=30)
+
+    def chmod_file(self, path: str, mode: str) -> Dict[str, Any]:
+        """ファイルまたはディレクトリのパーミッションを変更する (chmod)
+
+        Args:
+            path: 対象ファイル/ディレクトリパス（検証済み）
+            mode: octalモード文字列 例: "644", "755"
+
+        Returns:
+            実行結果の辞書
+        """
+        import re as _re
+        if not _re.match(r'^[0-7]{3,4}$', mode):
+            raise ValueError(f"Invalid chmod mode: {mode}")
+        self._validate_filemanager_arg(path)
+        return self._execute("adminui-filemanager.sh", ["chmod", path, mode], timeout=15)
+
+    def upload_file(self, dest_path: str, filename: str, content: bytes) -> Dict[str, Any]:
+        """ファイルをアップロードする (許可ディレクトリのみ)
+
+        Args:
+            dest_path: アップロード先ディレクトリ（検証済み）
+            filename: ファイル名（英数字・-_. のみ）
+            content: ファイルの内容
+
+        Returns:
+            実行結果の辞書
+        """
+        import re as _re
+        import tempfile
+        import os
+        if not _re.match(r'^[a-zA-Z0-9._\-]+$', filename):
+            raise ValueError(f"Invalid filename: {filename}")
+        self._validate_filemanager_arg(dest_path)
+        # 一時ファイルに書き込み後、wrapper経由でコピー
+        with tempfile.NamedTemporaryFile(delete=False, prefix='lms_upload_') as tf:
+            tf.write(content)
+            tmp_path = tf.name
+        try:
+            result = self._execute("adminui-filemanager.sh", ["upload", tmp_path, dest_path, filename], timeout=30)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        return result
 
     # ------------------------------------------------------------------
     # SSH 鍵管理 (読み取り専用)

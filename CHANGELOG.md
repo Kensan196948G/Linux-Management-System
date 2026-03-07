@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-03-07
+
+### Added
+- **ダッシュボード ドラッグ&ドロップ**: SortableJS による7ウィジェット並び替え、localStorage永続化、リセットボタン
+- **ファイルマネージャー強化**: ドラッグ&ドロップアップロード(10MB制限)、chmod モーダル(8進数+チェックボックス)
+- **リアルタイムアラートセンター**: WebSocket + Browser Notification API、サイドバーバッジ、既読管理
+- **セキュリティ監査ダッシュボード**: ログイン失敗分析(Chart.js)、ポートスキャン(psutil)、sudo履歴、スコア算出
+- **パッケージ管理強化**: アップグレード可能一覧、承認フロー経由インストール/削除、dpkg show
+- **WebSocket リアルタイム監視**: `/api/ws/system`, `/api/ws/processes`, `/api/ws/alerts` (JWT認証付き)
+- **通知システム**: Slack/Discord Webhook, SMTP, ブラウザ通知の4チャンネル設定UI
+- **二要素認証(2FA/TOTP)**: pyotp + QRコード、設定タブUI
+- **i18n 多言語対応**: 日本語/英語切り替え、localStorage永続化、サイドバー自動翻訳
+- **ヘルススコア**: `/api/system/health-score` エンドポイント + ダッシュボードカード
+
+### Fixed
+- `test_filemanager_api.py` の `/tmp` アサーション修正
+- `test_security_api.py` パッチ対象名修正（`_read_audit_jsonl` に統一）
+
+### Tests
+- テスト総数: 3068件 (3068 PASS, 3 SKIP)
+
 ### Added
 - **自動エラー検知・修復ループ**: `.github/workflows/auto-error-fix-loop.yml` 新規作成（522行）
   - 7種類の検知：flake8・black・pytest・bandit・DB整合性・ファイルパーミッション・pylint複雑度
