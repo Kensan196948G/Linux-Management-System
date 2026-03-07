@@ -144,8 +144,8 @@
     <script src="../js/api.js"></script>
 <script>
 (async function () {
-    const token = localStorage.getItem('token');
-    if (!token) { window.location.href = '/dev/index.html'; return; }
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = '/index.html'; return; }
     const headers = { 'Authorization': 'Bearer ' + token };
 
     function escapeHtml(s) {
@@ -246,7 +246,7 @@
             document.getElementById('refresh-info').textContent = '自動更新: 30秒ごと';
             return;
         }
-        const t = localStorage.getItem('token');
+        const t = localStorage.getItem('access_token');
         if (!t) return;
         alertsSSE = new EventSource(`/api/alerts/stream?interval=10&token=${encodeURIComponent(t)}`);
         alertsSSE.onmessage = function (e) {

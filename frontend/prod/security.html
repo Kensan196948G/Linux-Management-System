@@ -151,8 +151,8 @@
     <script src="../js/api.js"></script>
 <script>
 (async function () {
-    const token = localStorage.getItem('token');
-    if (!token) { window.location.href = '/dev/index.html'; return; }
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = '/index.html'; return; }
     const headers = { 'Authorization': 'Bearer ' + token };
 
     async function apiFetch(url) {

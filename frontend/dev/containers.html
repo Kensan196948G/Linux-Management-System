@@ -212,6 +212,7 @@
     <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('containers')):renderSidebar('containers');</script>
 <script>
 // ===================================================================
 // タブ管理
@@ -493,7 +494,7 @@ function startLogStream() {
     stopLogStream();
     clearAlert();
 
-    const token = localStorage.getItem('token') || '';
+    const token = localStorage.getItem('access_token') || '';
     const viewer = document.getElementById('log-viewer');
     viewer.textContent = '';
 

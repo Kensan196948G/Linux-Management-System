@@ -117,6 +117,7 @@
     <script src="../js/env-config.js"></script>
     <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('disk')):renderSidebar('disk');</script>
 <script>
 const TABS = ['fs', 'partitions', 'usage'];
 let fsData = [];
@@ -149,7 +150,7 @@ function usageColor(pct) {
 }
 
 async function apiFetch(url) {
-    const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+    const token = localStorage.getItem('access_token') || localStorage.getItem('access_token');
     const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
     if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
     return r.json();

@@ -134,6 +134,7 @@
     <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('sysconfig')):renderSidebar('sysconfig');</script>
 <script>
 function row(label, value) {
     return `<div class="config-row"><span class="config-label">${label}</span><span class="config-value">${value || '—'}</span></div>`;

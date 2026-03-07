@@ -149,7 +149,7 @@ function usageColor(pct) {
 }
 
 async function apiFetch(url) {
-    const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+    const token = localStorage.getItem('access_token') || localStorage.getItem('access_token');
     const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
     if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
     return r.json();

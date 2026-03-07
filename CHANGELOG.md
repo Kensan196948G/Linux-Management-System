@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.45.0] - 2026-03-07
+
+### Fixed
+- **ナビリンク絶対パス統一** (dev + prod 全ページ)
+  - 相対パスリンク10件を `/xxx.html` 絶対パスに修正
+  - `dashboard.html`: `logsearch.html` → `/logsearch.html`
+  - `logs.html`: `dashboard.html` → `/dashboard.html`
+  - `packages.html`: `approval.html` → `/approval.html` (x2)
+  - `settings.html`: `users.html`, `cron.html` → `/users.html`, `/cron.html`
+  - prod版も同様に修正
+- **ログインリダイレクト絶対パス化** (`frontend/dev/index.html`, `frontend/prod/index.html`)
+  - `window.location.pathname.replace('index.html','') + 'dashboard.html'` → `'/dashboard.html'`
+  - 相対パス計算の曖昧さを排除、常に絶対パスへリダイレクト
+
+### Added
+- **nginx リバースプロキシ設定** (`config/nginx/`)
+  - `linux-management.conf`: 本番環境 (HTTPS, port 443 → 8000)
+  - `linux-management-dev.conf`: 開発環境 (HTTP, port 5013 → 5012)
+  - WebSocket対応 (`/ws/*` パス)、セキュリティヘッダー、レート制限
+  - `config/ssl/README.md`: SSL証明書生成ガイド
+  - `docs/deployment/nginx-setup.md`: nginx セットアップ手順
+- **approval_service 新ハンドラーテスト** (`tests/integration/test_approval_new_handlers.py`)
+  - 13種の新オペレーションハンドラーのモック統合テスト追加
+- **E2Eテスト拡充** (`tests/e2e/`)
+  - ログイン→ダッシュボード→サービス管理フローのテスト追加
+
 ## [v0.44.0] - 2026-03-07
 
 ### Security

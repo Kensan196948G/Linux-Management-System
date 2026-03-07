@@ -452,6 +452,7 @@
     <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('ssh-hosts')):renderSidebar('ssh-hosts');</script>
 <script>
 // ========== 状態管理 ==========
 let _hosts = [];

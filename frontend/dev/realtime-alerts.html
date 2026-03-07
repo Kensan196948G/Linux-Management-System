@@ -232,6 +232,7 @@
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('realtime-alerts')):renderSidebar('realtime-alerts');</script>
 <script>
 // =====================================================================
 // 定数
@@ -256,7 +257,7 @@ function showTab(name, btn) {
 // 認証ヘルパー
 // =====================================================================
 function getToken() {
-    return localStorage.getItem('token') || '';
+    return localStorage.getItem('access_token') || '';
 }
 function authHeaders() {
     return { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' };

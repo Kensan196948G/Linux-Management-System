@@ -224,6 +224,7 @@
     <script src="../js/env-config.js"></script>
     <script src="../js/api.js"></script>
     <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('backup')):renderSidebar('backup');</script>
 <script>
     const CRON_PRESETS = { daily: '0 2 * * *', weekly: '0 2 * * 0', monthly: '0 2 1 * *' };
     let storageFiles = [];

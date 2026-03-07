@@ -278,10 +278,11 @@
     <script src="../js/env-config.js"></script>
     <script src="../js/api.js"></script>
     <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('security')):renderSidebar('security');</script>
 <script>
 (async function () {
-    const token = localStorage.getItem('token');
-    if (!token) { window.location.href = '/dev/index.html'; return; }
+    const token = localStorage.getItem('access_token');
+    if (!token) { window.location.href = '/index.html'; return; }
     const headers = { 'Authorization': 'Bearer ' + token };
 
     async function apiFetch(url) {
@@ -612,7 +613,7 @@ async function exportSecurityReport() {
     btn.disabled = true;
     statusEl.textContent = 'レポート生成中...';
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        const token = localStorage.getItem('access_token') || sessionStorage.getItem('token') || '';
         const resp = await fetch('/api/security/report/export', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` }
