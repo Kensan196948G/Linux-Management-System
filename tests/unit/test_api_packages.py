@@ -15,7 +15,7 @@ from backend.core.sudo_wrapper import SudoWrapperError
 class TestGetInstalledPackages:
     """GET /api/packages/installed テスト"""
 
-    def test_installed_success(self, test_client, auth_headers):
+    def test_installed_success(self, test_client, admin_headers):
         """正常系: インストール済みパッケージ取得"""
         mock_output = json.dumps({
             "status": "success",
@@ -25,23 +25,23 @@ class TestGetInstalledPackages:
         })
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_list.return_value = {"status": "success", "output": mock_output}
-            response = test_client.get("/api/packages/installed", headers=auth_headers)
+            response = test_client.get("/api/packages/installed", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_installed_wrapper_error(self, test_client, auth_headers):
+    def test_installed_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時は503"""
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_list.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/packages/installed", headers=auth_headers)
+            response = test_client.get("/api/packages/installed", headers=admin_headers)
         assert response.status_code == 503
 
-    def test_installed_unexpected_error(self, test_client, auth_headers):
+    def test_installed_unexpected_error(self, test_client, admin_headers):
         """予期しないエラー時は500"""
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_list.side_effect = RuntimeError("Boom")
-            response = test_client.get("/api/packages/installed", headers=auth_headers)
+            response = test_client.get("/api/packages/installed", headers=admin_headers)
         assert response.status_code == 500
 
     def test_installed_unauthorized(self, test_client):
@@ -53,7 +53,7 @@ class TestGetInstalledPackages:
 class TestGetPackageUpdates:
     """GET /api/packages/updates テスト"""
 
-    def test_updates_success(self, test_client, auth_headers):
+    def test_updates_success(self, test_client, admin_headers):
         """正常系: 更新可能パッケージ取得"""
         mock_output = json.dumps({
             "status": "success",
@@ -63,28 +63,28 @@ class TestGetPackageUpdates:
         })
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_updates.return_value = {"status": "success", "output": mock_output}
-            response = test_client.get("/api/packages/updates", headers=auth_headers)
+            response = test_client.get("/api/packages/updates", headers=admin_headers)
         assert response.status_code == 200
 
-    def test_updates_wrapper_error(self, test_client, auth_headers):
+    def test_updates_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時は503"""
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_updates.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/packages/updates", headers=auth_headers)
+            response = test_client.get("/api/packages/updates", headers=admin_headers)
         assert response.status_code == 503
 
-    def test_updates_unexpected_error(self, test_client, auth_headers):
+    def test_updates_unexpected_error(self, test_client, admin_headers):
         """予期しないエラー時は500"""
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_updates.side_effect = RuntimeError("Boom")
-            response = test_client.get("/api/packages/updates", headers=auth_headers)
+            response = test_client.get("/api/packages/updates", headers=admin_headers)
         assert response.status_code == 500
 
 
 class TestGetSecurityUpdates:
     """GET /api/packages/security テスト"""
 
-    def test_security_success(self, test_client, auth_headers):
+    def test_security_success(self, test_client, admin_headers):
         """正常系: セキュリティ更新取得"""
         mock_output = json.dumps({
             "status": "success",
@@ -94,28 +94,28 @@ class TestGetSecurityUpdates:
         })
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_security.return_value = {"status": "success", "output": mock_output}
-            response = test_client.get("/api/packages/security", headers=auth_headers)
+            response = test_client.get("/api/packages/security", headers=admin_headers)
         assert response.status_code == 200
 
-    def test_security_wrapper_error(self, test_client, auth_headers):
+    def test_security_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時は503"""
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_security.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/packages/security", headers=auth_headers)
+            response = test_client.get("/api/packages/security", headers=admin_headers)
         assert response.status_code == 503
 
-    def test_security_unexpected_error(self, test_client, auth_headers):
+    def test_security_unexpected_error(self, test_client, admin_headers):
         """予期しないエラー時は500"""
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_security.side_effect = RuntimeError("Boom")
-            response = test_client.get("/api/packages/security", headers=auth_headers)
+            response = test_client.get("/api/packages/security", headers=admin_headers)
         assert response.status_code == 500
 
 
 class TestGetUpgradeDryrun:
     """GET /api/packages/upgrade/dryrun テスト"""
 
-    def test_dryrun_success(self, test_client, auth_headers):
+    def test_dryrun_success(self, test_client, admin_headers):
         """正常系: ドライラン実行"""
         mock_output = json.dumps({
             "status": "success",
@@ -125,16 +125,16 @@ class TestGetUpgradeDryrun:
         })
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_upgrade_dryrun.return_value = {"status": "success", "output": mock_output}
-            response = test_client.get("/api/packages/upgrade/dryrun", headers=auth_headers)
+            response = test_client.get("/api/packages/upgrade/dryrun", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["count"] == 1
 
-    def test_dryrun_wrapper_error(self, test_client, auth_headers):
+    def test_dryrun_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時は503"""
         with patch("backend.api.routes.packages.sudo_wrapper") as mock_sw:
             mock_sw.get_packages_upgrade_dryrun.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/packages/upgrade/dryrun", headers=auth_headers)
+            response = test_client.get("/api/packages/upgrade/dryrun", headers=admin_headers)
         assert response.status_code == 503
 
 

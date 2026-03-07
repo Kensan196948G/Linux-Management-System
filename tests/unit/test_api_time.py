@@ -14,7 +14,7 @@ from backend.core.sudo_wrapper import SudoWrapperError
 class TestGetTimeStatus:
     """GET /api/time/status テスト"""
 
-    def test_get_time_status_success(self, test_client, auth_headers):
+    def test_get_time_status_success(self, test_client, admin_headers):
         """正常系: 時刻状態取得"""
         mock_result = {
             "status": "success",
@@ -27,7 +27,7 @@ class TestGetTimeStatus:
         }
         with patch("backend.api.routes.system_time.sudo_wrapper") as mock_sw:
             mock_sw.get_time_status.return_value = mock_result
-            response = test_client.get("/api/time/status", headers=auth_headers)
+            response = test_client.get("/api/time/status", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -38,11 +38,11 @@ class TestGetTimeStatus:
         response = test_client.get("/api/time/status")
         assert response.status_code == 403
 
-    def test_get_time_status_wrapper_error(self, test_client, auth_headers):
+    def test_get_time_status_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時"""
         with patch("backend.api.routes.system_time.sudo_wrapper") as mock_sw:
             mock_sw.get_time_status.side_effect = SudoWrapperError("timedatectl failed")
-            response = test_client.get("/api/time/status", headers=auth_headers)
+            response = test_client.get("/api/time/status", headers=admin_headers)
 
         assert response.status_code == 500
 
@@ -50,7 +50,7 @@ class TestGetTimeStatus:
 class TestListTimezones:
     """GET /api/time/timezones テスト"""
 
-    def test_list_timezones_success(self, test_client, auth_headers):
+    def test_list_timezones_success(self, test_client, admin_headers):
         """正常系: タイムゾーン一覧取得"""
         mock_result = {
             "status": "success",
@@ -58,17 +58,17 @@ class TestListTimezones:
         }
         with patch("backend.api.routes.system_time.sudo_wrapper") as mock_sw:
             mock_sw.get_timezones.return_value = mock_result
-            response = test_client.get("/api/time/timezones", headers=auth_headers)
+            response = test_client.get("/api/time/timezones", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert "Asia/Tokyo" in data["timezones"]
 
-    def test_list_timezones_wrapper_error(self, test_client, auth_headers):
+    def test_list_timezones_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時"""
         with patch("backend.api.routes.system_time.sudo_wrapper") as mock_sw:
             mock_sw.get_timezones.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/time/timezones", headers=auth_headers)
+            response = test_client.get("/api/time/timezones", headers=admin_headers)
 
         assert response.status_code == 500
 

@@ -14,7 +14,7 @@ from backend.core.sudo_wrapper import SudoWrapperError
 class TestListCronJobs:
     """GET /api/cron/{username} テスト"""
 
-    def test_list_cron_jobs_success(self, test_client, auth_headers):
+    def test_list_cron_jobs_success(self, test_client, admin_headers):
         """正常系: Cronジョブ一覧取得"""
         mock_result = {
             "status": "success",
@@ -35,19 +35,19 @@ class TestListCronJobs:
         }
         with patch("backend.api.routes.cron.sudo_wrapper") as mock_sw:
             mock_sw.list_cron_jobs.return_value = mock_result
-            response = test_client.get("/api/cron/testuser", headers=auth_headers)
+            response = test_client.get("/api/cron/testuser", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert data["total_count"] == 1
 
-    def test_list_cron_jobs_invalid_username(self, test_client, auth_headers):
+    def test_list_cron_jobs_invalid_username(self, test_client, admin_headers):
         """不正なユーザー名 → 400"""
-        response = test_client.get("/api/cron/bad%3Buser", headers=auth_headers)
+        response = test_client.get("/api/cron/bad%3Buser", headers=admin_headers)
         assert response.status_code == 400
 
-    def test_list_cron_jobs_error_invalid_username(self, test_client, auth_headers):
+    def test_list_cron_jobs_error_invalid_username(self, test_client, admin_headers):
         """エラーコード INVALID_USERNAME → 400"""
         mock_result = {
             "status": "error",
@@ -56,11 +56,11 @@ class TestListCronJobs:
         }
         with patch("backend.api.routes.cron.sudo_wrapper") as mock_sw:
             mock_sw.list_cron_jobs.return_value = mock_result
-            response = test_client.get("/api/cron/testuser", headers=auth_headers)
+            response = test_client.get("/api/cron/testuser", headers=admin_headers)
 
         assert response.status_code == 400
 
-    def test_list_cron_jobs_error_forbidden_user(self, test_client, auth_headers):
+    def test_list_cron_jobs_error_forbidden_user(self, test_client, admin_headers):
         """エラーコード FORBIDDEN_USER → 403"""
         mock_result = {
             "status": "error",
@@ -69,11 +69,11 @@ class TestListCronJobs:
         }
         with patch("backend.api.routes.cron.sudo_wrapper") as mock_sw:
             mock_sw.list_cron_jobs.return_value = mock_result
-            response = test_client.get("/api/cron/testuser", headers=auth_headers)
+            response = test_client.get("/api/cron/testuser", headers=admin_headers)
 
         assert response.status_code == 403
 
-    def test_list_cron_jobs_error_user_not_found(self, test_client, auth_headers):
+    def test_list_cron_jobs_error_user_not_found(self, test_client, admin_headers):
         """エラーコード USER_NOT_FOUND → 404"""
         mock_result = {
             "status": "error",
@@ -82,11 +82,11 @@ class TestListCronJobs:
         }
         with patch("backend.api.routes.cron.sudo_wrapper") as mock_sw:
             mock_sw.list_cron_jobs.return_value = mock_result
-            response = test_client.get("/api/cron/testuser", headers=auth_headers)
+            response = test_client.get("/api/cron/testuser", headers=admin_headers)
 
         assert response.status_code == 404
 
-    def test_list_cron_jobs_error_unknown(self, test_client, auth_headers):
+    def test_list_cron_jobs_error_unknown(self, test_client, admin_headers):
         """不明なエラーコード → 500"""
         mock_result = {
             "status": "error",
@@ -95,15 +95,15 @@ class TestListCronJobs:
         }
         with patch("backend.api.routes.cron.sudo_wrapper") as mock_sw:
             mock_sw.list_cron_jobs.return_value = mock_result
-            response = test_client.get("/api/cron/testuser", headers=auth_headers)
+            response = test_client.get("/api/cron/testuser", headers=admin_headers)
 
         assert response.status_code == 500
 
-    def test_list_cron_jobs_wrapper_error(self, test_client, auth_headers):
+    def test_list_cron_jobs_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時 → 500"""
         with patch("backend.api.routes.cron.sudo_wrapper") as mock_sw:
             mock_sw.list_cron_jobs.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/cron/testuser", headers=auth_headers)
+            response = test_client.get("/api/cron/testuser", headers=admin_headers)
 
         assert response.status_code == 500
 

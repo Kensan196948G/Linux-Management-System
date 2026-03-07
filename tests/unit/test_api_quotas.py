@@ -22,36 +22,36 @@ def _mock_output(**kwargs):
 class TestGetQuotaStatus:
     """GET /api/quotas/status テスト"""
 
-    def test_status_success(self, test_client, auth_headers):
+    def test_status_success(self, test_client, admin_headers):
         """正常系: クォータ状態取得"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_quota_status.return_value = _mock_output(
                 quotas_enabled=True, filesystems=["/dev/sda1"]
             )
-            response = test_client.get("/api/quotas/status", headers=auth_headers)
+            response = test_client.get("/api/quotas/status", headers=admin_headers)
         assert response.status_code == 200
 
-    def test_status_with_filesystem(self, test_client, auth_headers):
+    def test_status_with_filesystem(self, test_client, admin_headers):
         """正常系: ファイルシステム指定"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_quota_status.return_value = _mock_output(quotas_enabled=True)
             response = test_client.get(
-                "/api/quotas/status?filesystem=/dev/sda1", headers=auth_headers
+                "/api/quotas/status?filesystem=/dev/sda1", headers=admin_headers
             )
         assert response.status_code == 200
 
-    def test_status_invalid_filesystem(self, test_client, auth_headers):
+    def test_status_invalid_filesystem(self, test_client, admin_headers):
         """不正なファイルシステム"""
         response = test_client.get(
-            "/api/quotas/status?filesystem=;rm+-rf+/", headers=auth_headers
+            "/api/quotas/status?filesystem=;rm+-rf+/", headers=admin_headers
         )
         assert response.status_code == 422
 
-    def test_status_wrapper_error(self, test_client, auth_headers):
+    def test_status_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時は503"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_quota_status.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/quotas/status", headers=auth_headers)
+            response = test_client.get("/api/quotas/status", headers=admin_headers)
         assert response.status_code == 503
 
     def test_status_unauthorized(self, test_client):
@@ -63,66 +63,66 @@ class TestGetQuotaStatus:
 class TestGetAllUserQuotas:
     """GET /api/quotas/users テスト"""
 
-    def test_users_success(self, test_client, auth_headers):
+    def test_users_success(self, test_client, admin_headers):
         """正常系: 全ユーザークォータ取得"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_all_user_quotas.return_value = _mock_output(
                 users=[{"username": "testuser", "used_kb": 1024}]
             )
-            response = test_client.get("/api/quotas/users", headers=auth_headers)
+            response = test_client.get("/api/quotas/users", headers=admin_headers)
         assert response.status_code == 200
 
-    def test_users_with_filesystem(self, test_client, auth_headers):
+    def test_users_with_filesystem(self, test_client, admin_headers):
         """正常系: ファイルシステム指定"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_all_user_quotas.return_value = _mock_output(users=[])
             response = test_client.get(
-                "/api/quotas/users?filesystem=/dev/sda1", headers=auth_headers
+                "/api/quotas/users?filesystem=/dev/sda1", headers=admin_headers
             )
         assert response.status_code == 200
 
-    def test_users_invalid_filesystem(self, test_client, auth_headers):
+    def test_users_invalid_filesystem(self, test_client, admin_headers):
         """不正なファイルシステム"""
         response = test_client.get(
-            "/api/quotas/users?filesystem=|cat+/etc/passwd", headers=auth_headers
+            "/api/quotas/users?filesystem=|cat+/etc/passwd", headers=admin_headers
         )
         assert response.status_code == 422
 
-    def test_users_wrapper_error(self, test_client, auth_headers):
+    def test_users_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時は503"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_all_user_quotas.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/quotas/users", headers=auth_headers)
+            response = test_client.get("/api/quotas/users", headers=admin_headers)
         assert response.status_code == 503
 
 
 class TestGetUserQuota:
     """GET /api/quotas/user/{username} テスト"""
 
-    def test_user_quota_success(self, test_client, auth_headers):
+    def test_user_quota_success(self, test_client, admin_headers):
         """正常系: 特定ユーザークォータ取得"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_user_quota.return_value = _mock_output(
                 username="testuser", used_kb=512
             )
             response = test_client.get(
-                "/api/quotas/user/testuser", headers=auth_headers
+                "/api/quotas/user/testuser", headers=admin_headers
             )
         assert response.status_code == 200
 
-    def test_user_quota_invalid_name(self, test_client, auth_headers):
+    def test_user_quota_invalid_name(self, test_client, admin_headers):
         """不正なユーザー名"""
         response = test_client.get(
-            "/api/quotas/user/test;rm+-rf", headers=auth_headers
+            "/api/quotas/user/test;rm+-rf", headers=admin_headers
         )
         assert response.status_code == 422
 
-    def test_user_quota_wrapper_error(self, test_client, auth_headers):
+    def test_user_quota_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時は503"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_user_quota.side_effect = SudoWrapperError("Failed")
             response = test_client.get(
-                "/api/quotas/user/testuser", headers=auth_headers
+                "/api/quotas/user/testuser", headers=admin_headers
             )
         assert response.status_code == 503
 
@@ -130,30 +130,30 @@ class TestGetUserQuota:
 class TestGetGroupQuota:
     """GET /api/quotas/group/{groupname} テスト"""
 
-    def test_group_quota_success(self, test_client, auth_headers):
+    def test_group_quota_success(self, test_client, admin_headers):
         """正常系: グループクォータ取得"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_group_quota.return_value = _mock_output(
                 groupname="devteam", used_kb=2048
             )
             response = test_client.get(
-                "/api/quotas/group/devteam", headers=auth_headers
+                "/api/quotas/group/devteam", headers=admin_headers
             )
         assert response.status_code == 200
 
-    def test_group_quota_invalid_name(self, test_client, auth_headers):
+    def test_group_quota_invalid_name(self, test_client, admin_headers):
         """不正なグループ名"""
         response = test_client.get(
-            "/api/quotas/group/dev;ls", headers=auth_headers
+            "/api/quotas/group/dev;ls", headers=admin_headers
         )
         assert response.status_code == 422
 
-    def test_group_quota_wrapper_error(self, test_client, auth_headers):
+    def test_group_quota_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時は503"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_group_quota.side_effect = SudoWrapperError("Failed")
             response = test_client.get(
-                "/api/quotas/group/devteam", headers=auth_headers
+                "/api/quotas/group/devteam", headers=admin_headers
             )
         assert response.status_code == 503
 
@@ -161,29 +161,29 @@ class TestGetGroupQuota:
 class TestGetQuotaReport:
     """GET /api/quotas/report テスト"""
 
-    def test_report_success(self, test_client, auth_headers):
+    def test_report_success(self, test_client, admin_headers):
         """正常系: レポート取得"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_quota_report.return_value = _mock_output(
                 report={"total_users": 10}
             )
-            response = test_client.get("/api/quotas/report", headers=auth_headers)
+            response = test_client.get("/api/quotas/report", headers=admin_headers)
         assert response.status_code == 200
 
-    def test_report_with_filesystem(self, test_client, auth_headers):
+    def test_report_with_filesystem(self, test_client, admin_headers):
         """正常系: ファイルシステム指定"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_quota_report.return_value = _mock_output(report={})
             response = test_client.get(
-                "/api/quotas/report?filesystem=/dev/sda1", headers=auth_headers
+                "/api/quotas/report?filesystem=/dev/sda1", headers=admin_headers
             )
         assert response.status_code == 200
 
-    def test_report_wrapper_error(self, test_client, auth_headers):
+    def test_report_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時は503"""
         with patch("backend.api.routes.quotas.sudo_wrapper") as mock_sw:
             mock_sw.get_quota_report.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/quotas/report", headers=auth_headers)
+            response = test_client.get("/api/quotas/report", headers=admin_headers)
         assert response.status_code == 503
 
 
