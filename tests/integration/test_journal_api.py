@@ -335,3 +335,131 @@ def test_journal_priority_logs_reraises_http_exception(mock_method):
     headers = get_auth_headers()
     resp = client.get("/api/journal/priority-logs?priority=err", headers=headers)
     assert resp.status_code == 503
+
+
+# ─── /api/journal/search (高度フィルタ) ──────────────────────────────────────
+
+class TestJournalSearch:
+    """GET /api/journal/search のテスト"""
+
+    @patch("subprocess.run")
+    def test_search_basic_200(self, mock_run):
+        """基本検索が成功すること"""
+        mock_run.return_value = make_mock_result("2026-01-01 00:00:00 nginx: started")
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/search", headers=headers)
+        assert resp.status_code == 200
+
+    @patch("subprocess.run")
+    def test_search_with_priority(self, mock_run):
+        """優先度フィルタ付き検索"""
+        mock_run.return_value = make_mock_result("error line 1")
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/search?priority=err", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["query"]["priority"] == "err"
+
+    def test_search_invalid_priority_rejected(self):
+        """不正な優先度は400"""
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/search?priority=invalid_pri", headers=headers)
+        assert resp.status_code == 400
+
+    @patch("subprocess.run")
+    def test_search_with_unit(self, mock_run):
+        """ユニットフィルタ付き検索"""
+        mock_run.return_value = make_mock_result("nginx log line")
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/search?units=nginx.service", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "nginx.service" in data["query"]["units"]
+
+    def test_search_invalid_unit_name_rejected(self):
+        """不正なユニット名（特殊文字）は400"""
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/search?units=nginx;rm+-rf+/", headers=headers)
+        assert resp.status_code in (400, 422)
+
+    @patch("subprocess.run")
+    def test_search_with_grep(self, mock_run):
+        """キーワードフィルタ付き検索"""
+        mock_run.return_value = make_mock_result("nginx started")
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/search?grep=nginx", headers=headers)
+        assert resp.status_code == 200
+
+    def test_search_grep_with_shell_chars_rejected(self):
+        """grep に危険な文字があれば400"""
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/search?grep=nginx%7Ccat+/etc/passwd", headers=headers)
+        assert resp.status_code in (400, 422)
+
+    def test_search_unauthenticated_rejected(self):
+        """未認証は拒否"""
+        resp = client.get("/api/journal/search")
+        assert resp.status_code in (401, 403)
+
+    def test_search_lines_too_many_rejected(self):
+        """lines > 2000 は拒否"""
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/search?lines=9999", headers=headers)
+        assert resp.status_code == 422
+
+    @patch("subprocess.run")
+    def test_search_response_structure(self, mock_run):
+        """レスポンス構造が正しい"""
+        mock_run.return_value = make_mock_result("line1\nline2")
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/search?lines=10", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "status" in data
+        assert "query" in data
+        assert "count" in data
+        assert "logs" in data
+        assert isinstance(data["logs"], list)
+
+
+class TestJournalStats:
+    """GET /api/journal/stats のテスト"""
+
+    @patch("subprocess.run")
+    def test_stats_returns_200(self, mock_run):
+        """統計取得が成功"""
+        mock_run.return_value = make_mock_result("error line 1\nerror line 2")
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/stats", headers=headers)
+        assert resp.status_code == 200
+
+    @patch("subprocess.run")
+    def test_stats_response_structure(self, mock_run):
+        """レスポンス構造確認"""
+        mock_run.return_value = make_mock_result("line")
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/stats", headers=headers)
+        data = resp.json()
+        assert "by_priority" in data
+        assert "total_errors" in data
+        assert "period_hours" in data
+
+    def test_stats_hours_too_large_rejected(self):
+        """720時間超は拒否"""
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/stats?hours=721", headers=headers)
+        assert resp.status_code == 422
+
+    def test_stats_unauthenticated_rejected(self):
+        """未認証は拒否"""
+        resp = client.get("/api/journal/stats")
+        assert resp.status_code in (401, 403)
+
+    @patch("subprocess.run")
+    def test_stats_default_24h(self, mock_run):
+        """デフォルト24時間集計"""
+        mock_run.return_value = make_mock_result("")
+        headers = get_auth_headers()
+        resp = client.get("/api/journal/stats", headers=headers)
+        data = resp.json()
+        assert data["period_hours"] == 24

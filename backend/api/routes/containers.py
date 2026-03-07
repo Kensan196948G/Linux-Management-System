@@ -10,6 +10,7 @@ Docker/Podman コンテナ管理 API エンドポイント
   POST /api/containers/{name}/stop    - コンテナ停止（承認フロー）
   POST /api/containers/{name}/restart - コンテナ再起動（承認フロー）
   GET  /api/containers/{name}/logs    - ログ取得（最新100行）
+  GET  /api/containers/{name}/logs/stream - ログSSEストリーミング
   GET  /api/containers/{name}/stats   - CPU/メモリ統計
 
 セキュリティ:
@@ -19,6 +20,7 @@ Docker/Podman コンテナ管理 API エンドポイント
   - docker/podman 不在時は 503
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -26,9 +28,10 @@ import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, AsyncGenerator, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ...core import require_permission
@@ -749,4 +752,120 @@ async def prune_stopped_containers(
         action="prune",
         target="all-stopped-containers",
         timestamp=_now_iso(),
+    )
+
+
+# ===================================================================
+# エンドポイント - SSE ログストリーミング
+# ===================================================================
+
+
+@router.get("/{name}/logs/stream")
+async def stream_container_logs(
+    name: str,
+    tail: int = Query(default=100, ge=1, le=1000, description="取得する末尾行数（1〜1000）"),
+    token: str = Query(..., description="JWT認証トークン（EventSource はヘッダー非対応のためクエリパラメータで渡す）"),
+) -> StreamingResponse:
+    """コンテナログを SSE (Server-Sent Events) でストリーミング配信する。
+
+    EventSource API は Authorization ヘッダーを付与できないため、
+    クエリパラメータ ``token`` で JWT を受け取り検証する。
+
+    Args:
+        name: コンテナ名（allowlist パターン検証済み）
+        tail: 初期取得行数（1〜1000、デフォルト 100）
+        token: JWT 認証トークン
+    """
+    from backend.core.auth import decode_token
+
+    user_data = decode_token(token)
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    # read:containers 権限チェック
+    from backend.core.auth import ROLES
+
+    required = "read:containers"
+    user_role = ROLES.get(user_data.role)
+    if not user_role or required not in user_role.permissions:
+        raise HTTPException(status_code=403, detail="Permission denied: read:containers required")
+
+    _validate_container_name(name)
+    _require_runtime()
+
+    audit_log.record(
+        operation="container_log_stream",
+        user_id=user_data.user_id,
+        target=name,
+        status="start",
+        details={"tail": tail},
+    )
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        proc = None
+        try:
+            connected_msg = json.dumps(
+                {
+                    "type": "start",
+                    "container": name,
+                    "tail": tail,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            yield f"data: {connected_msg}\n\n"
+
+            proc = await asyncio.create_subprocess_exec(
+                "sudo",
+                "/usr/local/sbin/adminui-containers.sh",
+                "logs",
+                name,
+                str(tail),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+
+            while True:
+                try:
+                    line_bytes = await asyncio.wait_for(
+                        proc.stdout.readline(),
+                        timeout=30.0,
+                    )
+                    if not line_bytes:
+                        break
+                    line = line_bytes.decode("utf-8", errors="replace").rstrip("\n")
+                    if line:
+                        payload = json.dumps({"type": "log", "line": line})
+                        yield f"data: {payload}\n\n"
+                except asyncio.TimeoutError:
+                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+
+            done_msg = json.dumps({"type": "done", "container": name})
+            yield f"data: {done_msg}\n\n"
+
+        except asyncio.CancelledError:
+            logger.info("SSE container log stream cancelled for %s", name)
+        except Exception as exc:
+            logger.error("SSE container log stream error for %s: %s", name, exc)
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+        finally:
+            if proc and proc.returncode is None:
+                try:
+                    proc.terminate()
+                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                except Exception:
+                    pass
+            audit_log.record(
+                operation="container_log_stream",
+                user_id=user_data.user_id,
+                target=name,
+                status="end",
+            )
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )

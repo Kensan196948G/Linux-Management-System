@@ -344,6 +344,15 @@ VALUES
      1,
      24,
      0,
+     'MEDIUM'),
+
+    ('multi_ssh_execute',
+     'マルチサーバーSSH実行',
+     1,
+     '["Approver", "Admin"]',
+     1,
+     1,
+     0,
      'MEDIUM');
 
 

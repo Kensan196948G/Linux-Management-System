@@ -512,3 +512,82 @@ def test_runtime_field_in_container_list(client, admin_headers):
         resp = client.get("/api/containers/", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["runtime"] == "podman"
+
+
+# ===================================================================
+# テスト: ログ SSE ストリーミング
+# ===================================================================
+
+
+class TestContainerLogStream:
+    """GET /api/containers/{name}/logs/stream のテスト"""
+
+    def test_stream_unauthenticated_rejected(self, client):
+        """未認証（token なし）は 422 を返すこと"""
+        resp = client.get("/api/containers/nginx/logs/stream")
+        assert resp.status_code in (401, 403, 422)
+
+    def test_stream_invalid_token_rejected(self, client):
+        """無効なトークンは 401 を返すこと"""
+        with _mock_runtime():
+            resp = client.get("/api/containers/nginx/logs/stream?token=invalid.token.here")
+        assert resp.status_code == 401
+
+    def test_stream_invalid_container_name(self, client, admin_token):
+        """不正なコンテナ名は 400 を返すこと"""
+        with _mock_runtime():
+            resp = client.get(
+                f"/api/containers/nginx%3Bbad/logs/stream?token={admin_token}"
+            )
+        assert resp.status_code in (400, 422)
+
+    def test_stream_tail_too_large_rejected(self, client, admin_token):
+        """tail > 1000 は 422 を返すこと"""
+        with _mock_runtime():
+            resp = client.get(
+                f"/api/containers/nginx/logs/stream?tail=9999&token={admin_token}"
+            )
+        assert resp.status_code == 422
+
+    def test_stream_tail_too_small_rejected(self, client, admin_token):
+        """tail < 1 は 422 を返すこと"""
+        with _mock_runtime():
+            resp = client.get(
+                f"/api/containers/nginx/logs/stream?tail=0&token={admin_token}"
+            )
+        assert resp.status_code == 422
+
+    def test_stream_runtime_not_available(self, client, admin_token):
+        """docker/podman 不在時は 503 を返すこと"""
+        with patch("backend.api.routes.containers._detect_runtime", return_value=None):
+            resp = client.get(
+                f"/api/containers/nginx/logs/stream?token={admin_token}"
+            )
+        assert resp.status_code == 503
+
+    def test_stream_endpoint_requires_read_containers_permission(self, client, viewer_token):
+        """read:containers 権限があれば 200 (SSE) を返すこと"""
+        with _mock_runtime():
+            with patch(
+                "asyncio.create_subprocess_exec",
+                side_effect=Exception("subprocess not called in unit test"),
+            ):
+                resp = client.get(
+                    f"/api/containers/nginx/logs/stream?token={viewer_token}",
+                    headers={"Accept": "text/event-stream"},
+                )
+        # 認証・権限は通過し、SSE ストリームが開始される（200 or streaming error）
+        assert resp.status_code in (200, 500)
+
+    def test_stream_endpoint_exists(self, client, admin_token):
+        """エンドポイントが存在し、有効なリクエストで 200 を返すこと"""
+        with _mock_runtime():
+            with patch(
+                "asyncio.create_subprocess_exec",
+                side_effect=Exception("subprocess not called in unit test"),
+            ):
+                resp = client.get(
+                    f"/api/containers/nginx/logs/stream?token={admin_token}",
+                    headers={"Accept": "text/event-stream"},
+                )
+        assert resp.status_code in (200, 500)

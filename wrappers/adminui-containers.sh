@@ -39,7 +39,13 @@ case "${COMMAND}" in
     start)          ${RUNTIME} start "${CONTAINER_NAME}" ;;
     stop)           ${RUNTIME} stop "${CONTAINER_NAME}" ;;
     restart)        ${RUNTIME} restart "${CONTAINER_NAME}" ;;
-    logs)           ${RUNTIME} logs --tail=100 "${CONTAINER_NAME}" 2>&1 ;;
+    logs)
+        TAIL_ARG="${3:-100}"
+        if ! [[ "${TAIL_ARG}" =~ ^[0-9]+$ ]] || [[ "${TAIL_ARG}" -lt 1 ]] || [[ "${TAIL_ARG}" -gt 10000 ]]; then
+            echo "Error: Invalid tail value" >&2
+            exit 1
+        fi
+        ${RUNTIME} logs --tail="${TAIL_ARG}" "${CONTAINER_NAME}" 2>&1 ;;
     stats)          ${RUNTIME} stats --no-stream --format json "${CONTAINER_NAME}" 2>/dev/null || echo '{}' ;;
     images)         ${RUNTIME} images --format json 2>/dev/null || ${RUNTIME} images --format "{{json .}}" ;;
     prune-stopped)  ${RUNTIME} container prune -f ;;

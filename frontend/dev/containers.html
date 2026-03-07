@@ -176,10 +176,13 @@
 
         <!-- ③ログビューアタブ -->
         <div id="tab-logs" class="d-none">
-            <div class="mb-3 d-flex gap-2 align-items-center">
+            <div class="mb-3 d-flex gap-2 align-items-center flex-wrap">
                 <input type="text" id="log-input" class="form-control form-control-sm" style="max-width:300px"
                     placeholder="コンテナ名を入力..." onkeydown="if(event.key==='Enter')loadLogs()">
                 <button class="btn btn-sm btn-primary" onclick="loadLogs()">取得</button>
+                <button class="btn btn-sm btn-success" id="stream-start-btn" onclick="startLogStream()">▶ ストリーミング開始</button>
+                <button class="btn btn-sm btn-danger d-none" id="stream-stop-btn" onclick="stopLogStream()">■ 停止</button>
+                <span id="stream-status" class="badge bg-secondary d-none">待機中</span>
                 <button class="btn btn-sm btn-outline-secondary" onclick="scrollLogsToBottom()">↓ 末尾</button>
             </div>
             <div id="log-loading" class="text-center py-4 d-none">
@@ -220,6 +223,7 @@ function showTab(tabId) {
     });
     document.getElementById(tabId).classList.remove('d-none');
     document.getElementById('tab-btn-' + tabId.replace('tab-', '')).classList.add('active');
+    if (currentTab === 'tab-logs' && tabId !== 'tab-logs') stopLogStream();
     currentTab = tabId;
 
     if (tabId === 'tab-images') loadImages();
@@ -454,6 +458,94 @@ async function loadLogs() {
 function scrollLogsToBottom() {
     const viewer = document.getElementById('log-viewer');
     viewer.scrollTop = viewer.scrollHeight;
+}
+
+// ===================================================================
+// ③-b ログ SSE ストリーミング
+// ===================================================================
+
+let logStream = null;
+
+function _logLineClass(line) {
+    const u = line.toUpperCase();
+    if (u.includes('ERROR') || u.includes('FATAL') || u.includes('CRIT')) return 'color:#f87171';
+    if (u.includes('WARN')) return 'color:#fbbf24';
+    if (u.includes('INFO') || u.includes('NOTICE')) return 'color:#4ade80';
+    return '';
+}
+
+function appendLogLine(line) {
+    const viewer = document.getElementById('log-viewer');
+    const span = document.createElement('span');
+    const style = _logLineClass(line);
+    if (style) span.setAttribute('style', style);
+    span.textContent = line + '\n';
+    viewer.appendChild(span);
+    scrollLogsToBottom();
+}
+
+function startLogStream() {
+    const name = document.getElementById('log-input').value.trim();
+    if (!name) { showAlert('コンテナ名を入力してください'); return; }
+    stopLogStream();
+    clearAlert();
+
+    const token = localStorage.getItem('token') || '';
+    const viewer = document.getElementById('log-viewer');
+    viewer.textContent = '';
+
+    document.getElementById('stream-start-btn').classList.add('d-none');
+    document.getElementById('stream-stop-btn').classList.remove('d-none');
+    const badge = document.getElementById('stream-status');
+    badge.textContent = '接続中...';
+    badge.className = 'badge bg-warning';
+    badge.classList.remove('d-none');
+
+    const url = `/api/containers/${encodeURIComponent(name)}/logs/stream?token=${encodeURIComponent(token)}&tail=200`;
+    logStream = new EventSource(url);
+
+    logStream.onmessage = function (e) {
+        try {
+            const data = JSON.parse(e.data);
+            if (data.type === 'start') {
+                badge.textContent = 'ストリーミング中';
+                badge.className = 'badge bg-success';
+            } else if (data.type === 'log') {
+                appendLogLine(data.line);
+            } else if (data.type === 'heartbeat') {
+                // no-op
+            } else if (data.type === 'done') {
+                badge.textContent = '完了';
+                badge.className = 'badge bg-secondary';
+                stopLogStream();
+            } else if (data.type === 'error') {
+                showAlert('ストリーミングエラー: ' + (data.message || ''));
+                stopLogStream();
+            }
+        } catch (_) { /* ignore parse error */ }
+    };
+
+    logStream.onerror = function () {
+        if (logStream && logStream.readyState === EventSource.CLOSED) {
+            badge.textContent = '切断';
+            badge.className = 'badge bg-danger';
+            stopLogStream();
+        }
+    };
+}
+
+function stopLogStream() {
+    if (logStream) {
+        logStream.close();
+        logStream = null;
+    }
+    document.getElementById('stream-start-btn').classList.remove('d-none');
+    document.getElementById('stream-stop-btn').classList.add('d-none');
+    const badge = document.getElementById('stream-status');
+    if (badge.textContent === '接続中...' || badge.textContent === 'ストリーミング中') {
+        badge.textContent = '停止';
+        badge.className = 'badge bg-secondary';
+    }
 }
 
 // ===================================================================
