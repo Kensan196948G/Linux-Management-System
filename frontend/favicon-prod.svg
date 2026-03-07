@@ -1,16 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- 本番環境アイコン: ブルー背景 + サーバー -->
-  <rect width="32" height="32" rx="6" fill="#2563EB"/>
-  <!-- server rack icon -->
-  <g fill="white">
-    <!-- top server -->
-    <rect x="6" y="7" width="20" height="6" rx="1.5"/>
-    <rect x="22" y="9" width="2" height="2" rx="1" fill="#93C5FD"/>
-    <rect x="18" y="9" width="2" height="2" rx="1" fill="#93C5FD"/>
-    <!-- bottom server -->
-    <rect x="6" y="15" width="20" height="6" rx="1.5"/>
-    <rect x="22" y="17" width="2" height="2" rx="1" fill="#93C5FD"/>
-    <rect x="18" y="17" width="2" height="2" rx="1" fill="#60A5FA"/>
-  </g>
-  <text x="16" y="28" font-family="Arial,sans-serif" font-size="8" font-weight="bold" fill="white" text-anchor="middle">PROD</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+<rect width="16" height="16" rx="3" fill="#1D4ED8"/>
+<rect x="2" y="3" width="12" height="4" rx="1" fill="white"/>
+<circle cx="12" cy="5" r="1" fill="#60A5FA"/>
+<rect x="2" y="9" width="12" height="4" rx="1" fill="white"/>
+<circle cx="12" cy="11" r="1" fill="#60A5FA"/>
 </svg>

@@ -203,22 +203,39 @@ app.mount("/prod", StaticFiles(directory=str(frontend_dir / "prod"), html=True),
 # favicon SVG ファイルの配信（/favicon-dev.svg, /favicon-prod.svg）
 from fastapi.responses import FileResponse  # noqa: E402
 
+_FAVICON_HEADERS = {
+    "Cache-Control": "public, max-age=3600, must-revalidate",
+    "X-Content-Type-Options": "nosniff",
+}
+
 @app.get("/favicon-dev.svg", include_in_schema=False)
 async def favicon_dev():
-    """開発環境用ファビコン（オレンジ）"""
-    return FileResponse(str(frontend_dir / "favicon-dev.svg"), media_type="image/svg+xml")
+    """開発環境用ファビコン（オレンジ・歯車）"""
+    return FileResponse(
+        str(frontend_dir / "favicon-dev.svg"),
+        media_type="image/svg+xml",
+        headers=_FAVICON_HEADERS,
+    )
 
 @app.get("/favicon-prod.svg", include_in_schema=False)
 async def favicon_prod():
-    """本番環境用ファビコン（ブルー）"""
-    return FileResponse(str(frontend_dir / "favicon-prod.svg"), media_type="image/svg+xml")
+    """本番環境用ファビコン（ブルー・サーバー）"""
+    return FileResponse(
+        str(frontend_dir / "favicon-prod.svg"),
+        media_type="image/svg+xml",
+        headers=_FAVICON_HEADERS,
+    )
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon_ico():
     """favicon.ico リクエストを環境に応じてSVGにリダイレクト"""
     env = os.environ.get("ENV", "dev")
     svg_file = "favicon-prod.svg" if env == "prod" else "favicon-dev.svg"
-    return FileResponse(str(frontend_dir / svg_file), media_type="image/svg+xml")
+    return FileResponse(
+        str(frontend_dir / svg_file),
+        media_type="image/svg+xml",
+        headers=_FAVICON_HEADERS,
+    )
 
 # ===================================================================
 # ミドルウェア
