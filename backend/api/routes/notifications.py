@@ -5,7 +5,6 @@ Slack / Discord / Generic Webhook / SMTP メール通知の設定・管理・送
 シェル起動は絶対禁止。全ユーザー入力は FORBIDDEN_CHARS で検証する。
 """
 
-import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path

@@ -16,7 +16,16 @@ import logging
 import os
 import re
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel
 
 from ...core import require_permission, sudo_wrapper
@@ -195,6 +204,7 @@ async def search_files(
 
 class ChmodRequest(BaseModel):
     """パーミッション変更リクエスト"""
+
     path: str
     mode: str
 
@@ -220,7 +230,7 @@ async def upload_file(
 
     # ファイル名検証
     filename = os.path.basename(file.filename or "")
-    if not filename or not re.match(r'^[a-zA-Z0-9._\-]+$', filename):
+    if not filename or not re.match(r"^[a-zA-Z0-9._\-]+$", filename):
         raise HTTPException(status_code=422, detail="Invalid filename")
 
     content = await file.read()
@@ -250,7 +260,7 @@ async def chmod_file(
     current_user: TokenData = Depends(require_permission("write:filemanager")),
 ):
     """ファイル/ディレクトリのパーミッションを変更する (octal: 例 644, 755)"""
-    if not re.match(r'^[0-7]{3,4}$', req.mode):
+    if not re.match(r"^[0-7]{3,4}$", req.mode):
         raise HTTPException(status_code=422, detail="Invalid mode: must be 3-4 octal digits")
 
     validated_path = validate_path(req.path)

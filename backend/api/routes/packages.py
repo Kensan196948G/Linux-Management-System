@@ -541,7 +541,6 @@ async def get_upgradable_packages(
     current_user: TokenData = Depends(require_permission("read:packages")),
 ) -> UpgradablePackagesResponse:
     """アップグレード可能なパッケージを構造化形式で取得する"""
-    from datetime import datetime, timezone
 
     try:
         result = sudo_wrapper.get_packages_updates()

@@ -15,7 +15,7 @@ import logging
 import re
 import subprocess
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
@@ -51,10 +51,7 @@ def _validate_mount_point(mount_point: str) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid mount point format: {mount_point!r}",
         )
-    if not any(
-        mount_point == prefix or mount_point.startswith(prefix + "/")
-        for prefix in ALLOWED_MOUNT_PREFIXES
-    ):
+    if not any(mount_point == prefix or mount_point.startswith(prefix + "/") for prefix in ALLOWED_MOUNT_PREFIXES):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Mount point not in allowed directories: {mount_point!r}",
@@ -185,10 +182,7 @@ class MountRequest(BaseModel):
         validate_input(v)
         if not _MOUNT_POINT_RE.match(v):
             raise ValueError(f"Invalid mount point format: {v!r}")
-        if not any(
-            v == prefix or v.startswith(prefix + "/")
-            for prefix in ALLOWED_MOUNT_PREFIXES
-        ):
+        if not any(v == prefix or v.startswith(prefix + "/") for prefix in ALLOWED_MOUNT_PREFIXES):
             raise ValueError(f"Mount point not in allowed directories: {v!r}")
         return v
 
@@ -215,10 +209,7 @@ class UmountRequest(BaseModel):
         validate_input(v)
         if not _MOUNT_POINT_RE.match(v):
             raise ValueError(f"Invalid mount point format: {v!r}")
-        if not any(
-            v == prefix or v.startswith(prefix + "/")
-            for prefix in ALLOWED_MOUNT_PREFIXES
-        ):
+        if not any(v == prefix or v.startswith(prefix + "/") for prefix in ALLOWED_MOUNT_PREFIXES):
             raise ValueError(f"Mount point not in allowed directories: {v!r}")
         return v
 
@@ -466,9 +457,7 @@ async def get_nfs_status(
         active_mounts = 0
         if nfs_available:
             check_result = _run_nfs_wrapper("check")
-            active_mounts = len([
-                line for line in check_result.stdout.splitlines() if line.strip()
-            ])
+            active_mounts = len([line for line in check_result.stdout.splitlines() if line.strip()])
 
         audit_log.record(
             operation="nfs_status",

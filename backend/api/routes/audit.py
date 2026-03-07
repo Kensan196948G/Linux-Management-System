@@ -312,8 +312,8 @@ async def get_user_activity_report(
     current_user: TokenData = Depends(require_permission("read:audit")),
 ) -> dict:
     """ユーザー別・操作種別・時間帯の活動集計レポートを返す"""
-    from datetime import timedelta
     from collections import Counter
+    from datetime import timedelta
 
     # Admin/Approver のみ全ユーザーレポートを閲覧可能
     if current_user.role.lower() not in ("admin", "approver"):
@@ -376,8 +376,8 @@ async def get_audit_summary(
     current_user: TokenData = Depends(require_permission("read:audit")),
 ) -> dict:
     """操作サマリーレポートを返す（全ロール閲覧可能、自分のデータのみ）"""
-    from datetime import timedelta
     from collections import Counter
+    from datetime import timedelta
 
     end_dt = datetime.now(timezone.utc)
     start_dt = end_dt - timedelta(hours=hours)

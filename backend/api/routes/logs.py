@@ -6,12 +6,13 @@ import json
 import logging
 import re
 import uuid
-from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path as FPath, Query, status
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Path as FPath
+from fastapi import Query, status
 from pydantic import BaseModel, field_validator
 
 from ...core import require_permission, sudo_wrapper
@@ -639,8 +640,18 @@ async def get_log_timeline(
 
     # 月略称 -> 数字マッピング
     MONTH_MAP = {
-        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+        "Jan": 1,
+        "Feb": 2,
+        "Mar": 3,
+        "Apr": 4,
+        "May": 5,
+        "Jun": 6,
+        "Jul": 7,
+        "Aug": 8,
+        "Sep": 9,
+        "Oct": 10,
+        "Nov": 11,
+        "Dec": 12,
     }
     # syslog 形式: "Jan  1 12:34:56 ..." or ISO 形式
     _syslog_re = re.compile(r"^(\w{3})\s+(\d+)\s+(\d{2}):(\d{2}):(\d{2})")
@@ -680,7 +691,9 @@ async def get_log_timeline(
                         m2 = _iso_re.match(line)
                         if m2:
                             try:
-                                log_dt = datetime(int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4)), tzinfo=timezone.utc)
+                                log_dt = datetime(
+                                    int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4)), tzinfo=timezone.utc
+                                )
                                 diff_hours = int((now - log_dt).total_seconds() // 3600)
                                 if 0 <= diff_hours < 24:
                                     hour = now.hour - diff_hours

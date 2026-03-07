@@ -15,7 +15,15 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import psutil
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.websockets import WebSocketState
 from jose import JWTError, jwt
 from pydantic import BaseModel, field_validator
@@ -367,7 +375,7 @@ async def alerts_websocket(
         await websocket.close(code=1008)
         return
 
-    user_id = payload.get("sub", "unknown")
+    payload.get("sub", "unknown")
     username = payload.get("username", "unknown")
 
     await websocket.accept()

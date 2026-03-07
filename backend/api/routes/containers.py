@@ -32,7 +32,7 @@ from typing import Any, AsyncGenerator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ...core import require_permission
 from ...core.approval_service import ApprovalService
@@ -48,6 +48,7 @@ _approval_service = ApprovalService(db_path=settings.database.path)
 
 # コンテナ名バリデーションパターン
 _CONTAINER_NAME_RE = re.compile(r"^[a-zA-Z0-9_.\-]{1,128}$")
+
 
 # ラッパースクリプトパス（開発環境は wrappers/ を使用）
 def _wrapper_path() -> str:
@@ -322,9 +323,7 @@ def _parse_container_list(stdout: str, runtime: str) -> list[ContainerInfo]:
 def _dict_to_container(d: dict[str, Any], runtime: str) -> ContainerInfo:
     """辞書をContainerInfoに変換（docker/podman フィールド差吸収）"""
     # Docker と Podman でフィールド名が異なる
-    name = (
-        d.get("Names") or d.get("Name") or d.get("name") or ""
-    )
+    name = d.get("Names") or d.get("Name") or d.get("name") or ""
     if isinstance(name, list):
         name = ", ".join(name)
     # Docker の Names は "/nginx" のように / 付きのことがある

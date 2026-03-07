@@ -409,39 +409,47 @@ def _check_ssh_config() -> List[Tuple[str, bool, str, str]]:
 
     # PasswordAuthentication no が推奨
     pa_val = settings.get("passwordauthentication", "yes")
-    results.append((
-        "ssh_password_auth",
-        pa_val.lower() == "no",
-        pa_val,
-        "PasswordAuthentication no を設定してパスワード認証を無効にしてください",
-    ))
+    results.append(
+        (
+            "ssh_password_auth",
+            pa_val.lower() == "no",
+            pa_val,
+            "PasswordAuthentication no を設定してパスワード認証を無効にしてください",
+        )
+    )
 
     # PermitRootLogin no が推奨
     prl_val = settings.get("permitrootlogin", "yes")
-    results.append((
-        "ssh_permit_root",
-        prl_val.lower() in ("no", "prohibit-password"),
-        prl_val,
-        "PermitRootLogin no を設定してrootログインを禁止してください",
-    ))
+    results.append(
+        (
+            "ssh_permit_root",
+            prl_val.lower() in ("no", "prohibit-password"),
+            prl_val,
+            "PermitRootLogin no を設定してrootログインを禁止してください",
+        )
+    )
 
     # PubkeyAuthentication yes が推奨
     pka_val = settings.get("pubkeyauthentication", "yes")
-    results.append((
-        "ssh_pubkey_auth",
-        pka_val.lower() == "yes",
-        pka_val,
-        "PubkeyAuthentication yes を設定して公開鍵認証を有効にしてください",
-    ))
+    results.append(
+        (
+            "ssh_pubkey_auth",
+            pka_val.lower() == "yes",
+            pka_val,
+            "PubkeyAuthentication yes を設定して公開鍵認証を有効にしてください",
+        )
+    )
 
     # Protocol 2 のみ許可
     proto_val = settings.get("protocol", "2")
-    results.append((
-        "ssh_protocol",
-        "1" not in proto_val,
-        proto_val,
-        "SSH Protocol 1 は無効にしてください（Protocol 2 のみ）",
-    ))
+    results.append(
+        (
+            "ssh_protocol",
+            "1" not in proto_val,
+            proto_val,
+            "SSH Protocol 1 は無効にしてください（Protocol 2 のみ）",
+        )
+    )
 
     return results
 
@@ -476,12 +484,14 @@ def _check_password_policy() -> List[Tuple[str, bool, str, str]]:
     except ValueError:
         max_days = -1
         compliant = False
-    results.append((
-        "passwd_max_days",
-        compliant,
-        pass_max,
-        "PASS_MAX_DAYS を 90 以下に設定してください",
-    ))
+    results.append(
+        (
+            "passwd_max_days",
+            compliant,
+            pass_max,
+            "PASS_MAX_DAYS を 90 以下に設定してください",
+        )
+    )
 
     # PASS_MIN_LEN >= 8 が推奨
     pass_min = settings.get("PASS_MIN_LEN", "0")
@@ -490,12 +500,14 @@ def _check_password_policy() -> List[Tuple[str, bool, str, str]]:
         compliant_len = min_len >= 8
     except ValueError:
         compliant_len = False
-    results.append((
-        "passwd_min_len",
-        compliant_len,
-        pass_min,
-        "PASS_MIN_LEN を 8 以上に設定してください",
-    ))
+    results.append(
+        (
+            "passwd_min_len",
+            compliant_len,
+            pass_min,
+            "PASS_MIN_LEN を 8 以上に設定してください",
+        )
+    )
 
     # PASS_WARN_AGE >= 7 が推奨
     pass_warn = settings.get("PASS_WARN_AGE", "0")
@@ -504,12 +516,14 @@ def _check_password_policy() -> List[Tuple[str, bool, str, str]]:
         compliant_warn = warn_age >= 7
     except ValueError:
         compliant_warn = False
-    results.append((
-        "passwd_warn_age",
-        compliant_warn,
-        pass_warn,
-        "PASS_WARN_AGE を 7 以上に設定して期限切れ前に警告を表示してください",
-    ))
+    results.append(
+        (
+            "passwd_warn_age",
+            compliant_warn,
+            pass_warn,
+            "PASS_WARN_AGE を 7 以上に設定して期限切れ前に警告を表示してください",
+        )
+    )
 
     return results
 
@@ -561,12 +575,14 @@ def _check_firewall_status() -> List[Tuple[str, bool, str, str]]:
     else:
         fw_val = "未検出"
 
-    results.append((
-        "firewall_enabled",
-        fw_active,
-        fw_val,
-        "ufw, firewalld, または iptables でファイアウォールを有効にしてください",
-    ))
+    results.append(
+        (
+            "firewall_enabled",
+            fw_active,
+            fw_val,
+            "ufw, firewalld, または iptables でファイアウォールを有効にしてください",
+        )
+    )
 
     return results
 
@@ -604,12 +620,14 @@ def _check_sudoers() -> List[Tuple[str, bool, str, str]]:
             continue
 
     val = f"危険な設定検出: {', '.join(set(dangerous_lines))}" if dangerous_found else "問題なし"
-    results.append((
-        "sudoers_nopasswd_all",
-        not dangerous_found,
-        val,
-        "NOPASSWD: ALL の使用は避け、特定コマンドのみ許可してください",
-    ))
+    results.append(
+        (
+            "sudoers_nopasswd_all",
+            not dangerous_found,
+            val,
+            "NOPASSWD: ALL の使用は避け、特定コマンドのみ許可してください",
+        )
+    )
 
     return results
 
@@ -644,12 +662,14 @@ def _check_suid_sgid_world_writable() -> List[Tuple[str, bool, str, str]]:
             continue
 
     val = f"{len(dangerous_files)} 件検出" if dangerous_files else "問題なし"
-    results.append((
-        "suid_world_writable",
-        len(dangerous_files) == 0,
-        val,
-        "world-writable な SUID ファイルは chmod o-w で書き込み権限を削除してください",
-    ))
+    results.append(
+        (
+            "suid_world_writable",
+            len(dangerous_files) == 0,
+            val,
+            "world-writable な SUID ファイルは chmod o-w で書き込み権限を削除してください",
+        )
+    )
 
     return results
 
@@ -747,12 +767,14 @@ def _collect_vulnerability_summary() -> VulnerabilitySummaryResponse:
                 continue
             name, new_ver, old_ver = m.group(1), m.group(2), m.group(3).strip()
             severity = _estimate_severity(name)
-            packages.append(VulnerablePackage(
-                name=name,
-                current_version=old_ver,
-                available_version=new_ver,
-                severity=severity,
-            ))
+            packages.append(
+                VulnerablePackage(
+                    name=name,
+                    current_version=old_ver,
+                    available_version=new_ver,
+                    severity=severity,
+                )
+            )
     except FileNotFoundError:
         pass  # apt がインストールされていない環境
     except subprocess.TimeoutExpired:

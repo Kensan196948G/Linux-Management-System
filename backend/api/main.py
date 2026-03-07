@@ -22,9 +22,6 @@ from .routes import (
     alerts,
     ansible,
     apache,
-    certificates,
-    containers,
-    websocket as ws_router,
     approval,
     audit,
     auth,
@@ -32,10 +29,13 @@ from .routes import (
     bandwidth,
     bind,
     bootup,
+    certificates,
+    containers,
     cron,
     dashboard,
     dbmonitor,
     dhcp,
+    fail2ban,
     filemanager,
     filesystem,
     firewall,
@@ -45,9 +45,12 @@ from .routes import (
     logs,
     logsearch,
     modules,
+    monitoring,
+    multi_ssh,
     mysql,
     netstat,
     network,
+    nfs,
     nginx,
     notifications,
     packages,
@@ -56,6 +59,7 @@ from .routes import (
     postgresql,
     processes,
     quotas,
+    realtime_alerts,
     routing,
     security,
     sensors,
@@ -65,19 +69,15 @@ from .routes import (
     smart,
     squid,
     ssh,
-    sshkeys,
     ssh_hosts,
+    sshkeys,
     stream,
     sysconfig,
     system,
     system_time,
     users,
-    monitoring,
-    fail2ban,
-    nfs,
-    realtime_alerts,
-    multi_ssh,
 )
+from .routes import websocket as ws_router
 
 # ログ設定
 logging.basicConfig(
@@ -208,6 +208,7 @@ _FAVICON_HEADERS = {
     "X-Content-Type-Options": "nosniff",
 }
 
+
 @app.get("/favicon-dev.svg", include_in_schema=False)
 async def favicon_dev():
     """開発環境用ファビコン（オレンジ・歯車）"""
@@ -217,6 +218,7 @@ async def favicon_dev():
         headers=_FAVICON_HEADERS,
     )
 
+
 @app.get("/favicon-prod.svg", include_in_schema=False)
 async def favicon_prod():
     """本番環境用ファビコン（ブルー・サーバー）"""
@@ -225,6 +227,7 @@ async def favicon_prod():
         media_type="image/svg+xml",
         headers=_FAVICON_HEADERS,
     )
+
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon_ico():
@@ -236,6 +239,7 @@ async def favicon_ico():
         media_type="image/svg+xml",
         headers=_FAVICON_HEADERS,
     )
+
 
 # ===================================================================
 # ミドルウェア

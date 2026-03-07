@@ -91,6 +91,7 @@ def _count_failed_services() -> int:
     except Exception:
         return 0
 
+
 router = APIRouter(prefix="/system", tags=["system"])
 
 
@@ -284,11 +285,13 @@ async def get_health_score(
     disk_score = _score_for_usage(disk_pct, warn_threshold=80.0, critical_threshold=95.0)
 
     # アクティブアラート数（CPU/メモリ/ディスクの閾値超過をカウント）
-    alerts_count = sum([
-        1 if cpu_pct > 90.0 else 0,
-        1 if mem_pct > 90.0 else 0,
-        1 if disk_pct > 90.0 else 0,
-    ])
+    alerts_count = sum(
+        [
+            1 if cpu_pct > 90.0 else 0,
+            1 if mem_pct > 90.0 else 0,
+            1 if disk_pct > 90.0 else 0,
+        ]
+    )
     alerts_score = _score_for_alerts(alerts_count)
 
     # 失敗サービス数
@@ -296,13 +299,7 @@ async def get_health_score(
     services_score = _score_for_failed_services(failed_count)
 
     # 合成スコア（重み付け平均）
-    overall_score = int(
-        0.30 * cpu_score
-        + 0.25 * mem_score
-        + 0.25 * disk_score
-        + 0.10 * alerts_score
-        + 0.10 * services_score
-    )
+    overall_score = int(0.30 * cpu_score + 0.25 * mem_score + 0.25 * disk_score + 0.10 * alerts_score + 0.10 * services_score)
 
     audit_log.record(
         operation="health_score_view",

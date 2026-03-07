@@ -4,14 +4,14 @@ import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from backend.api.routes.approval import approval_service
-from backend.core.auth import TokenData, require_permission
 from backend.core.audit_log import AuditLog
+from backend.core.auth import TokenData, require_permission
 from backend.core.sudo_wrapper import sudo_wrapper
 from backend.core.validation import validate_no_forbidden_chars
 
@@ -36,6 +36,7 @@ CRON_PRESETS = {
 
 # ─── Pydantic モデル ────────────────────────────────────────────────────────
 
+
 class ScheduleCreate(BaseModel):
     """スケジュール作成リクエスト"""
 
@@ -54,6 +55,7 @@ class RestoreRequest(BaseModel):
 
 
 # ─── ヘルパー関数 ────────────────────────────────────────────────────────────
+
 
 def _load_schedules() -> dict:
     """スケジュールJSONを読み込む"""
@@ -105,6 +107,7 @@ def _validate_target(target: str) -> str:
 
 # ─── 既存エンドポイント（変更なし） ─────────────────────────────────────────
 
+
 @router.get("/list")
 async def get_backup_list(
     current_user: Annotated[TokenData, Depends(require_permission("read:backup"))] = None,
@@ -150,6 +153,7 @@ async def get_backup_recent_logs(
 
 
 # ─── 新規エンドポイント ──────────────────────────────────────────────────────
+
 
 @router.get("/status")
 async def get_backup_status(
@@ -227,6 +231,7 @@ async def get_backup_history(
 
 
 # ─── スケジュール管理 ────────────────────────────────────────────────────────
+
 
 @router.get("/schedules")
 async def list_schedules(
@@ -322,6 +327,7 @@ async def delete_schedule(
 
 # ─── リストア（承認フロー経由） ──────────────────────────────────────────────
 
+
 @router.post("/restore", status_code=status.HTTP_202_ACCEPTED)
 async def request_restore(
     req: RestoreRequest,
@@ -367,7 +373,6 @@ async def request_restore(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
-
 
 
 @router.patch("/schedules/{schedule_id}/toggle", status_code=status.HTTP_200_OK)

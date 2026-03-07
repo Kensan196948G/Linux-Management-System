@@ -27,9 +27,9 @@ _HISTORY_FILE = Path(__file__).parent.parent.parent / "data" / "notification_his
 
 # 重大度ごとの色マッピング
 SEVERITY_COLORS = {
-    "info": 0x2196F3,       # 青
-    "warning": 0xFF9800,    # オレンジ
-    "critical": 0xF44336,   # 赤
+    "info": 0x2196F3,  # 青
+    "warning": 0xFF9800,  # オレンジ
+    "critical": 0xF44336,  # 赤
 }
 
 SEVERITY_SLACK_COLORS = {

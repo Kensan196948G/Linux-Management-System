@@ -918,9 +918,7 @@ async def update_dns_config(
             detail={"status": "error", "message": f"Invalid DNS2 address: {req.dns2}"},
         )
 
-    logger.info(
-        f"DNS config change requested: dns1={req.dns1} dns2={req.dns2} by={current_user.username}"
-    )
+    logger.info(f"DNS config change requested: dns1={req.dns1} dns2={req.dns2} by={current_user.username}")
 
     audit_log.record(
         operation="network_dns_config_request",

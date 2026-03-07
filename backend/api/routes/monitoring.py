@@ -19,9 +19,9 @@ import logging
 import sqlite3
 import time
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import psutil
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -58,7 +58,6 @@ DEFAULT_THRESHOLDS = {
 }
 
 
-
 # ===================================================================
 # SQLite メトリクス永続化
 # ===================================================================
@@ -75,7 +74,8 @@ def _get_db_connection() -> sqlite3.Connection:
 def _init_metrics_db() -> None:
     """メトリクス履歴テーブルを初期化"""
     with _get_db_connection() as conn:
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS metrics_history (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 ts        REAL NOT NULL,
@@ -89,7 +89,8 @@ def _init_metrics_db() -> None:
                 mem_used  INTEGER NOT NULL DEFAULT 0,
                 mem_total INTEGER NOT NULL DEFAULT 0
             )
-        """)
+        """
+        )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_ts ON metrics_history(ts)")
         conn.commit()
 

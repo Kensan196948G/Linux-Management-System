@@ -677,9 +677,7 @@ async def generate_keypair(
     except LookupError:
         # 承認ポリシーに未登録の操作種別の場合は汎用 ID で応答
         request_id = str(uuid.uuid4())
-        logger.warning(
-            "ssh_keypair_generate は承認ポリシーに未登録です。手動承認が必要です。request_id=%s", request_id
-        )
+        logger.warning("ssh_keypair_generate は承認ポリシーに未登録です。手動承認が必要です。request_id=%s", request_id)
 
     audit_log.record(
         operation="ssh_keypair_generate_requested",

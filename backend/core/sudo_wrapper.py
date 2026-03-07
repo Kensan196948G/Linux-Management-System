@@ -2345,7 +2345,8 @@ class SudoWrapper:
             実行結果の辞書
         """
         import re as _re
-        if not _re.match(r'^[0-7]{3,4}$', mode):
+
+        if not _re.match(r"^[0-7]{3,4}$", mode):
             raise ValueError(f"Invalid chmod mode: {mode}")
         self._validate_filemanager_arg(path)
         return self._execute("adminui-filemanager.sh", ["chmod", path, mode], timeout=15)
@@ -2361,14 +2362,15 @@ class SudoWrapper:
         Returns:
             実行結果の辞書
         """
+        import os
         import re as _re
         import tempfile
-        import os
-        if not _re.match(r'^[a-zA-Z0-9._\-]+$', filename):
+
+        if not _re.match(r"^[a-zA-Z0-9._\-]+$", filename):
             raise ValueError(f"Invalid filename: {filename}")
         self._validate_filemanager_arg(dest_path)
         # 一時ファイルに書き込み後、wrapper経由でコピー
-        with tempfile.NamedTemporaryFile(delete=False, prefix='lms_upload_') as tf:
+        with tempfile.NamedTemporaryFile(delete=False, prefix="lms_upload_") as tf:
             tf.write(content)
             tmp_path = tf.name
         try:

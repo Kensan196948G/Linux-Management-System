@@ -3,7 +3,6 @@
 import sqlite3
 import time
 from pathlib import Path
-from typing import Optional
 
 RATE_LIMIT_DB = Path("data/rate_limit.db")
 MAX_ATTEMPTS = 5  # 5回失敗でロック

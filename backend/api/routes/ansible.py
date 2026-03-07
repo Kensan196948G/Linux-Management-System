@@ -28,7 +28,6 @@ from ...core.approval_service import ApprovalService
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 from ...core.config import settings
-from ...core.validation import ValidationError, validate_no_forbidden_chars
 
 logger = logging.getLogger(__name__)
 
@@ -420,7 +419,9 @@ async def get_inventory(
             status="error",
             details={"message": result.get("message", "")},
         )
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result.get("message", "Failed to get inventory"))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result.get("message", "Failed to get inventory")
+        )
 
     # inventory_data は ansible-inventory --list の JSON出力
     inventory_data = result if isinstance(result, dict) and "_meta" in result else {}

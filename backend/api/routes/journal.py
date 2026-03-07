@@ -117,7 +117,7 @@ async def get_priority_logs(
 # ===================================================================
 
 _ALLOWED_PRIORITIES = frozenset(["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"])
-_ALLOWED_UNITS_PATTERN = re.compile(r'^[a-zA-Z0-9_\-\.@]+$')
+_ALLOWED_UNITS_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.@]+$")
 
 
 def _validate_unit_name(unit: str) -> None:
@@ -151,11 +151,11 @@ async def search_journal(
     # 時間範囲
     if since:
         # 相対指定 (-1h, -7d, today) と ISO 8601 を許容
-        if not re.match(r'^[-a-zA-Z0-9: +TZ.]+$', since):
+        if not re.match(r"^[-a-zA-Z0-9: +TZ.]+$", since):
             raise HTTPException(status_code=400, detail="since パラメータに不正な文字が含まれています")
         cmd += [f"--since={since}"]
     if until:
-        if not re.match(r'^[-a-zA-Z0-9: +TZ.]+$', until):
+        if not re.match(r"^[-a-zA-Z0-9: +TZ.]+$", until):
             raise HTTPException(status_code=400, detail="until パラメータに不正な文字が含まれています")
         cmd += [f"--until={until}"]
 
@@ -174,12 +174,13 @@ async def search_journal(
         if len(grep) > 256:
             raise HTTPException(status_code=400, detail="grep パターンが長すぎます")
         # 危険な文字（シェル展開につながるもの）を除外
-        if re.search(r'[;|&$`()\[\]{}\\]', grep):
+        if re.search(r"[;|&$`()\[\]{}\\]", grep):
             raise HTTPException(status_code=400, detail="grep パターンに不正な文字が含まれています")
         cmd += [f"--grep={grep}"]
 
     try:
         import subprocess
+
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         log_lines = [ln for ln in result.stdout.splitlines() if ln]
         return {
@@ -209,14 +210,15 @@ async def get_journal_stats(
 ) -> dict:
     """時間帯別・優先度別ログ統計サマリー"""
     import subprocess
-    from collections import Counter
 
     stats: dict[str, int] = {}
     for pri in ["emerg", "alert", "crit", "err", "warning"]:
         try:
             result = subprocess.run(
                 ["/usr/bin/journalctl", "--no-pager", f"-p{pri}", f"--since=-{hours}h", "--output=cat", "-q"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             stats[pri] = len([ln for ln in result.stdout.splitlines() if ln])
         except Exception:

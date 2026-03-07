@@ -210,7 +210,9 @@ def _collect_alerts_data() -> dict:
         disk = psutil.disk_usage("/")
 
         if cpu > 90:
-            alerts.append({"level": "critical", "resource": "cpu", "value": cpu, "message": f"CPU使用率が危険水準: {cpu:.1f}%"})
+            alerts.append(
+                {"level": "critical", "resource": "cpu", "value": cpu, "message": f"CPU使用率が危険水準: {cpu:.1f}%"}
+            )
         elif cpu > 75:
             alerts.append({"level": "warning", "resource": "cpu", "value": cpu, "message": f"CPU使用率が高い: {cpu:.1f}%"})
 

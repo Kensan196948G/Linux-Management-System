@@ -13,11 +13,10 @@ TLS/SSL 証明書管理 API エンドポイント
 
 import hashlib
 import logging
-import os
 import socket
 import ssl
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -95,9 +94,7 @@ def _parse_certificate_file(cert_path: Path) -> Optional[Dict[str, Any]]:
         # 有効期限計算
         if info.get("not_after_raw"):
             try:
-                expiry_dt = datetime.strptime(info["not_after_raw"], "%b %d %H:%M:%S %Y %Z").replace(
-                    tzinfo=timezone.utc
-                )
+                expiry_dt = datetime.strptime(info["not_after_raw"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
                 info["expiry"] = expiry_dt.isoformat()
                 remaining = expiry_dt - datetime.now(tz=timezone.utc)
                 info["days_remaining"] = max(0, remaining.days)
@@ -105,11 +102,7 @@ def _parse_certificate_file(cert_path: Path) -> Optional[Dict[str, Any]]:
                 info["expiry_status"] = (
                     "expired"
                     if remaining.days < 0
-                    else "critical"
-                    if remaining.days < 7
-                    else "warning"
-                    if remaining.days < 30
-                    else "ok"
+                    else "critical" if remaining.days < 7 else "warning" if remaining.days < 30 else "ok"
                 )
             except ValueError:
                 info["expiry"] = None
@@ -184,11 +177,7 @@ def _check_domain_certificate(hostname: str, port: int = 443) -> Dict[str, Any]:
             expiry_status = (
                 "expired"
                 if remaining.days < 0
-                else "critical"
-                if remaining.days < 7
-                else "warning"
-                if remaining.days < 30
-                else "ok"
+                else "critical" if remaining.days < 7 else "warning" if remaining.days < 30 else "ok"
             )
         except ValueError:
             expiry_dt = None
@@ -218,7 +207,13 @@ def _check_domain_certificate(hostname: str, port: int = 443) -> Dict[str, Any]:
             "reachable": True,
         }
     except ssl.SSLCertVerificationError as e:
-        return {"hostname": hostname, "port": port, "reachable": True, "error": f"証明書検証エラー: {e}", "expiry_status": "invalid"}
+        return {
+            "hostname": hostname,
+            "port": port,
+            "reachable": True,
+            "error": f"証明書検証エラー: {e}",
+            "expiry_status": "invalid",
+        }
     except (socket.timeout, ConnectionRefusedError, OSError) as e:
         return {"hostname": hostname, "port": port, "reachable": False, "error": str(e), "expiry_status": "unreachable"}
 
