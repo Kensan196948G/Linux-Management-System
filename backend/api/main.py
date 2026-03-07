@@ -447,6 +447,44 @@ async def dashboard():
     return HTMLResponse(content=html_path.read_text(), status_code=200)
 
 
+@app.get("/{page_path:path}", response_class=HTMLResponse)
+async def serve_page(page_path: str):
+    """
+    フロントエンドページを汎用的に提供するキャッチオールルート。
+
+    以下の形式を両方サポート:
+    - /dashboard.html  → frontend/dev/dashboard.html
+    - /dashboard       → frontend/dev/dashboard.html
+    - /dev/dashboard.html → StaticFiles が処理（このルートより先に評価される）
+
+    APIルート (/api/*) はこのハンドラより前に登録されているため到達しない。
+    """
+    # ENVに応じてdev/prodディレクトリを選択
+    env = settings.environment if hasattr(settings, "environment") else os.environ.get("ENV", "dev")
+    sub_dir = "prod" if env == "prod" else "dev"
+
+    # .htmlを除いたベース名を取得
+    base = page_path.rstrip("/")
+    if base.endswith(".html"):
+        base = base[:-5]
+
+    # セキュリティ: パストラバーサル防止（/ を含むパスは拒否）
+    if "/" in base or ".." in base:
+        raise HTTPException(status_code=404, detail="Page not found")
+
+    # 対応するHTMLファイルを探す
+    html_path = frontend_dir / sub_dir / f"{base}.html"
+    if not html_path.exists():
+        # devになければprodも確認
+        alt_path = frontend_dir / ("dev" if sub_dir == "prod" else "prod") / f"{base}.html"
+        if alt_path.exists():
+            html_path = alt_path
+        else:
+            raise HTTPException(status_code=404, detail=f"Page '{base}' not found")
+
+    return HTMLResponse(content=html_path.read_text(), status_code=200)
+
+
 # ===================================================================
 # 起動時処理
 # ===================================================================
