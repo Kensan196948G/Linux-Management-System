@@ -101,6 +101,20 @@
         .history-table td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; word-break: break-all; }
         .dark-mode .history-table th { border-color: #334155; color: #94a3b8; }
         .dark-mode .history-table td { border-color: #334155; }
+        /* Compliance table */
+        .compliance-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .compliance-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid #e5e7eb; font-size: 12px; color: #6b7280; }
+        .compliance-table td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+        .dark-mode .compliance-table th { border-color: #334155; color: #94a3b8; }
+        .dark-mode .compliance-table td { border-color: #334155; }
+        .compliance-table tr.row-fail td { background: #fef2f2; }
+        .dark-mode .compliance-table tr.row-fail td { background: #450a0a; }
+        /* Vuln summary */
+        .vuln-summary-grid { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+        .vuln-card { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 20px; text-align: center; min-width: 90px; }
+        .dark-mode .vuln-card { background: #0f172a; border-color: #334155; }
+        .vuln-card .num { font-size: 24px; font-weight: 700; }
+        .vuln-card .lbl { font-size: 11px; color: #6b7280; }
     </style>
 <script src="../js/theme.js"></script>
 </head>
@@ -214,6 +228,45 @@
             </div>
             <div id="sudo-history-content">
                 <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- E. Compliance Check -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-shield-check text-success"></i> コンプライアンスチェック (CISベンチマーク簡易版)
+                <span id="compliance-rate-badge" class="ms-auto"></span>
+            </div>
+            <div id="compliance-rate-bar-wrap" style="display:none; margin-bottom:12px;">
+                <div style="background:#e5e7eb;border-radius:4px;height:8px;">
+                    <div id="compliance-rate-bar" style="height:8px;border-radius:4px;background:#22c55e;width:0%;transition:width 0.5s;"></div>
+                </div>
+            </div>
+            <div id="compliance-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- F. Vulnerability Summary -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-bug-fill text-danger"></i> 脆弱性サマリー (アップグレード可能パッケージ)
+            </div>
+            <div id="vuln-summary-content">
+                <div class="text-muted">読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- G. Report Export -->
+        <div class="audit-card">
+            <div class="audit-card-title">
+                <i class="bi bi-file-earmark-arrow-down text-primary"></i> セキュリティレポートエクスポート
+            </div>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <button id="export-report-btn" class="btn btn-primary btn-sm" onclick="exportSecurityReport()">
+                    <i class="bi bi-download me-1"></i> HTMLレポートをダウンロード
+                </button>
+                <span id="export-report-status" class="text-muted" style="font-size:13px;"></span>
             </div>
         </div>
     </div>
@@ -468,7 +521,122 @@
     } catch (e) {
         document.getElementById('bandit-status-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
     }
+
+    // --- E. Compliance Check ---
+    (async function () {
+        try {
+            const d = await apiFetch('/api/security/compliance');
+            const rate = d.compliance_rate || 0;
+            const rateColor = rate >= 80 ? '#22c55e' : rate >= 60 ? '#f59e0b' : '#ef4444';
+            document.getElementById('compliance-rate-badge').innerHTML =
+                `<span style="font-size:13px;font-weight:600;color:${rateColor}">${rate}% 準拠 (${d.compliant_count}/${d.total_count})</span>`;
+            document.getElementById('compliance-rate-bar-wrap').style.display = '';
+            document.getElementById('compliance-rate-bar').style.width = rate + '%';
+            document.getElementById('compliance-rate-bar').style.background = rateColor;
+
+            if (!d.checks || d.checks.length === 0) {
+                document.getElementById('compliance-content').innerHTML = '<div class="text-muted">チェック結果なし</div>';
+                return;
+            }
+            const rows = d.checks.map(c => {
+                const badgeHtml = c.compliant
+                    ? `<span class="badge-ok" style="padding:2px 8px;border-radius:999px;font-size:11px;background:#dcfce7;color:#15803d;">✅ 準拠</span>`
+                    : `<span class="badge-danger" style="padding:2px 8px;border-radius:999px;font-size:11px;background:#fee2e2;color:#b91c1c;">❌ 非準拠</span>`;
+                const rowClass = c.compliant ? '' : ' class="row-fail"';
+                return `<tr${rowClass}>
+                    <td>${escape(c.category)}</td>
+                    <td>${escape(c.description)}</td>
+                    <td>${badgeHtml}</td>
+                    <td style="font-family:monospace;font-size:12px">${escape(c.value)}</td>
+                    <td style="font-size:12px;color:#6b7280">${escape(c.recommendation)}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('compliance-content').innerHTML = `
+                <table class="compliance-table">
+                    <thead><tr><th>カテゴリ</th><th>チェック項目</th><th>状態</th><th>現在値</th><th>推奨アクション</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        } catch (e) {
+            document.getElementById('compliance-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
+        }
+    })();
+
+    // --- F. Vulnerability Summary ---
+    (async function () {
+        try {
+            const d = await apiFetch('/api/security/vulnerability-summary');
+            const highColor = d.high > 0 ? '#ef4444' : '#22c55e';
+            const medColor = d.medium > 0 ? '#f59e0b' : '#22c55e';
+            let html = `<div class="vuln-summary-grid">
+                <div class="vuln-card"><div class="num" style="color:#64748b">${d.total_upgradable}</div><div class="lbl">合計</div></div>
+                <div class="vuln-card"><div class="num" style="color:${highColor}">${d.high}</div><div class="lbl">HIGH</div></div>
+                <div class="vuln-card"><div class="num" style="color:${medColor}">${d.medium}</div><div class="lbl">MEDIUM</div></div>
+                <div class="vuln-card"><div class="num" style="color:#22c55e">${d.low}</div><div class="lbl">LOW</div></div>
+            </div>`;
+            if (d.packages && d.packages.length > 0) {
+                const pkgRows = d.packages.slice(0, 20).map(p => {
+                    const sev = p.severity === 'HIGH'
+                        ? `<span class="badge-danger" style="padding:2px 8px;border-radius:999px;font-size:11px;background:#fee2e2;color:#b91c1c;">HIGH</span>`
+                        : p.severity === 'MEDIUM'
+                        ? `<span class="badge-warning" style="padding:2px 8px;border-radius:999px;font-size:11px;background:#fef9c3;color:#854d0e;">MEDIUM</span>`
+                        : `<span class="badge-ok" style="padding:2px 8px;border-radius:999px;font-size:11px;background:#dcfce7;color:#15803d;">LOW</span>`;
+                    return `<tr>
+                        <td><strong>${escape(p.name)}</strong></td>
+                        <td style="font-family:monospace;font-size:12px">${escape(p.current_version)}</td>
+                        <td style="font-family:monospace;font-size:12px">${escape(p.available_version)}</td>
+                        <td>${sev}</td>
+                    </tr>`;
+                }).join('');
+                html += `<table class="history-table">
+                    <thead><tr><th>パッケージ</th><th>現在</th><th>利用可能</th><th>重大度</th></tr></thead>
+                    <tbody>${pkgRows}</tbody>
+                </table>`;
+                if (d.packages.length > 20) {
+                    html += `<div class="text-muted" style="font-size:12px;margin-top:8px;">他 ${d.packages.length - 20} 件...</div>`;
+                }
+            } else {
+                html += '<div class="text-muted">アップグレード可能なパッケージなし</div>';
+            }
+            document.getElementById('vuln-summary-content').innerHTML = html;
+        } catch (e) {
+            document.getElementById('vuln-summary-content').innerHTML = `<div class="text-danger">エラー: ${escape(e.message)}</div>`;
+        }
+    })();
 })();
+
+async function exportSecurityReport() {
+    const btn = document.getElementById('export-report-btn');
+    const statusEl = document.getElementById('export-report-status');
+    btn.disabled = true;
+    statusEl.textContent = 'レポート生成中...';
+    try {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        const resp = await fetch('/api/security/report/export', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const cd = resp.headers.get('Content-Disposition') || '';
+        const fnMatch = cd.match(/filename="([^"]+)"/);
+        a.download = fnMatch ? fnMatch[1] : 'security-report.html';
+        a.href = url;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        statusEl.textContent = '✅ ダウンロード完了';
+    } catch (e) {
+        statusEl.textContent = `❌ エラー: ${e.message}`;
+    } finally {
+        btn.disabled = false;
+    }
+}
 </script>
 </body>
 </html>

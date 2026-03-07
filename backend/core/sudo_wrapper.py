@@ -62,7 +62,7 @@ class SudoWrapper:
             raise SudoWrapperError(error_msg)
 
         # ラッパースクリプトの実行（配列渡し）
-        # 注意: shell=True は絶対に使用しない
+        # 注意: shell 起動は絶対に使用しない
         cmd = ["sudo", str(wrapper_path)] + args
 
         logger.info(f"Executing wrapper: {wrapper_name}, args={args}")

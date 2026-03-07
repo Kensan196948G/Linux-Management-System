@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Hosts - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .tab-nav {
+            display: flex;
+            gap: 4px;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .tab-btn.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+        .tab-btn:hover:not(.active) { color: #374151; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 16px;
+        }
+
+        /* テーブル */
+        .hosts-table { width: 100%; border-collapse: collapse; }
+        .hosts-table th {
+            text-align: left;
+            padding: 8px 12px;
+            background: #f9fafb;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .hosts-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+        .hosts-table tr:hover td { background: #f9fafb; }
+
+        /* バッジ */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-blue { background: #dbeafe; color: #1d4ed8; }
+        .badge-green { background: #d1fae5; color: #065f46; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+        .badge-gray { background: #f3f4f6; color: #6b7280; }
+        .badge-yellow { background: #fef3c7; color: #92400e; }
+
+        /* アクションボタン */
+        .action-btn {
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .action-btn:hover { opacity: 0.8; }
+        .btn-test { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+        .btn-edit { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+        .btn-delete { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+        .btn-keygen { background: #fdf4ff; color: #7e22ce; border-color: #e9d5ff; }
+
+        /* フォーム */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-label { font-size: 13px; font-weight: 600; color: #374151; }
+        .form-label .required { color: #ef4444; margin-left: 2px; }
+        .form-control {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: border-color 0.15s;
+            width: 100%;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+        }
+        .form-control.is-invalid { border-color: #ef4444; }
+        .invalid-feedback { font-size: 11px; color: #ef4444; display: none; }
+        .form-control.is-invalid + .invalid-feedback { display: block; }
+        .form-hint { font-size: 11px; color: #9ca3af; }
+        .form-full { grid-column: 1 / -1; }
+
+        /* ボタン */
+        .btn-primary {
+            background: #3b82f6; color: #fff; border: none;
+            padding: 10px 20px; border-radius: 6px; font-size: 14px;
+            font-weight: 600; cursor: pointer; transition: background 0.15s;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+        .btn-secondary {
+            background: #f3f4f6; color: #374151; border: 1px solid #d1d5db;
+            padding: 10px 20px; border-radius: 6px; font-size: 14px;
+            font-weight: 600; cursor: pointer;
+        }
+        .btn-secondary:hover { background: #e5e7eb; }
+
+        /* アラート */
+        .alert {
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+        .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+
+        /* 接続テスト結果 */
+        .test-result {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .test-ok { background: #d1fae5; color: #065f46; }
+        .test-ng { background: #fee2e2; color: #991b1b; }
+        .test-loading { background: #fef3c7; color: #92400e; }
+
+        /* ローディング */
+        .loading-spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 空の状態 */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+        .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+        .empty-state p { font-size: 14px; }
+
+        /* モーダル */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #fff;
+            border-radius: 10px;
+            padding: 24px;
+            width: 480px;
+            max-width: 95vw;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 16px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        /* ページタイトル */
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .page-title { font-size: 22px; font-weight: 700; color: #111827; margin: 0; }
+        .page-subtitle { font-size: 13px; color: #6b7280; margin-top: 4px; }
+        .refresh-btn {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #374151;
+        }
+        .refresh-btn:hover { background: #e5e7eb; }
+
+        /* トンネルテーブル */
+        .tunnel-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .tunnel-table th {
+            text-align: left;
+            padding: 6px 10px;
+            background: #f9fafb;
+            border-bottom: 2px solid #e5e7eb;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-size: 11px;
+        }
+        .tunnel-table td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+        .tunnel-table tr:hover td { background: #f9fafb; }
+    </style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+    <main class="main-content">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">🔐 SSH 踏み台・接続先管理</h1>
+                <p class="page-subtitle">SSH 接続先ホストの登録・管理・接続テスト</p>
+            </div>
+            <button class="refresh-btn" onclick="refreshCurrentTab()">🔄 更新</button>
+        </div>
+
+        <div id="alert-area"></div>
+
+        <!-- タブナビゲーション -->
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('hosts')">① ホスト一覧</button>
+            <button class="tab-btn" onclick="switchTab('register')">② 新規登録</button>
+            <button class="tab-btn" onclick="switchTab('tunnels')">③ アクティブトンネル</button>
+        </div>
+
+        <!-- ① ホスト一覧タブ -->
+        <div class="tab-panel active" id="panel-hosts">
+            <div class="card">
+                <div class="card-title">登録済み SSH ホスト</div>
+                <div id="hosts-loading" class="text-center py-4">
+                    <div class="loading-spinner"></div> 読み込み中...
+                </div>
+                <div id="hosts-content" style="display:none;">
+                    <div id="hosts-count" class="mb-2" style="font-size:13px;color:#6b7280;"></div>
+                    <div style="overflow-x:auto;">
+                        <table class="hosts-table">
+                            <thead>
+                                <tr>
+                                    <th>名前</th>
+                                    <th>ホスト / IP</th>
+                                    <th>ポート</th>
+                                    <th>ユーザー</th>
+                                    <th>SSH鍵</th>
+                                    <th>踏み台</th>
+                                    <th>説明</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hosts-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="hosts-empty" class="empty-state" style="display:none;">
+                        <div class="icon">🖥️</div>
+                        <p>登録されたホストはありません。<br>「② 新規登録」タブからホストを追加してください。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ② 新規登録タブ -->
+        <div class="tab-panel" id="panel-register">
+            <div class="card">
+                <div class="card-title" id="form-title">新規 SSH ホスト登録</div>
+                <div id="form-alert"></div>
+                <form id="host-form" onsubmit="submitHostForm(event)">
+                    <input type="hidden" id="edit-id" value="">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="f-name">表示名 <span class="required">*</span></label>
+                            <input class="form-control" id="f-name" type="text" placeholder="例: 本番サーバー" maxlength="64" required>
+                            <div class="invalid-feedback">英数字・スペース・ハイフン・ドット (1〜64文字)</div>
+                            <span class="form-hint">英数字・スペース・ハイフン・ドット (1〜64文字)</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="f-hostname">ホスト名 / IP <span class="required">*</span></label>
+                            <input class="form-control" id="f-hostname" type="text" placeholder="例: 192.168.1.10 または server.example.com" required>
+                            <div class="invalid-feedback">RFC1123ホスト名 / IPv4 / IPv6 のみ許可</div>
+                            <span class="form-hint">RFC1123ホスト名 / IPv4 / IPv6</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="f-port">SSHポート <span class="required">*</span></label>
+                            <input class="form-control" id="f-port" type="number" value="22" min="1" max="65535" required>
+                            <div class="invalid-feedback">1〜65535 の範囲で指定</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="f-username">ログインユーザー名 <span class="required">*</span></label>
+                            <input class="form-control" id="f-username" type="text" placeholder="例: ubuntu" maxlength="32" pattern="[a-zA-Z0-9_\-]{1,32}" required>
+                            <div class="invalid-feedback">英数字・アンダースコア・ハイフン (1〜32文字)</div>
+                            <span class="form-hint">英数字・ _ ・ - のみ (1〜32文字)</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="f-keyname">使用する SSH 鍵</label>
+                            <select class="form-control" id="f-keyname">
+                                <option value="">-- 鍵なし（パスワード認証） --</option>
+                            </select>
+                            <span class="form-hint">システムに登録された SSH 鍵から選択</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="f-bastion">踏み台ホスト</label>
+                            <select class="form-control" id="f-bastion">
+                                <option value="">-- 直接接続 (踏み台なし) --</option>
+                            </select>
+                            <span class="form-hint">経由する踏み台ホストを選択</span>
+                        </div>
+                        <div class="form-group form-full">
+                            <label class="form-label" for="f-description">説明</label>
+                            <input class="form-control" id="f-description" type="text" placeholder="用途・メモなど" maxlength="256">
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn-primary" id="form-submit-btn">登録する</button>
+                        <button type="button" class="btn-secondary" onclick="resetForm()">リセット</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ③ アクティブトンネルタブ -->
+        <div class="tab-panel" id="panel-tunnels">
+            <div class="card">
+                <div class="card-title">アクティブ SSH 接続・トンネル</div>
+                <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
+                    psutil で検出したシステム上の SSH プロセス接続一覧です（ポーリング間隔: 手動更新）。
+                </p>
+                <div id="tunnels-loading" class="text-center py-4">
+                    <div class="loading-spinner"></div> 読み込み中...
+                </div>
+                <div id="tunnels-content" style="display:none;">
+                    <div id="tunnels-count" class="mb-2" style="font-size:13px;color:#6b7280;"></div>
+                    <div style="overflow-x:auto;">
+                        <table class="tunnel-table">
+                            <thead>
+                                <tr>
+                                    <th>PID</th>
+                                    <th>ローカルアドレス</th>
+                                    <th>ローカルポート</th>
+                                    <th>リモートアドレス</th>
+                                    <th>リモートポート</th>
+                                    <th>状態</th>
+                                    <th>コマンドライン</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tunnels-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="tunnels-empty" class="empty-state" style="display:none;">
+                        <div class="icon">🔌</div>
+                        <p>アクティブな SSH 接続はありません。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 削除確認モーダル -->
+<div class="modal-overlay" id="delete-modal">
+    <div class="modal">
+        <div class="modal-title">🗑️ ホスト削除の確認</div>
+        <p id="delete-modal-body" style="font-size:14px;color:#374151;"></p>
+        <div id="delete-modal-alert"></div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeDeleteModal()">キャンセル</button>
+            <button class="btn-primary" style="background:#ef4444;" id="delete-confirm-btn" onclick="confirmDelete()">削除する</button>
+        </div>
+    </div>
+</div>
+
+<!-- 鍵ペア生成モーダル -->
+<div class="modal-overlay" id="keygen-modal">
+    <div class="modal">
+        <div class="modal-title">🔑 SSH 鍵ペア生成リクエスト</div>
+        <p id="keygen-modal-body" style="font-size:13px;color:#6b7280;margin-bottom:16px;"></p>
+        <div id="keygen-modal-alert"></div>
+        <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">鍵タイプ</label>
+            <select class="form-control" id="keygen-type">
+                <option value="ed25519">ed25519（推奨・高速・安全）</option>
+                <option value="rsa">RSA 4096（互換性重視）</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">コメント（オプション）</label>
+            <input class="form-control" id="keygen-comment" type="text" placeholder="user@hostname" maxlength="128">
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">申請理由 <span class="required">*</span></label>
+            <input class="form-control" id="keygen-reason" type="text" placeholder="新規サーバー接続のため" maxlength="500" required>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeKeygenModal()">キャンセル</button>
+            <button class="btn-primary" id="keygen-submit-btn" onclick="submitKeygen()">申請する</button>
+        </div>
+    </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+// ========== 状態管理 ==========
+let _hosts = [];
+let _sshKeys = [];
+let _currentTab = 'hosts';
+let _deleteTargetId = null;
+let _keygenTargetId = null;
+
+// ========== タブ切り替え ==========
+function switchTab(tab) {
+    _currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', ['hosts','register','tunnels'][i] === tab);
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`panel-${tab}`).classList.add('active');
+
+    if (tab === 'hosts') loadHosts();
+    if (tab === 'register') loadKeysAndBastions();
+    if (tab === 'tunnels') loadTunnels();
+}
+
+function refreshCurrentTab() { switchTab(_currentTab); }
+
+// ========== アラート表示 ==========
+function showAlert(msg, type = 'info', targetId = 'alert-area') {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    el.innerHTML = `<div class="alert alert-${type}">${escHtml(msg)}</div>`;
+    if (targetId === 'alert-area') {
+        setTimeout(() => { if (el) el.innerHTML = ''; }, 6000);
+    }
+}
+
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ========== ① ホスト一覧 ==========
+async function loadHosts() {
+    const loading = document.getElementById('hosts-loading');
+    const content = document.getElementById('hosts-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.request('GET', '/api/ssh-hosts/');
+        _hosts = data.hosts || [];
+        renderHosts(_hosts);
+        document.getElementById('hosts-count').textContent = `登録済み: ${_hosts.length} ホスト`;
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-error">読み込みエラー: ${escHtml(e.message)}</div>`;
+    }
+}
+
+function renderHosts(hosts) {
+    const tbody = document.getElementById('hosts-tbody');
+    const empty = document.getElementById('hosts-empty');
+    if (!hosts.length) {
+        tbody.innerHTML = '';
+        empty.style.display = '';
+        return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = hosts.map(h => {
+        const bastion = h.bastion_host ? (_hosts.find(x => x.id === h.bastion_host)?.name || '(削除済み)') : '—';
+        return `<tr>
+            <td><strong>${escHtml(h.name)}</strong></td>
+            <td><code>${escHtml(h.hostname)}</code></td>
+            <td>${h.port}</td>
+            <td>${escHtml(h.username)}</td>
+            <td>${h.key_name ? `<span class="badge badge-blue">${escHtml(h.key_name)}</span>` : '<span class="badge badge-gray">なし</span>'}</td>
+            <td>${bastion !== '—' ? `<span class="badge badge-yellow">${escHtml(bastion)}</span>` : '—'}</td>
+            <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;">${escHtml(h.description || '')}</td>
+            <td>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                    <button class="action-btn btn-test" onclick="testConnection('${escHtml(h.id)}', this)">🔌 テスト</button>
+                    <button class="action-btn btn-edit" onclick="editHost('${escHtml(h.id)}')">✏️ 編集</button>
+                    <button class="action-btn btn-keygen" onclick="openKeygenModal('${escHtml(h.id)}')">🔑 鍵生成</button>
+                    <button class="action-btn btn-delete" onclick="openDeleteModal('${escHtml(h.id)}')">🗑️ 削除</button>
+                </div>
+                <div id="test-result-${escHtml(h.id)}" style="margin-top:4px;"></div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ========== 接続テスト ==========
+async function testConnection(hostId, btn) {
+    const resultEl = document.getElementById(`test-result-${hostId}`);
+    resultEl.innerHTML = '<span class="test-result test-loading"><span class="loading-spinner"></span> テスト中...</span>';
+    btn.disabled = true;
+    try {
+        const data = await api.request('POST', `/api/ssh-hosts/${encodeURIComponent(hostId)}/test-connection`);
+        if (data.reachable) {
+            resultEl.innerHTML = `<span class="test-result test-ok">✅ 到達可能 (${data.latency_ms}ms)</span>`;
+        } else {
+            resultEl.innerHTML = `<span class="test-result test-ng">❌ 到達不可: ${escHtml(data.error || '不明')}</span>`;
+        }
+    } catch (e) {
+        resultEl.innerHTML = `<span class="test-result test-ng">❌ エラー: ${escHtml(e.message)}</span>`;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// ========== 削除 ==========
+function openDeleteModal(hostId) {
+    const host = _hosts.find(h => h.id === hostId);
+    if (!host) return;
+    _deleteTargetId = hostId;
+    document.getElementById('delete-modal-body').textContent =
+        `「${host.name}」(${host.hostname}:${host.port}) を削除しますか？この操作は取り消せません。`;
+    document.getElementById('delete-modal-alert').innerHTML = '';
+    document.getElementById('delete-modal').classList.add('active');
+}
+function closeDeleteModal() {
+    _deleteTargetId = null;
+    document.getElementById('delete-modal').classList.remove('active');
+}
+async function confirmDelete() {
+    if (!_deleteTargetId) return;
+    const btn = document.getElementById('delete-confirm-btn');
+    btn.disabled = true;
+    btn.textContent = '削除中...';
+    try {
+        await api.request('DELETE', `/api/ssh-hosts/${encodeURIComponent(_deleteTargetId)}`);
+        closeDeleteModal();
+        showAlert('ホストを削除しました', 'success');
+        loadHosts();
+    } catch (e) {
+        document.getElementById('delete-modal-alert').innerHTML =
+            `<div class="alert alert-error">${escHtml(e.message)}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '削除する';
+    }
+}
+
+// ========== ② 新規登録フォーム ==========
+async function loadKeysAndBastions() {
+    try {
+        const data = await api.request('GET', '/api/ssh/keys');
+        _sshKeys = (data.keys || []).map(k => k.filename || k.name || '');
+        const sel = document.getElementById('f-keyname');
+        sel.innerHTML = '<option value="">-- 鍵なし（パスワード認証） --</option>';
+        _sshKeys.filter(Boolean).forEach(k => {
+            const opt = document.createElement('option');
+            opt.value = k; opt.textContent = k;
+            sel.appendChild(opt);
+        });
+    } catch (e) {
+        // SSH鍵一覧が取得できない場合はスキップ
+        console.warn('SSH鍵一覧取得失敗:', e.message);
+    }
+
+    // 踏み台候補を更新
+    const bastionSel = document.getElementById('f-bastion');
+    const currentEditId = document.getElementById('edit-id').value;
+    bastionSel.innerHTML = '<option value="">-- 直接接続 (踏み台なし) --</option>';
+    if (!_hosts.length) {
+        try {
+            const hdata = await api.request('GET', '/api/ssh-hosts/');
+            _hosts = hdata.hosts || [];
+        } catch(e) { /* ignore */ }
+    }
+    _hosts.filter(h => h.id !== currentEditId).forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h.id; opt.textContent = `${h.name} (${h.hostname}:${h.port})`;
+        bastionSel.appendChild(opt);
+    });
+}
+
+function editHost(hostId) {
+    const host = _hosts.find(h => h.id === hostId);
+    if (!host) return;
+    switchTab('register');
+    document.getElementById('form-title').textContent = 'SSH ホスト編集';
+    document.getElementById('form-submit-btn').textContent = '更新する';
+    document.getElementById('edit-id').value = host.id;
+    document.getElementById('f-name').value = host.name;
+    document.getElementById('f-hostname').value = host.hostname;
+    document.getElementById('f-port').value = host.port;
+    document.getElementById('f-username').value = host.username;
+    document.getElementById('f-description').value = host.description || '';
+
+    loadKeysAndBastions().then(() => {
+        if (host.key_name) document.getElementById('f-keyname').value = host.key_name;
+        if (host.bastion_host) document.getElementById('f-bastion').value = host.bastion_host;
+    });
+}
+
+function resetForm() {
+    document.getElementById('edit-id').value = '';
+    document.getElementById('form-title').textContent = '新規 SSH ホスト登録';
+    document.getElementById('form-submit-btn').textContent = '登録する';
+    document.getElementById('host-form').reset();
+    document.getElementById('form-alert').innerHTML = '';
+    document.querySelectorAll('.form-control.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    loadKeysAndBastions();
+}
+
+// バリデーション
+function validateForm() {
+    let valid = true;
+    const name = document.getElementById('f-name').value.trim();
+    const hostname = document.getElementById('f-hostname').value.trim();
+    const port = parseInt(document.getElementById('f-port').value);
+    const username = document.getElementById('f-username').value.trim();
+
+    // 表示名
+    const nameEl = document.getElementById('f-name');
+    if (!name || !/^[a-zA-Z0-9_\-\. ]{1,64}$/.test(name)) {
+        nameEl.classList.add('is-invalid'); valid = false;
+    } else { nameEl.classList.remove('is-invalid'); }
+
+    // ホスト名
+    const hostnameEl = document.getElementById('f-hostname');
+    const ipv4 = /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/.test(hostname);
+    const rfc1123 = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$/.test(hostname);
+    if (!hostname || (!ipv4 && !rfc1123)) {
+        hostnameEl.classList.add('is-invalid'); valid = false;
+    } else { hostnameEl.classList.remove('is-invalid'); }
+
+    // ポート
+    const portEl = document.getElementById('f-port');
+    if (isNaN(port) || port < 1 || port > 65535) {
+        portEl.classList.add('is-invalid'); valid = false;
+    } else { portEl.classList.remove('is-invalid'); }
+
+    // ユーザー名
+    const usernameEl = document.getElementById('f-username');
+    if (!username || !/^[a-zA-Z0-9_-]{1,32}$/.test(username)) {
+        usernameEl.classList.add('is-invalid'); valid = false;
+    } else { usernameEl.classList.remove('is-invalid'); }
+
+    return valid;
+}
+
+async function submitHostForm(e) {
+    e.preventDefault();
+    if (!validateForm()) {
+        showAlert('入力内容を確認してください', 'error', 'form-alert');
+        return;
+    }
+
+    const editId = document.getElementById('edit-id').value;
+    const payload = {
+        name: document.getElementById('f-name').value.trim(),
+        hostname: document.getElementById('f-hostname').value.trim(),
+        port: parseInt(document.getElementById('f-port').value),
+        username: document.getElementById('f-username').value.trim(),
+        key_name: document.getElementById('f-keyname').value || null,
+        bastion_host: document.getElementById('f-bastion').value || null,
+        description: document.getElementById('f-description').value.trim(),
+    };
+
+    const btn = document.getElementById('form-submit-btn');
+    btn.disabled = true;
+    btn.textContent = editId ? '更新中...' : '登録中...';
+
+    try {
+        if (editId) {
+            await api.request('PUT', `/api/ssh-hosts/${encodeURIComponent(editId)}`, payload);
+            showAlert('ホストを更新しました', 'success');
+        } else {
+            await api.request('POST', '/api/ssh-hosts/', payload);
+            showAlert('ホストを登録しました', 'success');
+        }
+        resetForm();
+        // ホスト一覧を再読み込み
+        const hdata = await api.request('GET', '/api/ssh-hosts/');
+        _hosts = hdata.hosts || [];
+    } catch (e) {
+        showAlert(`エラー: ${e.message}`, 'error', 'form-alert');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = editId ? '更新する' : '登録する';
+    }
+}
+
+// ========== ③ アクティブトンネル ==========
+async function loadTunnels() {
+    const loading = document.getElementById('tunnels-loading');
+    const content = document.getElementById('tunnels-content');
+    loading.style.display = ''; content.style.display = 'none';
+    try {
+        const data = await api.request('GET', '/api/ssh-hosts/tunnels');
+        const tunnels = data.tunnels || [];
+        document.getElementById('tunnels-count').textContent = `検出: ${tunnels.length} 接続`;
+        renderTunnels(tunnels);
+        loading.style.display = 'none'; content.style.display = '';
+    } catch (e) {
+        loading.innerHTML = `<div class="alert alert-error">読み込みエラー: ${escHtml(e.message)}</div>`;
+    }
+}
+
+function renderTunnels(tunnels) {
+    const tbody = document.getElementById('tunnels-tbody');
+    const empty = document.getElementById('tunnels-empty');
+    if (!tunnels.length) {
+        tbody.innerHTML = '';
+        empty.style.display = '';
+        return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = tunnels.map(t => `
+        <tr>
+            <td><code>${t.pid}</code></td>
+            <td>${escHtml(t.local_address)}</td>
+            <td>${t.local_port}</td>
+            <td>${escHtml(t.remote_address)}</td>
+            <td>${t.remote_port}</td>
+            <td><span class="badge ${t.state === 'ESTABLISHED' ? 'badge-green' : 'badge-yellow'}">${escHtml(t.state)}</span></td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(t.cmdline)}">
+                <code style="font-size:11px;">${escHtml(t.cmdline)}</code>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// ========== 鍵ペア生成モーダル ==========
+function openKeygenModal(hostId) {
+    const host = _hosts.find(h => h.id === hostId);
+    if (!host) return;
+    _keygenTargetId = hostId;
+    document.getElementById('keygen-modal-body').textContent =
+        `対象: ${host.name} (${host.hostname}:${host.port})`;
+    document.getElementById('keygen-modal-alert').innerHTML = '';
+    document.getElementById('keygen-type').value = 'ed25519';
+    document.getElementById('keygen-comment').value = '';
+    document.getElementById('keygen-reason').value = '';
+    document.getElementById('keygen-modal').classList.add('active');
+}
+function closeKeygenModal() {
+    _keygenTargetId = null;
+    document.getElementById('keygen-modal').classList.remove('active');
+}
+async function submitKeygen() {
+    if (!_keygenTargetId) return;
+    const reason = document.getElementById('keygen-reason').value.trim();
+    if (!reason) {
+        document.getElementById('keygen-modal-alert').innerHTML =
+            '<div class="alert alert-error">申請理由を入力してください</div>';
+        return;
+    }
+    const btn = document.getElementById('keygen-submit-btn');
+    btn.disabled = true; btn.textContent = '申請中...';
+    try {
+        const data = await api.request('POST',
+            `/api/ssh-hosts/${encodeURIComponent(_keygenTargetId)}/generate-keypair`, {
+            key_type: document.getElementById('keygen-type').value,
+            key_comment: document.getElementById('keygen-comment').value.trim(),
+            reason,
+        });
+        closeKeygenModal();
+        showAlert(`鍵ペア生成リクエストを送信しました (ID: ${data.request_id})`, 'success');
+    } catch (e) {
+        document.getElementById('keygen-modal-alert').innerHTML =
+            `<div class="alert alert-error">${escHtml(e.message)}</div>`;
+    } finally {
+        btn.disabled = false; btn.textContent = '申請する';
+    }
+}
+
+// ========== 初期化 ==========
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+    api.setToken(token);
+    loadHosts();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>

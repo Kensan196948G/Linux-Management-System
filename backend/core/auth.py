@@ -117,6 +117,8 @@ ROLES = {
             "write:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
+            # SSH 踏み台・接続先管理
+            "read:ssh_hosts",
             # モジュール管理
             "read:modules",
             # セキュリティ監査
@@ -136,6 +138,11 @@ ROLES = {
             "read:ansible",
             # システムリソース監視
             "read:system",
+            # ダッシュボード設定
+            "read:dashboard",
+            "write:dashboard",
+            # TLS/SSL証明書管理
+            "read:certificates",
         ],
     ),
     "Operator": UserRole(
@@ -201,6 +208,9 @@ ROLES = {
             "write:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
+            # SSH 踏み台・接続先管理
+            "read:ssh_hosts",
+            "write:ssh_hosts",
             # モジュール管理
             "read:modules",
             # セキュリティ監査
@@ -223,6 +233,12 @@ ROLES = {
             # システムリソース監視
             "read:system",
             "write:system",
+            # ダッシュボード設定
+            "read:dashboard",
+            "write:dashboard",
+            # TLS/SSL証明書管理
+            "read:certificates",
+            "write:certificates",
         ],
     ),
     "Approver": UserRole(
@@ -295,6 +311,9 @@ ROLES = {
             "write:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
+            # SSH 踏み台・接続先管理
+            "read:ssh_hosts",
+            "write:ssh_hosts",
             # モジュール管理
             "read:modules",
             # セキュリティ監査
@@ -316,6 +335,12 @@ ROLES = {
             "write:ansible",
             # システムリソース監視
             "read:system",
+            # ダッシュボード設定
+            "read:dashboard",
+            "write:dashboard",
+            # TLS/SSL証明書管理
+            "read:certificates",
+            "write:certificates",
         ],
     ),
     "Admin": UserRole(
@@ -401,6 +426,9 @@ ROLES = {
             "write:filemanager",
             # SSH Keys 管理
             "read:sshkeys",
+            # SSH 踏み台・接続先管理
+            "read:ssh_hosts",
+            "write:ssh_hosts",
             # モジュール管理
             "read:modules",
             # セキュリティ監査
@@ -424,6 +452,12 @@ ROLES = {
             # システムリソース監視
             "read:system",
             "write:system",
+            # ダッシュボード設定
+            "read:dashboard",
+            "write:dashboard",
+            # TLS/SSL証明書管理
+            "read:certificates",
+            "write:certificates",
         ],
     ),
 }

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>セキュリティレポート - Linux Management System</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; }
+  .page { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+  header { background: #1e293b; color: #f8fafc; border-radius: 10px; padding: 28px 32px; margin-bottom: 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+  header h1 { font-size: 22px; font-weight: 700; }
+  header .meta { font-size: 13px; color: #94a3b8; }
+  .score-section { background: white; border-radius: 10px; border: 1px solid #e2e8f0; padding: 28px 32px; margin-bottom: 24px; display: flex; align-items: center; gap: 40px; flex-wrap: wrap; }
+  .score-big { font-size: 80px; font-weight: 800; line-height: 1; }
+  .score-label { font-size: 14px; color: #64748b; margin-top: 4px; }
+  .score-details table { border-collapse: collapse; min-width: 280px; }
+  .score-details td { padding: 6px 12px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
+  .score-details td:first-child { color: #64748b; }
+  .score-details td:last-child { font-weight: 600; text-align: right; }
+  .section { background: white; border-radius: 10px; border: 1px solid #e2e8f0; padding: 24px 28px; margin-bottom: 24px; }
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: #1e293b; }
+  .section-title .icon { font-size: 18px; }
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 12px; text-transform: uppercase; }
+  table.data-table td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  table.data-table tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge-ok { background: #dcfce7; color: #15803d; }
+  .badge-warn { background: #fef9c3; color: #854d0e; }
+  .badge-danger { background: #fee2e2; color: #b91c1c; }
+  .check-ok::before { content: "✅ "; }
+  .check-fail::before { content: "❌ "; }
+  .compliance-row-fail td { background: #fff7f7; }
+  .bar-wrap { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 13px; }
+  .bar { height: 16px; border-radius: 4px; min-width: 4px; display: inline-block; }
+  .bar-high { background: #ef4444; }
+  .bar-medium { background: #f59e0b; }
+  .bar-low { background: #22c55e; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .summary-card { background: #f8fafc; border-radius: 8px; padding: 16px; text-align: center; border: 1px solid #e2e8f0; }
+  .summary-card .num { font-size: 28px; font-weight: 700; }
+  .summary-card .lbl { font-size: 12px; color: #64748b; margin-top: 2px; }
+  footer { text-align: center; font-size: 12px; color: #94a3b8; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+  .compliance-rate-bar { background: #e2e8f0; border-radius: 4px; height: 10px; margin-bottom: 12px; }
+  .compliance-rate-fill { height: 10px; border-radius: 4px; background: #22c55e; transition: width 0.5s; }
+  .text-muted { color: #94a3b8; font-style: italic; }
+  @media print { body { background: white; } .page { max-width: 100%; padding: 16px; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ヘッダー -->
+  <header>
+    <div>
+      <h1>🛡️ セキュリティレポート</h1>
+      <div class="meta">Linux Management System — Security Audit Report</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:15px;font-weight:600;">{{ hostname }}</div>
+      <div class="meta">{{ generated_at }}</div>
+    </div>
+  </header>
+
+  <!-- セキュリティスコア -->
+  <div class="score-section">
+    <div>
+      <div class="score-big" style="color: {{ score_color }}">{{ score }}</div>
+      <div class="score-label">セキュリティスコア / 100</div>
+    </div>
+    <div class="score-details">
+      <table>
+        <tr><td>失敗ログインリスク</td><td>{{ score_details.failed_login_risk }}</td></tr>
+        <tr><td>開放ポートリスク</td><td>{{ score_details.open_ports_risk }}</td></tr>
+        <tr><td>直近 sudo 操作数</td><td>{{ score_details.recent_sudo_ops }}</td></tr>
+        <tr><td>ログイン失敗件数 (24h)</td><td>{{ failed_logins_total }}</td></tr>
+        <tr><td>ユニーク攻撃元IP</td><td>{{ failed_logins_unique_ips }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- コンプライアンスチェック -->
+  <div class="section">
+    <div class="section-title"><span class="icon">📋</span> コンプライアンスチェック (CISベンチマーク簡易版)</div>
+    <div style="margin-bottom:12px;font-size:13px;color:#64748b;">
+      準拠: {{ compliance.compliant_count }} / {{ compliance.total_count }} ({{ compliance.compliance_rate }}%)
+    </div>
+    <div class="compliance-rate-bar">
+      <div class="compliance-rate-fill" style="width:{{ compliance.compliance_rate }}%"></div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>カテゴリ</th>
+          <th>チェック項目</th>
+          <th>状態</th>
+          <th>現在値</th>
+          <th>推奨アクション</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for check in compliance.checks %}
+        <tr {% if not check.compliant %}class="compliance-row-fail"{% endif %}>
+          <td>{{ check.category }}</td>
+          <td class="{% if check.compliant %}check-ok{% else %}check-fail{% endif %}">{{ check.description }}</td>
+          <td>
+            {% if check.compliant %}
+              <span class="badge badge-ok">準拠</span>
+            {% else %}
+              <span class="badge badge-danger">非準拠</span>
+            {% endif %}
+          </td>
+          <td style="font-family:monospace;font-size:12px;">{{ check.value }}</td>
+          <td style="font-size:12px;color:#64748b;">{{ check.recommendation }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted">チェック結果なし</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 脆弱性サマリー -->
+  <div class="section">
+    <div class="section-title"><span class="icon">🔍</span> 脆弱性サマリー (アップグレード可能パッケージ)</div>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="num" style="color:#64748b">{{ vuln.total_upgradable }}</div>
+        <div class="lbl">合計</div>
+      </div>
+      <div class="summary-card">
+        <div class="num" style="color:#ef4444">{{ vuln.high }}</div>
+        <div class="lbl">HIGH</div>
+      </div>
+      <div class="summary-card">
+        <div class="num" style="color:#f59e0b">{{ vuln.medium }}</div>
+        <div class="lbl">MEDIUM</div>
+      </div>
+      <div class="summary-card">
+        <div class="num" style="color:#22c55e">{{ vuln.low }}</div>
+        <div class="lbl">LOW</div>
+      </div>
+    </div>
+    {% if vuln.packages %}
+    <table class="data-table">
+      <thead>
+        <tr><th>パッケージ</th><th>現在バージョン</th><th>利用可能バージョン</th><th>重大度</th></tr>
+      </thead>
+      <tbody>
+        {% for pkg in vuln.packages %}
+        <tr>
+          <td><strong>{{ pkg.name }}</strong></td>
+          <td style="font-family:monospace;font-size:12px">{{ pkg.current_version }}</td>
+          <td style="font-family:monospace;font-size:12px">{{ pkg.available_version }}</td>
+          <td>
+            {% if pkg.severity == 'HIGH' %}
+              <span class="badge badge-danger">HIGH</span>
+            {% elif pkg.severity == 'MEDIUM' %}
+              <span class="badge badge-warn">MEDIUM</span>
+            {% else %}
+              <span class="badge badge-ok">LOW</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-muted">アップグレード可能なパッケージなし（または apt 未インストール）</div>
+    {% endif %}
+  </div>
+
+  <!-- 開放ポート -->
+  <div class="section">
+    <div class="section-title"><span class="icon">🔌</span> 開放ポート一覧</div>
+    {% if open_ports %}
+    <table class="data-table">
+      <thead>
+        <tr><th>ポート</th><th>プロトコル</th><th>状態</th><th>プロセス名</th><th>PID</th><th>危険</th></tr>
+      </thead>
+      <tbody>
+        {% for p in open_ports %}
+        <tr {% if p.dangerous %}style="background:#fff7f7"{% endif %}>
+          <td><strong>{{ p.port }}</strong></td>
+          <td>{{ p.proto }}</td>
+          <td>{{ p.state }}</td>
+          <td>{{ p.name or "-" }}</td>
+          <td>{{ p.pid or "-" }}</td>
+          <td>{% if p.dangerous %}<span class="badge badge-danger">危険</span>{% else %}-{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-muted">開放ポートなし</div>
+    {% endif %}
+  </div>
+
+  <!-- sudo 操作履歴 -->
+  <div class="section">
+    <div class="section-title"><span class="icon">📝</span> sudo 操作履歴 (直近 20 件)</div>
+    {% if sudo_history %}
+    <table class="data-table">
+      <thead>
+        <tr><th>日時</th><th>ユーザー</th><th>操作</th><th>結果</th></tr>
+      </thead>
+      <tbody>
+        {% for h in sudo_history %}
+        <tr>
+          <td style="white-space:nowrap;font-size:12px">{{ h.timestamp[:19].replace("T", " ") }}</td>
+          <td>{{ h.user }}</td>
+          <td>{{ h.operation }}</td>
+          <td>
+            {% if h.result == 'success' %}
+              <span class="badge badge-ok">success</span>
+            {% else %}
+              <span class="badge badge-danger">{{ h.result }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-muted">sudo 操作履歴なし</div>
+    {% endif %}
+  </div>
+
+  <!-- ログイン失敗バーグラフ -->
+  <div class="section">
+    <div class="section-title"><span class="icon">⚠️</span> ログイン失敗概要 (過去 24 時間)</div>
+    <p style="font-size:13px;color:#64748b;margin-bottom:12px;">
+      合計 <strong>{{ failed_logins_total }}</strong> 件 / ユニーク IP: <strong>{{ failed_logins_unique_ips }}</strong>
+    </p>
+  </div>
+
+  <footer>
+    生成日時: {{ generated_at }} &nbsp;|&nbsp; ホスト: {{ hostname }} &nbsp;|&nbsp; Linux Management System
+  </footer>
+</div>
+</body>
+</html>

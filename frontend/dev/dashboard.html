@@ -64,6 +64,86 @@
         .chart-card.sortable-chosen { box-shadow:0 4px 16px rgba(59,130,246,0.25); }
         .drag-reset-btn { font-size:11px; padding:3px 10px; border-radius:12px; border:1px solid #d1d5db; background:#fff; cursor:pointer; color:#6b7280; }
         .drag-reset-btn:hover { background:#f9fafb; }
+
+        /* ── 設定パネル（右スライドアウト） ── */
+        .settings-panel {
+            position:fixed; top:0; right:-380px; width:360px; height:100vh;
+            background:#fff; border-left:1px solid #e5e7eb; box-shadow:-4px 0 24px rgba(0,0,0,0.12);
+            transition:right 0.3s ease; z-index:9999; overflow-y:auto;
+        }
+        .settings-panel.open { right:0; }
+        .settings-panel-header {
+            display:flex; justify-content:space-between; align-items:center;
+            padding:16px; border-bottom:1px solid #e5e7eb; position:sticky; top:0; background:#fff;
+        }
+        .settings-panel-header h3 { margin:0; font-size:15px; font-weight:700; color:#111827; }
+        .settings-panel-close { background:none; border:none; cursor:pointer; font-size:18px; color:#6b7280; padding:4px; }
+        .settings-panel-close:hover { color:#111827; }
+        .settings-section { padding:16px; border-bottom:1px solid #f3f4f6; }
+        .settings-section h4 { margin:0 0 12px; font-size:12px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.05em; }
+        .settings-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+        .settings-label { font-size:13px; color:#374151; }
+        .settings-select { font-size:12px; padding:4px 8px; border-radius:6px; border:1px solid #d1d5db; background:#fff; }
+        .settings-toggle { position:relative; width:36px; height:20px; }
+        .settings-toggle input { opacity:0; width:0; height:0; }
+        .settings-toggle-slider {
+            position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
+            background:#d1d5db; border-radius:10px; transition:0.2s;
+        }
+        .settings-toggle-slider:before {
+            position:absolute; content:""; height:14px; width:14px; left:3px; bottom:3px;
+            background:#fff; border-radius:50%; transition:0.2s;
+        }
+        .settings-toggle input:checked + .settings-toggle-slider { background:#3b82f6; }
+        .settings-toggle input:checked + .settings-toggle-slider:before { transform:translateX(16px); }
+        .preset-btn {
+            width:100%; text-align:left; padding:8px 12px; margin-bottom:6px;
+            border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; cursor:pointer;
+            font-size:12px; transition:background 0.15s;
+        }
+        .preset-btn:hover { background:#eff6ff; border-color:#3b82f6; }
+        .preset-btn strong { display:block; color:#111827; }
+        .preset-btn span { color:#6b7280; font-size:11px; }
+        .settings-save-btn {
+            width:100%; padding:10px; background:#3b82f6; color:#fff; border:none;
+            border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; transition:background 0.15s;
+        }
+        .settings-save-btn:hover { background:#2563eb; }
+        .settings-open-btn { font-size:11px; padding:3px 10px; border-radius:12px; border:1px solid #d1d5db; background:#fff; cursor:pointer; color:#374151; font-weight:500; }
+        .settings-open-btn:hover { background:#f9fafb; }
+        .settings-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:9998; }
+        .settings-overlay.open { display:block; }
+        /* ── ウィジェット非表示ボタン ── */
+        .widget-hide-btn {
+            font-size:10px; padding:2px 7px; border-radius:10px; border:1px solid #e5e7eb;
+            background:#fff; cursor:pointer; color:#9ca3af; margin-left:4px; transition:all 0.15s;
+        }
+        .widget-hide-btn:hover { background:#fee2e2; color:#dc2626; border-color:#fca5a5; }
+        /* ── ウィジェット管理リスト ── */
+        .widget-visibility-item {
+            display:flex; justify-content:space-between; align-items:center;
+            padding:6px 0; border-bottom:1px solid #f3f4f6; font-size:12px;
+        }
+        .widget-visibility-item:last-child { border-bottom:none; }
+        .widget-vis-toggle { font-size:11px; padding:2px 8px; border-radius:10px; border:1px solid #d1d5db; cursor:pointer; }
+        .widget-vis-toggle.visible { background:#d1fae5; color:#065f46; border-color:#6ee7b7; }
+        .widget-vis-toggle.hidden { background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+        /* ── コンパクトモード ── */
+        body.compact-mode .chart-card { padding:8px; }
+        body.compact-mode .chart-card h3 { font-size:11px; margin-bottom:4px; }
+        body.compact-mode .metric-value { font-size:20px; }
+        body.compact-mode .chart-canvas-wrap { height:140px; }
+        body.compact-mode .ring-canvas-wrap { width:100px; height:100px; }
+        body.compact-mode .health-score-number { font-size:44px; }
+        body.compact-mode .health-score-card { padding:10px; }
+        /* ── 保存成功トースト ── */
+        .save-toast {
+            position:fixed; bottom:24px; right:24px; padding:10px 18px;
+            background:#059669; color:#fff; border-radius:8px; font-size:13px; font-weight:500;
+            box-shadow:0 4px 12px rgba(0,0,0,0.2); z-index:10000; display:none;
+            animation: fadeInUp 0.3s ease;
+        }
+        @keyframes fadeInUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
     </style>
 <script src="../js/theme.js"></script>
 </head>
@@ -85,6 +165,7 @@
                     </span>
                     <button id="ws-toggle-btn" class="ws-toggle-btn" onclick="toggleWebSocket()">WS接続</button>
                     <button class="drag-reset-btn" onclick="resetWidgetLayout()" title="ウィジェット順をリセット">↺ 並び順リセット</button>
+                    <button class="settings-open-btn" onclick="openSettingsPanel()" title="ダッシュボード設定">⚙️ 設定</button>
                     <span class="last-updated">最終更新: <span id="last-updated">--:--:--</span></span>
                 </div>
             </div>
@@ -98,6 +179,7 @@
                         <div style="display:flex;align-items:center;gap:8px">
                             <span id="health-updated" style="font-size:11px;color:#9ca3af"></span>
                             <button onclick="loadHealthScore()" style="font-size:11px;padding:2px 10px;border-radius:12px;border:1px solid #d1d5db;background:#fff;cursor:pointer">🔄</button>
+                            <button class="widget-hide-btn" onclick="hideWidget('health-score')" title="非表示">👁 非表示</button>
                         </div>
                     </div>
                     <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center">
@@ -113,7 +195,7 @@
                 </div>
                 <!-- CPU リングチャート -->
                 <div class="chart-card" data-widget-id="cpu-ring">
-                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>CPU 使用率</h3>
+                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>CPU 使用率<button class="widget-hide-btn" onclick="hideWidget('cpu-ring')" title="非表示">👁 非表示</button></h3>
                     <div class="ring-wrap">
                         <div class="ring-canvas-wrap"><canvas id="cpuRing"></canvas></div>
                         <div class="metric-value" id="cpuValue">--%</div>
@@ -122,17 +204,17 @@
                 </div>
                 <!-- CPU 折れ線グラフ (過去60秒) -->
                 <div class="chart-card" data-widget-id="cpu-line">
-                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>CPU 推移（過去60秒）</h3>
+                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>CPU 推移（過去60秒）<button class="widget-hide-btn" onclick="hideWidget('cpu-line')" title="非表示">👁 非表示</button></h3>
                     <div class="chart-canvas-wrap"><canvas id="cpuLine"></canvas></div>
                 </div>
                 <!-- メモリ バーチャート -->
                 <div class="chart-card" data-widget-id="mem-bar">
-                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>メモリ使用率</h3>
+                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>メモリ使用率<button class="widget-hide-btn" onclick="hideWidget('mem-bar')" title="非表示">👁 非表示</button></h3>
                     <div class="chart-canvas-wrap"><canvas id="memBar"></canvas></div>
                 </div>
                 <!-- ネットワーク IN/OUT 折れ線グラフ -->
                 <div class="chart-card" style="grid-column:1/-1" data-widget-id="net-line">
-                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>ネットワーク IN/OUT（過去60秒, bytes/s）</h3>
+                    <h3><span class="drag-handle" title="ドラッグで移動">⠿</span>ネットワーク IN/OUT（過去60秒, bytes/s）<button class="widget-hide-btn" onclick="hideWidget('net-line')" title="非表示">👁 非表示</button></h3>
                     <div class="chart-canvas-wrap"><canvas id="netLine"></canvas></div>
                 </div>
                 <!-- 直近エラーログウィジェット -->
@@ -143,6 +225,7 @@
                             <span id="error-update-time" style="font-size:11px; color:#9ca3af"></span>
                             <a href="logsearch.html" style="font-size:12px; color:#3b82f6">🔍 詳細検索</a>
                             <button onclick="loadRecentErrorsWidget()" style="font-size:11px; padding:2px 10px; border-radius:12px; border:1px solid #d1d5db; background:#fff; cursor:pointer">🔄</button>
+                            <button class="widget-hide-btn" onclick="hideWidget('error-log')" title="非表示">👁 非表示</button>
                         </div>
                     </div>
                     <div id="error-log-area" style="background:#1e1e2e; color:#cdd6f4; font-family:monospace; font-size:11px; padding:10px; border-radius:6px; height:160px; overflow-y:auto; white-space:pre-wrap">
@@ -154,7 +237,10 @@
                 <div class="chart-card" style="grid-column:1/-1; margin-top:0" data-widget-id="nic-stats">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
                         <h3 style="margin:0"><span class="drag-handle" title="ドラッグで移動">⠿</span>🌐 NIC統計</h3>
-                        <span id="nic-update-time" style="font-size:11px;color:#9ca3af"></span>
+                        <div style="display:flex; align-items:center; gap:8px">
+                            <span id="nic-update-time" style="font-size:11px;color:#9ca3af"></span>
+                            <button class="widget-hide-btn" onclick="hideWidget('nic-stats')" title="非表示">👁 非表示</button>
+                        </div>
                     </div>
                     <div id="nic-stats-area" style="font-size:12px;font-family:monospace">
                         <span style="color:#6b7280">読み込み中...</span>
@@ -164,6 +250,69 @@
         </div>
     </main>
 </div>
+
+<!-- ── 設定パネルオーバーレイ ── -->
+<div class="settings-overlay" id="settings-overlay" onclick="closeSettingsPanel()"></div>
+
+<!-- ── 設定パネル ── -->
+<div class="settings-panel" id="settings-panel">
+    <div class="settings-panel-header">
+        <h3>⚙️ ダッシュボード設定</h3>
+        <button class="settings-panel-close" onclick="closeSettingsPanel()">✕</button>
+    </div>
+
+    <!-- 表示設定 -->
+    <div class="settings-section">
+        <h4>表示設定</h4>
+        <div class="settings-row">
+            <span class="settings-label">テーマ</span>
+            <select class="settings-select" id="cfg-theme">
+                <option value="default">デフォルト</option>
+                <option value="dark">ダーク</option>
+                <option value="compact">コンパクト</option>
+            </select>
+        </div>
+        <div class="settings-row">
+            <span class="settings-label">リフレッシュ間隔</span>
+            <select class="settings-select" id="cfg-refresh">
+                <option value="5">5秒</option>
+                <option value="10">10秒</option>
+                <option value="15">15秒</option>
+                <option value="30">30秒</option>
+                <option value="60">1分</option>
+                <option value="120">2分</option>
+            </select>
+        </div>
+        <div class="settings-row">
+            <span class="settings-label">コンパクトモード</span>
+            <label class="settings-toggle">
+                <input type="checkbox" id="cfg-compact">
+                <span class="settings-toggle-slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- ウィジェット表示管理 -->
+    <div class="settings-section">
+        <h4>ウィジェット表示管理</h4>
+        <div id="widget-visibility-list"></div>
+    </div>
+
+    <!-- プリセット -->
+    <div class="settings-section">
+        <h4>プリセット</h4>
+        <div id="presets-list"><span style="font-size:12px;color:#9ca3af">読み込み中...</span></div>
+    </div>
+
+    <!-- 保存・リセット -->
+    <div class="settings-section">
+        <button class="settings-save-btn" onclick="saveSettings()">💾 設定を保存</button>
+        <button onclick="resetSettings()" style="width:100%;margin-top:8px;padding:8px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;cursor:pointer;color:#6b7280">↺ デフォルトにリセット</button>
+    </div>
+</div>
+
+<!-- 保存成功トースト -->
+<div class="save-toast" id="save-toast">✅ 設定を保存しました</div>
 
 <script src="../js/env-config.js"></script>
 <script src="../js/api.js"></script>
@@ -530,6 +679,8 @@ function initDragDrop() {
         chosenClass: 'sortable-chosen',
         onEnd: function() {
             saveWidgetOrder();
+            // ドラッグ後にAPI保存もトリガー（設定パネルを開かなくても反映）
+            saveSettingsToApi();
         }
     });
 }
@@ -559,10 +710,301 @@ function restoreWidgetOrder() {
 
 function resetWidgetLayout() {
     localStorage.removeItem(WIDGET_ORDER_KEY);
+    // API設定もリセット
+    var token = localStorage.getItem('access_token');
+    if (token) {
+        fetch('/api/dashboard/config', {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        }).catch(function(){});
+    }
     location.reload();
 }
 
-// DOMContentLoaded後にドラッグ&ドロップ初期化
+// ── ウィジェット非表示 / 再表示 ─────────────────────────────
+var HIDDEN_WIDGETS_KEY = 'lms_dashboard_hidden_widgets';
+
+function hideWidget(widgetId) {
+    var el = document.querySelector('[data-widget-id="' + widgetId + '"]');
+    if (el) el.style.display = 'none';
+    var hidden = getHiddenWidgets();
+    if (!hidden.includes(widgetId)) {
+        hidden.push(widgetId);
+        localStorage.setItem(HIDDEN_WIDGETS_KEY, JSON.stringify(hidden));
+    }
+    saveSettingsToApi();
+    renderWidgetVisibilityList();
+}
+
+function showWidget(widgetId) {
+    var el = document.querySelector('[data-widget-id="' + widgetId + '"]');
+    if (el) el.style.display = '';
+    var hidden = getHiddenWidgets().filter(function(id) { return id !== widgetId; });
+    localStorage.setItem(HIDDEN_WIDGETS_KEY, JSON.stringify(hidden));
+    saveSettingsToApi();
+    renderWidgetVisibilityList();
+}
+
+function getHiddenWidgets() {
+    try { return JSON.parse(localStorage.getItem(HIDDEN_WIDGETS_KEY) || '[]'); } catch(e) { return []; }
+}
+
+function applyHiddenWidgets(hidden) {
+    var allWidgets = document.querySelectorAll('[data-widget-id]');
+    allWidgets.forEach(function(el) {
+        var id = el.getAttribute('data-widget-id');
+        el.style.display = hidden.includes(id) ? 'none' : '';
+    });
+}
+
+// ── 設定パネル ───────────────────────────────────────────────
+var _presetsList = [];
+
+function openSettingsPanel() {
+    document.getElementById('settings-panel').classList.add('open');
+    document.getElementById('settings-overlay').classList.add('open');
+    syncSettingsPanelFromState();
+    loadPresetsIntoPanel();
+}
+
+function closeSettingsPanel() {
+    document.getElementById('settings-panel').classList.remove('open');
+    document.getElementById('settings-overlay').classList.remove('open');
+}
+
+function syncSettingsPanelFromState() {
+    // テーマ
+    var theme = localStorage.getItem('lms_dashboard_theme') || 'default';
+    var themeEl = document.getElementById('cfg-theme');
+    if (themeEl) themeEl.value = theme;
+    // リフレッシュ間隔
+    var interval = localStorage.getItem('lms_dashboard_refresh') || '10';
+    var intEl = document.getElementById('cfg-refresh');
+    if (intEl) intEl.value = interval;
+    // コンパクトモード
+    var compact = localStorage.getItem('lms_dashboard_compact') === 'true';
+    var compactEl = document.getElementById('cfg-compact');
+    if (compactEl) compactEl.checked = compact;
+    // ウィジェット表示リスト
+    renderWidgetVisibilityList();
+}
+
+var WIDGET_LABELS = {
+    'health-score': '🏥 システムヘルススコア',
+    'cpu-ring': 'CPU 使用率',
+    'cpu-line': 'CPU 推移グラフ',
+    'mem-bar': 'メモリ使用率',
+    'net-line': 'ネットワーク IN/OUT',
+    'error-log': '🔴 直近エラーログ',
+    'nic-stats': '🌐 NIC統計'
+};
+
+function renderWidgetVisibilityList() {
+    var el = document.getElementById('widget-visibility-list');
+    if (!el) return;
+    var hidden = getHiddenWidgets();
+    var allIds = Object.keys(WIDGET_LABELS);
+    el.innerHTML = allIds.map(function(id) {
+        var isHidden = hidden.includes(id);
+        return '<div class="widget-visibility-item">' +
+            '<span>' + (WIDGET_LABELS[id] || id) + '</span>' +
+            '<button class="widget-vis-toggle ' + (isHidden ? 'hidden' : 'visible') + '" ' +
+                'onclick="' + (isHidden ? 'showWidget' : 'hideWidget') + '(\'' + id + '\')">' +
+                (isHidden ? '👁 表示' : '🚫 非表示') +
+            '</button>' +
+        '</div>';
+    }).join('');
+}
+
+async function loadPresetsIntoPanel() {
+    var token = localStorage.getItem('access_token');
+    if (!token) return;
+    var el = document.getElementById('presets-list');
+    if (!el) return;
+    try {
+        var resp = await fetch('/api/dashboard/presets', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) { el.innerHTML = '<span style="font-size:12px;color:#9ca3af">プリセット取得失敗</span>'; return; }
+        var data = await resp.json();
+        _presetsList = data.presets || [];
+        el.innerHTML = _presetsList.map(function(p) {
+            return '<button class="preset-btn" onclick="applyPreset(\'' + p.id + '\')">' +
+                '<strong>' + escapeHtml(p.name) + '</strong>' +
+                '<span>' + escapeHtml(p.description) + '</span>' +
+            '</button>';
+        }).join('');
+    } catch(e) {
+        el.innerHTML = '<span style="font-size:12px;color:#9ca3af">プリセット取得失敗</span>';
+    }
+}
+
+async function applyPreset(presetId) {
+    var token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+        var resp = await fetch('/api/dashboard/presets/' + encodeURIComponent(presetId) + '/apply', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) return;
+        var data = await resp.json();
+        applyConfigToPage(data.config);
+        showToast('✅ プリセット「' + presetId + '」を適用しました');
+        closeSettingsPanel();
+    } catch(e) {}
+}
+
+function applyConfigToPage(cfg) {
+    // widget_order
+    if (cfg.widget_order) {
+        localStorage.setItem(WIDGET_ORDER_KEY, JSON.stringify(cfg.widget_order));
+        restoreWidgetOrder();
+    }
+    // hidden_widgets
+    if (cfg.hidden_widgets) {
+        localStorage.setItem(HIDDEN_WIDGETS_KEY, JSON.stringify(cfg.hidden_widgets));
+        applyHiddenWidgets(cfg.hidden_widgets);
+    }
+    // theme
+    if (cfg.theme) {
+        localStorage.setItem('lms_dashboard_theme', cfg.theme);
+        applyTheme(cfg.theme);
+    }
+    // refresh_interval
+    if (cfg.refresh_interval) {
+        localStorage.setItem('lms_dashboard_refresh', String(cfg.refresh_interval));
+    }
+    // compact_mode
+    if (typeof cfg.compact_mode === 'boolean') {
+        localStorage.setItem('lms_dashboard_compact', String(cfg.compact_mode));
+        applyCompactMode(cfg.compact_mode);
+    }
+}
+
+function applyTheme(theme) {
+    // コンパクトテーマはコンパクトモードとして扱う
+    if (theme === 'compact') {
+        applyCompactMode(true);
+    } else if (theme === 'dark') {
+        document.body.setAttribute('data-theme', 'dark');
+        applyCompactMode(false);
+    } else {
+        document.body.removeAttribute('data-theme');
+        applyCompactMode(false);
+    }
+}
+
+function applyCompactMode(enabled) {
+    if (enabled) {
+        document.body.classList.add('compact-mode');
+    } else {
+        document.body.classList.remove('compact-mode');
+    }
+}
+
+function saveSettings() {
+    var theme = document.getElementById('cfg-theme').value;
+    var interval = parseInt(document.getElementById('cfg-refresh').value, 10);
+    var compact = document.getElementById('cfg-compact').checked;
+
+    // ローカルに保存
+    localStorage.setItem('lms_dashboard_theme', theme);
+    localStorage.setItem('lms_dashboard_refresh', String(interval));
+    localStorage.setItem('lms_dashboard_compact', String(compact));
+
+    // UIに即時反映
+    applyTheme(theme);
+    applyCompactMode(compact);
+
+    // APIに保存
+    saveSettingsToApi().then(function() {
+        showToast('✅ 設定を保存しました');
+        closeSettingsPanel();
+    });
+}
+
+async function saveSettingsToApi() {
+    var token = localStorage.getItem('access_token');
+    if (!token) return;
+    // widget_order
+    var grid = document.getElementById('widgets-grid');
+    var widgetOrder = grid
+        ? Array.from(grid.children).map(function(el) { return el.getAttribute('data-widget-id') || ''; }).filter(Boolean)
+        : [];
+    var payload = {
+        widget_order: widgetOrder,
+        hidden_widgets: getHiddenWidgets(),
+        theme: localStorage.getItem('lms_dashboard_theme') || 'default',
+        refresh_interval: parseInt(localStorage.getItem('lms_dashboard_refresh') || '10', 10),
+        compact_mode: localStorage.getItem('lms_dashboard_compact') === 'true'
+    };
+    try {
+        await fetch('/api/dashboard/config', {
+            method: 'PUT',
+            headers: {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+    } catch(e) {}
+}
+
+async function loadSettingsFromApi() {
+    var token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+        var resp = await fetch('/api/dashboard/config', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) return;
+        var data = await resp.json();
+        var cfg = data.config;
+        if (!cfg) return;
+        // APIの設定をローカルに反映（APIが優先）
+        applyConfigToPage(cfg);
+    } catch(e) {
+        // API失敗時は localStorage の設定を利用
+        applyTheme(localStorage.getItem('lms_dashboard_theme') || 'default');
+        applyCompactMode(localStorage.getItem('lms_dashboard_compact') === 'true');
+        applyHiddenWidgets(getHiddenWidgets());
+    }
+}
+
+async function resetSettings() {
+    var token = localStorage.getItem('access_token');
+    if (token) {
+        try {
+            var resp = await fetch('/api/dashboard/config', {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (resp.ok) {
+                var data = await resp.json();
+                applyConfigToPage(data.config);
+            }
+        } catch(e) {}
+    }
+    // ローカルストレージもクリア
+    localStorage.removeItem(WIDGET_ORDER_KEY);
+    localStorage.removeItem(HIDDEN_WIDGETS_KEY);
+    localStorage.removeItem('lms_dashboard_theme');
+    localStorage.removeItem('lms_dashboard_refresh');
+    localStorage.removeItem('lms_dashboard_compact');
+    showToast('↺ デフォルト設定に戻しました');
+    setTimeout(function() { location.reload(); }, 800);
+}
+
+function showToast(msg) {
+    var el = document.getElementById('save-toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(function() { el.style.display = 'none'; }, 2500);
+}
+
+// ── 起動時に設定を復元 ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
     // SortableJSが確実に読み込まれた後に初期化
     if (typeof Sortable !== 'undefined') {
@@ -571,6 +1013,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // fallback: 少し待ってリトライ
         setTimeout(initDragDrop, 500);
     }
+    // API から設定を読み込み、なければ localStorage から復元
+    loadSettingsFromApi();
 });
 </script>
 </body>

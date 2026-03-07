@@ -2,7 +2,7 @@
 通知サービスモジュール
 
 Slack / Discord / Generic Webhook / SMTP メール通知を提供するコアサービス。
-shell=True は絶対禁止。全 HTTP 呼び出しは httpx.AsyncClient を使用。
+シェル起動は絶対禁止。全 HTTP 呼び出しは httpx.AsyncClient を使用。
 """
 
 import json
@@ -69,7 +69,7 @@ class NotificationService:
     """通知サービスクラス
 
     Slack / Discord / Generic Webhook / SMTP を経由した通知送信を管理する。
-    全 HTTP 呼び出しは httpx.AsyncClient を使用し、shell=True は使用しない。
+    全 HTTP 呼び出しは httpx.AsyncClient を使用。シェル起動禁止。
     """
 
     def __init__(self, settings_file: Optional[Path] = None, history_file: Optional[Path] = None) -> None:
@@ -254,7 +254,7 @@ class NotificationService:
     async def send_email(self, settings: dict[str, Any], message: str, severity: str) -> dict[str, Any]:
         """SMTP でメール通知を送信する
 
-        shell=True は使用せず、smtplib を直接呼び出す。
+        smtplib を直接呼び出す（シェル起動禁止）。
 
         Args:
             settings: 通知設定の辞書（smtp_host, smtp_port, smtp_user, etc.）
@@ -285,7 +285,7 @@ class NotificationService:
             msg.set_content(message)
 
             context = ssl.create_default_context()
-            # shell=True は使用しない - smtplib を直接呼び出す
+            # シェル起動禁止 - smtplib を直接呼び出す
             with smtplib.SMTP(smtp_host, smtp_port) as server:
                 server.ehlo()
                 server.starttls(context=context)
@@ -403,7 +403,7 @@ class NotificationService:
     async def _post_json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         """JSON ペイロードを指定 URL に POST する
 
-        shell=True は使用しない。httpx.AsyncClient を使用。
+        httpx.AsyncClient を使用。シェル起動禁止。
 
         Args:
             url: 送信先 URL

@@ -2,7 +2,7 @@
 通知管理 API ルーター
 
 Slack / Discord / Generic Webhook / SMTP メール通知の設定・管理・送信を提供する。
-shell=True は絶対禁止。全ユーザー入力は FORBIDDEN_CHARS で検証する。
+シェル起動は絶対禁止。全ユーザー入力は FORBIDDEN_CHARS で検証する。
 """
 
 import json

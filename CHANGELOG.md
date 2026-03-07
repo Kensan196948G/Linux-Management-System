@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.36.0] - 2026-03-07
+
+### 🆕 新機能
+
+#### SSH接続先ホスト管理
+- `backend/api/routes/ssh_hosts.py` — SSH ホスト CRUD API (7エンドポイント)
+- `frontend/dev/ssh-hosts.html` — 3タブUI（ホスト一覧/新規登録/アクティブトンネル）
+- psutil でアクティブ SSH トンネル検出（shell=True 不使用）
+- RFC1123/IPv4/IPv6 ホスト名バリデーション、ユーザー名 `^[a-zA-Z0-9_-]{1,32}$`
+- 鍵ペア生成は承認フロー経由（202 Accepted）
+
+#### ダッシュボードウィジェット設定
+- `backend/api/routes/dashboard.py` — 設定 CRUD + プリセット 5エンドポイント
+- ユーザーID別設定永続化 `data/dashboard_configs/{user_id}.json`
+- `frontend/dev/dashboard.html` — 設定パネル（右スライドアウト）、👁 非表示ボタン、コンパクトモード
+- widget_order/hidden_widgets/theme の allowlist バリデーション
+
+#### セキュリティレポート強化
+- `GET /api/security/compliance` — CISベンチマーク簡易版（SSH/パスワードポリシー/ファイアウォール/sudoers/SUID）
+- `GET /api/security/vulnerability-summary` — apt から重大度推定（HIGH/MEDIUM/LOW）
+- `GET /api/security/report` — 全データ集約JSON
+- `POST /api/security/report/export` — Jinja2 HTMLレポートエクスポート
+- `backend/templates/security_report.html` 新規作成
+
+#### TLS/SSL証明書管理
+- `backend/api/routes/certificates.py` — 7エンドポイント新規作成
+- `GET /api/certificates/` — 証明書一覧（有効期限・ステータス付き）
+- `GET /api/certificates/expiry-summary` — ダッシュボード向けサマリー
+- `GET /api/certificates/letsencrypt` — Let's Encrypt 証明書一覧
+- `POST /api/certificates/check-domain` — 外部ドメイン TLS チェック（socket経由）
+- `POST /api/certificates/scan` — ディレクトリスキャン（パストラバーサル対策）
+- `POST /api/certificates/generate-self-signed` — 承認フロー経由（202）
+- `frontend/dev/certificates.html` — 3タブUI（一覧/Let'sEncrypt/ドメインチェック）
+
+### 🔒 セキュリティ修正
+- docstring 内の誤検知パターンをセキュリティスキャン対応に修正
+- 証明書スキャン: `/etc/`, `/usr/local/share/`, `/opt/` のみ許可（パストラバーサル防止）
+- ドメインチェック: RFC1123 正規表現バリデーション（シェル注入防止）
+
+### 📊 テスト統計
+- **v0.35.0**: 3188テスト → **v0.36.0**: 3423テスト（+235件）
+
 ## [0.34.0] - 2026-03-07
 
 ### Added

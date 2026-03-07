@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TLS/SSL 証明書管理 - Linux Management System</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    .cert-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .cert-card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+      position: relative;
+      transition: box-shadow 0.2s;
+    }
+    .cert-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    .cert-status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .status-ok       { background: #d4edda; color: #155724; }
+    .status-warning  { background: #fff3cd; color: #856404; }
+    .status-critical { background: #f8d7da; color: #721c24; }
+    .status-expired  { background: #dc3545; color: #fff; }
+    .status-unknown  { background: #e2e3e5; color: #383d41; }
+
+    .expiry-days {
+      font-size: 2rem;
+      font-weight: 700;
+      margin: 0.5rem 0;
+    }
+    .expiry-days.ok       { color: #28a745; }
+    .expiry-days.warning  { color: #ffc107; }
+    .expiry-days.critical { color: #dc3545; }
+    .expiry-days.expired  { color: #6c757d; }
+
+    .cert-subject {
+      font-size: 0.85rem;
+      color: #555;
+      word-break: break-all;
+      margin-bottom: 0.5rem;
+    }
+    .cert-san-list {
+      font-size: 0.75rem;
+      color: #777;
+      list-style: none;
+      padding: 0;
+      margin: 0.25rem 0;
+    }
+    .cert-san-list li::before { content: "🔒 "; }
+
+    .summary-cards {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .summary-card {
+      flex: 1;
+      min-width: 120px;
+      background: #fff;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    .summary-card .count {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    .summary-card .label { font-size: 0.8rem; color: #666; }
+    .count.expired  { color: #6c757d; }
+    .count.critical { color: #dc3545; }
+    .count.warning  { color: #ffc107; }
+    .count.ok       { color: #28a745; }
+
+    .tab-nav {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #dee2e6;
+      margin-bottom: 1.5rem;
+    }
+    .tab-btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      color: #666;
+    }
+    .tab-btn.active { border-bottom-color: #0d6efd; color: #0d6efd; font-weight: 600; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    .filter-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 0.3rem 0.8rem;
+      border-radius: 16px;
+      border: 1px solid #ddd;
+      background: #f8f9fa;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .filter-btn.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+
+    .domain-check-form {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .domain-check-form input {
+      flex: 1;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    .domain-check-result {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+      display: none;
+    }
+    .domain-check-result.visible { display: block; }
+
+    .le-domain-card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .le-domain-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .le-domain-name { font-size: 1.1rem; font-weight: 600; }
+
+    .loading { text-align: center; padding: 2rem; color: #666; }
+    .error-msg { color: #dc3545; padding: 1rem; text-align: center; }
+    .self-signed-badge {
+      font-size: 0.7rem;
+      background: #e3e3e3;
+      color: #555;
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: 0.5rem;
+    }
+    .cert-path {
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #888;
+      word-break: break-all;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.6rem;
+      font-size: 0.8rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .btn-sm:hover { background: #f0f0f0; }
+    .detail-modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+    }
+    .detail-modal-overlay.visible { display: flex; align-items: center; justify-content: center; }
+    .detail-modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 2rem;
+      max-width: 640px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .detail-modal h3 { margin-top: 0; }
+    .detail-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .detail-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .detail-table td:first-child { font-weight: 600; width: 40%; color: #444; }
+    .close-btn {
+      float: right;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h2>🖥 LMS</h2>
+      </div>
+      <ul class="sidebar-menu">
+        <li><a href="/dashboard.html">📊 ダッシュボード</a></li>
+        <li><a href="/security.html">🔒 セキュリティ</a></li>
+        <li><a href="/sshkeys.html">🔑 SSH鍵</a></li>
+        <li><a href="/certificates.html" class="active">🔐 証明書</a></li>
+        <li><a href="/logs.html">📋 ログ</a></li>
+        <li><a href="/monitoring.html">📈 リソース監視</a></li>
+      </ul>
+    </nav>
+
+    <main class="content">
+      <header class="page-header">
+        <h1>🔐 TLS/SSL 証明書管理</h1>
+        <div>
+          <button class="btn-sm" onclick="refreshAll()">🔄 更新</button>
+        </div>
+      </header>
+
+      <!-- サマリーカード -->
+      <div class="summary-cards" id="summaryCards">
+        <div class="summary-card">
+          <div class="count" id="sumTotal">-</div>
+          <div class="label">総証明書数</div>
+        </div>
+        <div class="summary-card">
+          <div class="count expired" id="sumExpired">-</div>
+          <div class="label">期限切れ</div>
+        </div>
+        <div class="summary-card">
+          <div class="count critical" id="sumCritical">-</div>
+          <div class="label">7日以内</div>
+        </div>
+        <div class="summary-card">
+          <div class="count warning" id="sumWarning">-</div>
+          <div class="label">30日以内</div>
+        </div>
+        <div class="summary-card">
+          <div class="count ok" id="sumOk">-</div>
+          <div class="label">正常</div>
+        </div>
+      </div>
+
+      <!-- タブナビ -->
+      <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('certs')">📂 証明書一覧</button>
+        <button class="tab-btn" onclick="switchTab('letsencrypt')">🔒 Let's Encrypt</button>
+        <button class="tab-btn" onclick="switchTab('domain')">🌐 ドメインチェック</button>
+      </div>
+
+      <!-- タブ: 証明書一覧 -->
+      <div class="tab-pane active" id="tab-certs">
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="setFilter('all')">すべて</button>
+          <button class="filter-btn" onclick="setFilter('expired')">⛔ 期限切れ</button>
+          <button class="filter-btn" onclick="setFilter('critical')">🔴 7日以内</button>
+          <button class="filter-btn" onclick="setFilter('warning')">🟡 30日以内</button>
+          <button class="filter-btn" onclick="setFilter('ok')">🟢 正常</button>
+        </div>
+        <div id="certsList">
+          <div class="loading">証明書をスキャン中...</div>
+        </div>
+      </div>
+
+      <!-- タブ: Let's Encrypt -->
+      <div class="tab-pane" id="tab-letsencrypt">
+        <div id="leContent">
+          <div class="loading">Let's Encrypt 情報を読み込み中...</div>
+        </div>
+      </div>
+
+      <!-- タブ: ドメインチェック -->
+      <div class="tab-pane" id="tab-domain">
+        <h3>外部ドメインの証明書をチェック</h3>
+        <div class="domain-check-form">
+          <input type="text" id="domainInput" placeholder="example.com" />
+          <input type="number" id="portInput" value="443" min="1" max="65535" style="width:100px" />
+          <button class="btn-sm" onclick="checkDomain()">🔍 チェック</button>
+        </div>
+        <div class="domain-check-result" id="domainResult"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 証明書詳細モーダル -->
+  <div class="detail-modal-overlay" id="detailOverlay" onclick="closeDetail(event)">
+    <div class="detail-modal" id="detailModal">
+      <button class="close-btn" onclick="closeDetail(null)">×</button>
+      <h3 id="detailTitle">証明書詳細</h3>
+      <table class="detail-table" id="detailTable"></table>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api/certificates';
+    let allCerts = [];
+    let currentFilter = 'all';
+
+    const token = localStorage.getItem('access_token') || '';
+    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    async function fetchJSON(url, opts = {}) {
+      const res = await fetch(url, { headers, ...opts });
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return res.json();
+    }
+
+    // ===== サマリー =====
+    async function loadSummary() {
+      try {
+        const data = await fetchJSON(`${API}/expiry-summary`);
+        document.getElementById('sumTotal').textContent = data.total;
+        document.getElementById('sumExpired').textContent = data.expired;
+        document.getElementById('sumCritical').textContent = data.critical;
+        document.getElementById('sumWarning').textContent = data.warning;
+        document.getElementById('sumOk').textContent = data.ok;
+      } catch(e) {
+        console.error('サマリー取得エラー:', e);
+      }
+    }
+
+    // ===== 証明書一覧 =====
+    async function loadCerts() {
+      try {
+        allCerts = await fetchJSON(`${API}/`);
+        renderCerts();
+      } catch(e) {
+        document.getElementById('certsList').innerHTML =
+          `<div class="error-msg">証明書取得エラー: ${e.message}</div>`;
+      }
+    }
+
+    function renderCerts() {
+      const filtered = currentFilter === 'all'
+        ? allCerts
+        : allCerts.filter(c => c.expiry_status === currentFilter);
+
+      if (filtered.length === 0) {
+        document.getElementById('certsList').innerHTML =
+          `<div class="loading">該当する証明書がありません</div>`;
+        return;
+      }
+
+      const html = `<div class="cert-grid">${filtered.map(certCard).join('')}</div>`;
+      document.getElementById('certsList').innerHTML = html;
+    }
+
+    function certCard(cert) {
+      const daysLabel = cert.days_remaining != null
+        ? `${cert.days_remaining}日`
+        : cert.is_expired ? '期限切れ' : '不明';
+      const statusClass = cert.expiry_status || 'unknown';
+      const selfSigned = cert.self_signed ? '<span class="self-signed-badge">自己署名</span>' : '';
+      const sans = cert.sans && cert.sans.length > 0
+        ? `<ul class="cert-san-list">${cert.sans.slice(0,3).map(s => `<li>${s}</li>`).join('')}${cert.sans.length > 3 ? `<li>他 ${cert.sans.length - 3} 件</li>` : ''}</ul>`
+        : '';
+
+      return `<div class="cert-card">
+        <div style="display:flex;justify-content:space-between;align-items:start">
+          <span class="cert-status status-${statusClass}">${statusLabel(statusClass)}</span>
+          <button class="btn-sm" onclick="showDetail('${cert.id}')">詳細</button>
+        </div>
+        <div class="expiry-days ${statusClass}">${daysLabel}</div>
+        <div class="cert-subject">${escHtml(cert.subject || cert.filename)}${selfSigned}</div>
+        ${sans}
+        <div class="cert-path">${escHtml(cert.path)}</div>
+      </div>`;
+    }
+
+    function statusLabel(s) {
+      return { ok:'正常', warning:'要確認', critical:'危険', expired:'期限切れ', unknown:'不明' }[s] || s;
+    }
+
+    function escHtml(s) {
+      return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ===== フィルター =====
+    function setFilter(f) {
+      currentFilter = f;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      renderCerts();
+    }
+
+    // ===== 詳細モーダル =====
+    function showDetail(certId) {
+      const cert = allCerts.find(c => c.id === certId);
+      if (!cert) return;
+      document.getElementById('detailTitle').textContent = cert.filename;
+      const rows = [
+        ['パス', cert.path],
+        ['Subject', cert.subject || '-'],
+        ['Issuer', cert.issuer || '-'],
+        ['有効期限', cert.expiry ? new Date(cert.expiry).toLocaleString('ja-JP') : '-'],
+        ['残り日数', cert.days_remaining != null ? `${cert.days_remaining}日` : '-'],
+        ['自己署名', cert.self_signed ? 'はい' : 'いいえ'],
+        ['SANs', cert.sans && cert.sans.length > 0 ? cert.sans.join(', ') : '-'],
+        ['ファイルサイズ', cert.size_bytes ? `${cert.size_bytes} bytes` : '-'],
+        ['ステータス', statusLabel(cert.expiry_status)],
+      ];
+      document.getElementById('detailTable').innerHTML =
+        rows.map(([k,v]) => `<tr><td>${k}</td><td>${escHtml(String(v))}</td></tr>`).join('');
+      document.getElementById('detailOverlay').classList.add('visible');
+    }
+
+    function closeDetail(e) {
+      if (!e || e.target === document.getElementById('detailOverlay')) {
+        document.getElementById('detailOverlay').classList.remove('visible');
+      }
+    }
+
+    // ===== Let's Encrypt =====
+    async function loadLetsEncrypt() {
+      try {
+        const data = await fetchJSON(`${API}/letsencrypt`);
+        if (!data.available) {
+          document.getElementById('leContent').innerHTML =
+            `<div class="loading">${data.message}</div>`;
+          return;
+        }
+        if (data.count === 0) {
+          document.getElementById('leContent').innerHTML =
+            `<div class="loading">Let's Encrypt 証明書がありません</div>`;
+          return;
+        }
+
+        const html = data.domains.map(d => {
+          const days = d.days_remaining != null ? `${d.days_remaining}日` : '-';
+          const statusClass = d.expiry_status || 'unknown';
+          const renewal = d.has_renewal_config
+            ? '<span style="font-size:0.75rem;color:#28a745">♻️ 自動更新設定あり</span>'
+            : '<span style="font-size:0.75rem;color:#dc3545">⚠️ 自動更新設定なし</span>';
+          return `<div class="le-domain-card">
+            <div class="le-domain-header">
+              <span class="le-domain-name">🔒 ${escHtml(d.domain)}</span>
+              <span class="cert-status status-${statusClass}">${statusLabel(statusClass)}</span>
+            </div>
+            <div style="margin-top:0.5rem">
+              残り <strong class="${statusClass}">${days}</strong> |
+              有効期限: ${d.expiry ? new Date(d.expiry).toLocaleDateString('ja-JP') : '-'} |
+              ${renewal}
+            </div>
+            ${d.subject ? `<div class="cert-subject">${escHtml(d.subject)}</div>` : ''}
+          </div>`;
+        }).join('');
+
+        document.getElementById('leContent').innerHTML = html;
+      } catch(e) {
+        document.getElementById('leContent').innerHTML =
+          `<div class="error-msg">Let's Encrypt 情報取得エラー: ${e.message}</div>`;
+      }
+    }
+
+    // ===== ドメインチェック =====
+    async function checkDomain() {
+      const hostname = document.getElementById('domainInput').value.trim();
+      const port = parseInt(document.getElementById('portInput').value) || 443;
+      if (!hostname) { alert('ドメインを入力してください'); return; }
+
+      const resultDiv = document.getElementById('domainResult');
+      resultDiv.classList.add('visible');
+      resultDiv.innerHTML = '<div class="loading">チェック中...</div>';
+
+      try {
+        const data = await fetchJSON(`${API}/check-domain`, {
+          method: 'POST',
+          body: JSON.stringify({ hostname, port })
+        });
+
+        if (!data.reachable) {
+          resultDiv.innerHTML = `<div class="error-msg">❌ 接続できませんでした: ${escHtml(data.error || '')}</div>`;
+          return;
+        }
+        if (data.error) {
+          resultDiv.innerHTML = `<div class="error-msg">⚠️ ${escHtml(data.error)}</div>`;
+          return;
+        }
+
+        const statusClass = data.expiry_status || 'unknown';
+        resultDiv.innerHTML = `
+          <h4>🌐 ${escHtml(hostname)}:${port}</h4>
+          <table class="detail-table">
+            <tr><td>Subject CN</td><td>${escHtml(data.subject_cn || '-')}</td></tr>
+            <tr><td>発行者</td><td>${escHtml(data.issuer_o || '-')}</td></tr>
+            <tr><td>有効期限</td><td>${data.expiry ? new Date(data.expiry).toLocaleString('ja-JP') : '-'}</td></tr>
+            <tr><td>残り日数</td><td><strong class="${statusClass}">${data.days_remaining != null ? data.days_remaining + '日' : '-'}</strong></td></tr>
+            <tr><td>ステータス</td><td><span class="cert-status status-${statusClass}">${statusLabel(statusClass)}</span></td></tr>
+            <tr><td>SSL バージョン</td><td>${escHtml(String(data.ssl_version || '-'))}</td></tr>
+            <tr><td>SANs</td><td>${escHtml((data.sans || []).join(', ') || '-')}</td></tr>
+          </table>`;
+      } catch(e) {
+        resultDiv.innerHTML = `<div class="error-msg">エラー: ${escHtml(e.message)}</div>`;
+      }
+    }
+
+    // ===== タブ切り替え =====
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById(`tab-${name}`).classList.add('active');
+
+      if (name === 'letsencrypt') loadLetsEncrypt();
+    }
+
+    function refreshAll() {
+      loadSummary();
+      loadCerts();
+    }
+
+    // 初期ロード
+    loadSummary();
+    loadCerts();
+
+    // Enter キーでドメインチェック
+    document.getElementById('domainInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') checkDomain();
+    });
+  </script>
+</body>
+</html>

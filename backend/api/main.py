@@ -20,6 +20,7 @@ from .routes import (
     alerts,
     ansible,
     apache,
+    certificates,
     websocket as ws_router,
     approval,
     audit,
@@ -29,6 +30,7 @@ from .routes import (
     bind,
     bootup,
     cron,
+    dashboard,
     dbmonitor,
     dhcp,
     filemanager,
@@ -61,6 +63,7 @@ from .routes import (
     squid,
     ssh,
     sshkeys,
+    ssh_hosts,
     stream,
     sysconfig,
     system,
@@ -117,6 +120,7 @@ if _trusted_hosts and _trusted_hosts != ["*"]:
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
 app.include_router(services.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
 app.include_router(processes.router, prefix="/api")
@@ -154,6 +158,7 @@ app.include_router(ftp.router, prefix="/api")
 app.include_router(squid.router, prefix="/api")
 app.include_router(filemanager.router, prefix="/api")
 app.include_router(sshkeys.router, prefix="/api")
+app.include_router(ssh_hosts.router, prefix="/api")
 app.include_router(modules.router, prefix="/api")
 app.include_router(security.router, prefix="/api")
 app.include_router(backup.router, prefix="/api/backup", tags=["backup"])
@@ -165,6 +170,7 @@ app.include_router(logsearch.router, prefix="/api/logsearch", tags=["logsearch"]
 app.include_router(notifications.router, prefix="/api")
 app.include_router(ws_router.router, prefix="/api")
 app.include_router(monitoring.router, prefix="/api")
+app.include_router(certificates.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信
