@@ -200,6 +200,26 @@ app.mount("/vendor", StaticFiles(directory=str(frontend_dir / "vendor")), name="
 app.mount("/dev", StaticFiles(directory=str(frontend_dir / "dev"), html=True), name="dev")
 app.mount("/prod", StaticFiles(directory=str(frontend_dir / "prod"), html=True), name="prod")
 
+# favicon SVG ファイルの配信（/favicon-dev.svg, /favicon-prod.svg）
+from fastapi.responses import FileResponse  # noqa: E402
+
+@app.get("/favicon-dev.svg", include_in_schema=False)
+async def favicon_dev():
+    """開発環境用ファビコン（オレンジ）"""
+    return FileResponse(str(frontend_dir / "favicon-dev.svg"), media_type="image/svg+xml")
+
+@app.get("/favicon-prod.svg", include_in_schema=False)
+async def favicon_prod():
+    """本番環境用ファビコン（ブルー）"""
+    return FileResponse(str(frontend_dir / "favicon-prod.svg"), media_type="image/svg+xml")
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon_ico():
+    """favicon.ico リクエストを環境に応じてSVGにリダイレクト"""
+    env = os.environ.get("ENV", "dev")
+    svg_file = "favicon-prod.svg" if env == "prod" else "favicon-dev.svg"
+    return FileResponse(str(frontend_dir / svg_file), media_type="image/svg+xml")
+
 # ===================================================================
 # ミドルウェア
 # ===================================================================
@@ -439,9 +459,12 @@ async def root():
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
     """
-    ダッシュボードページ
+    ダッシュボードページ（ENV に応じて dev/prod を選択）
     """
-    html_path = frontend_dir / "dev" / "dashboard.html"
+    sub_dir = "prod" if os.environ.get("ENV") == "prod" else "dev"
+    html_path = frontend_dir / sub_dir / "dashboard.html"
+    if not html_path.exists():
+        html_path = frontend_dir / "dev" / "dashboard.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="Dashboard page not found")
     return HTMLResponse(content=html_path.read_text(), status_code=200)
@@ -460,8 +483,9 @@ async def serve_page(page_path: str):
     APIルート (/api/*) はこのハンドラより前に登録されているため到達しない。
     """
     # ENVに応じてdev/prodディレクトリを選択
-    env = settings.environment if hasattr(settings, "environment") else os.environ.get("ENV", "dev")
-    sub_dir = "prod" if env == "prod" else "dev"
+    # settings.environment は "development"/"production" を返す; os.environ["ENV"] は "dev"/"prod"
+    raw_env = os.environ.get("ENV", "dev")
+    sub_dir = "prod" if raw_env == "prod" else "dev"
 
     # .htmlを除いたベース名を取得
     base = page_path.rstrip("/")
