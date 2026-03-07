@@ -11,6 +11,7 @@
   GET /api/monitoring/processes/top     - CPU/メモリ上位プロセス
   GET /api/monitoring/network/io        - ネットワークI/O統計
   GET /api/monitoring/disk/io           - ディスクI/O統計
+  GET /api/monitoring/prometheus        - Prometheusスクレイプ形式メトリクス
 """
 
 import json
@@ -24,6 +25,7 @@ from typing import Any, Dict, List, Optional
 
 import psutil
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from ...core import require_permission
@@ -575,3 +577,82 @@ async def clear_metrics_history(
         details={"deleted_rows": deleted},
     )
     return {"status": "success", "message": "メトリクス履歴を削除しました", "deleted_rows": deleted}
+
+
+@router.get(
+    "/prometheus",
+    summary="Prometheusメトリクスエクスポート",
+    description="Prometheus scrapeフォーマット (text/plain) でメトリクスを返します",
+    response_class=PlainTextResponse,
+)
+async def get_prometheus_metrics(
+    current_user: TokenData = Depends(require_permission("read:system")),
+) -> str:
+    """Prometheus/OpenMetrics形式でシステムメトリクスを返す"""
+    snapshot = _collect_snapshot()
+    thresholds = _load_thresholds()
+    alerts = _check_alerts(snapshot, thresholds)
+    ts_ms = int(time.time() * 1000)
+
+    lines = [
+        "# HELP linux_mgmt_cpu_percent CPU使用率(%)",
+        "# TYPE linux_mgmt_cpu_percent gauge",
+        f"linux_mgmt_cpu_percent {snapshot['cpu_percent']:.2f} {ts_ms}",
+        "",
+        "# HELP linux_mgmt_memory_percent メモリ使用率(%)",
+        "# TYPE linux_mgmt_memory_percent gauge",
+        f"linux_mgmt_memory_percent {snapshot['mem_percent']:.2f} {ts_ms}",
+        "",
+        "# HELP linux_mgmt_memory_used_bytes 使用中メモリ(bytes)",
+        "# TYPE linux_mgmt_memory_used_bytes gauge",
+        f"linux_mgmt_memory_used_bytes {snapshot.get('mem_used', 0)} {ts_ms}",
+        "",
+        "# HELP linux_mgmt_memory_total_bytes 総メモリ(bytes)",
+        "# TYPE linux_mgmt_memory_total_bytes gauge",
+        f"linux_mgmt_memory_total_bytes {snapshot.get('mem_total', 0)} {ts_ms}",
+        "",
+        "# HELP linux_mgmt_disk_percent ディスク使用率(%)",
+        "# TYPE linux_mgmt_disk_percent gauge",
+        f"linux_mgmt_disk_percent {snapshot['disk_percent']:.2f} {ts_ms}",
+        "",
+        "# HELP linux_mgmt_load_average_1m 1分ロードアベレージ",
+        "# TYPE linux_mgmt_load_average_1m gauge",
+        f"linux_mgmt_load_average_1m {snapshot['load_avg_1']:.2f} {ts_ms}",
+        "",
+        "# HELP linux_mgmt_load_average_5m 5分ロードアベレージ",
+        "# TYPE linux_mgmt_load_average_5m gauge",
+        f"linux_mgmt_load_average_5m {snapshot['load_avg_5']:.2f} {ts_ms}",
+        "",
+        "# HELP linux_mgmt_load_average_15m 15分ロードアベレージ",
+        "# TYPE linux_mgmt_load_average_15m gauge",
+        f"linux_mgmt_load_average_15m {snapshot['load_avg_15']:.2f} {ts_ms}",
+        "",
+        "# HELP linux_mgmt_active_alerts アクティブアラート数",
+        "# TYPE linux_mgmt_active_alerts gauge",
+        f"linux_mgmt_active_alerts {len(alerts)} {ts_ms}",
+        "",
+    ]
+
+    # アラートごとのラベル付きメトリクス
+    if alerts:
+        lines += [
+            "# HELP linux_mgmt_alert_severity アラート重要度 (1=warning, 2=critical)",
+            "# TYPE linux_mgmt_alert_severity gauge",
+        ]
+        for alert in alerts:
+            resource = alert.get("resource", "unknown").replace(" ", "_").lower()
+            severity_val = 2 if alert.get("level") == "critical" else 1
+            lines.append(
+                f'linux_mgmt_alert_severity{{resource="{resource}",level="{alert.get("level","unknown")}"}} '
+                f"{severity_val} {ts_ms}"
+            )
+        lines.append("")
+
+    audit_log.record(
+        user_id=current_user.username,
+        operation="monitoring_prometheus_export",
+        target="system",
+        status="success",
+    )
+
+    return "\n".join(lines) + "\n"

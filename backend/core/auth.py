@@ -163,6 +163,9 @@ ROLES = {
             # ネットワーク設定変更（承認フロー経由）
             "write:network",
             "read:servers",
+            # サービス再起動（承認フロー経由）
+            "execute:service_restart",
+            "request:approval",
             "view:approval_policies",
             # 監査ログ（自分のログのみ）
             "read:audit",

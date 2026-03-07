@@ -462,3 +462,80 @@ class TestMetricsPersistence:
 
         result = m._query_daily_averages(7)
         assert isinstance(result, list)
+
+
+class TestPrometheusExport:
+    """GET /api/monitoring/prometheus テスト"""
+
+    def test_prometheus_returns_text_plain(self, test_client, admin_headers):
+        """Prometheusエンドポイントは text/plain を返す"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=admin_headers)
+        assert resp.status_code == 200
+        assert "text/plain" in resp.headers.get("content-type", "")
+
+    def test_prometheus_contains_cpu_metric(self, test_client, admin_headers):
+        """CPUメトリクスが含まれる"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=admin_headers)
+        assert resp.status_code == 200
+        body = resp.text
+        assert "linux_mgmt_cpu_percent" in body
+
+    def test_prometheus_contains_memory_metric(self, test_client, admin_headers):
+        """メモリメトリクスが含まれる"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=admin_headers)
+        body = resp.text
+        assert "linux_mgmt_memory_percent" in body
+
+    def test_prometheus_contains_disk_metric(self, test_client, admin_headers):
+        """ディスクメトリクスが含まれる"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=admin_headers)
+        body = resp.text
+        assert "linux_mgmt_disk_percent" in body
+
+    def test_prometheus_contains_load_average(self, test_client, admin_headers):
+        """ロードアベレージが含まれる"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=admin_headers)
+        body = resp.text
+        assert "linux_mgmt_load_average_1m" in body
+        assert "linux_mgmt_load_average_5m" in body
+        assert "linux_mgmt_load_average_15m" in body
+
+    def test_prometheus_contains_help_lines(self, test_client, admin_headers):
+        """# HELP と # TYPE ヘッダー行が含まれる"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=admin_headers)
+        body = resp.text
+        assert "# HELP" in body
+        assert "# TYPE" in body
+
+    def test_prometheus_unauthenticated_denied(self, test_client):
+        """未認証は拒否"""
+        resp = test_client.get("/api/monitoring/prometheus")
+        assert resp.status_code in (401, 403)
+
+    def test_prometheus_viewer_allowed(self, test_client, viewer_headers):
+        """viewerはread:systemで取得可能"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=viewer_headers)
+        assert resp.status_code == 200
+
+    def test_prometheus_alert_count_metric(self, test_client, admin_headers):
+        """アクティブアラート数メトリクスが含まれる"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=admin_headers)
+        body = resp.text
+        assert "linux_mgmt_active_alerts" in body
+
+    def test_prometheus_numeric_values(self, test_client, admin_headers):
+        """メトリクス値が数値形式"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=admin_headers)
+        body = resp.text
+        for line in body.splitlines():
+            if line.startswith("linux_mgmt_cpu_percent "):
+                parts = line.split()
+                assert len(parts) >= 2
+                float(parts[1])  # 数値変換できることを確認
+                break
+
+    def test_prometheus_memory_total_metric(self, test_client, admin_headers):
+        """総メモリメトリクスが含まれる"""
+        resp = test_client.get("/api/monitoring/prometheus", headers=admin_headers)
+        body = resp.text
+        assert "linux_mgmt_memory_total_bytes" in body
