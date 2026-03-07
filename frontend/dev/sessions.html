@@ -39,6 +39,14 @@
             font-size: 12px;
             font-weight: normal;
         }
+        .badge-danger {
+            background: #dc2626;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: normal;
+        }
         .failed-row { color: #dc2626; font-weight: 500; }
         .dark-mode .failed-row { color: #f87171; }
         .session-table { font-size: 13px; }
@@ -48,6 +56,13 @@
             color: #6b7280;
         }
         .dark-mode .auto-refresh-indicator { color: #94a3b8; }
+        .dark-mode .nav-tabs .nav-link { color: #94a3b8; }
+        .dark-mode .nav-tabs .nav-link.active { color: #f1f5f9; background: #1e293b; border-color: #334155 #334155 #1e293b; }
+        .dark-mode .tab-content { border-color: #334155; }
+        .dark-mode .table { color: #e2e8f0; }
+        .btn-force-logout { font-size: 11px; padding: 2px 6px; }
+        .locked-row { background: #fef2f2; }
+        .dark-mode .locked-row { background: #450a0a; }
     </style>
 <script src="../js/theme.js"></script>
 </head>
@@ -64,68 +79,149 @@
         </div>
     </div>
 
-    <!-- アクティブセッション -->
-    <div class="session-card">
-        <div class="session-card-title">
-            🟢 アクティブセッション
-            <span class="badge-count" id="active-count">-</span>
-        </div>
-        <div id="active-error" class="alert alert-warning d-none"></div>
-        <div class="table-responsive">
-            <table class="table table-sm session-table" id="active-table">
-                <thead><tr>
-                    <th>ユーザー</th><th>端末</th><th>IPアドレス</th><th>ログイン時刻</th><th>アイドル時間</th>
-                </tr></thead>
-                <tbody id="active-tbody"><tr><td colspan="5" class="text-center text-muted">読み込み中...</td></tr></tbody>
-            </table>
-        </div>
-    </div>
+    <!-- タブナビゲーション -->
+    <ul class="nav nav-tabs mb-3" id="sessionTabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" id="jwt-tab" data-bs-toggle="tab" data-bs-target="#jwt-pane" type="button">
+                🔑 JWTセッション
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="ratelimit-tab" data-bs-toggle="tab" data-bs-target="#ratelimit-pane" type="button">
+                🚫 レート制限
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="active-tab" data-bs-toggle="tab" data-bs-target="#active-pane" type="button">
+                🟢 システムセッション
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-pane" type="button">
+                📋 ログイン履歴
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="failed-tab" data-bs-toggle="tab" data-bs-target="#failed-pane" type="button">
+                🔴 ログイン失敗
+            </button>
+        </li>
+    </ul>
 
-    <!-- ログイン履歴 -->
-    <div class="session-card">
-        <div class="session-card-title">
-            📋 ログイン履歴（最近50件）
-            <span class="badge-count" id="history-count">-</span>
-        </div>
-        <div id="history-error" class="alert alert-warning d-none"></div>
-        <div class="table-responsive">
-            <table class="table table-sm session-table" id="history-table">
-                <thead><tr>
-                    <th>ユーザー</th><th>端末</th><th>ホスト</th><th>ログイン</th><th>ログアウト</th>
-                </tr></thead>
-                <tbody id="history-tbody"><tr><td colspan="5" class="text-center text-muted">読み込み中...</td></tr></tbody>
-            </table>
-        </div>
-    </div>
+    <div class="tab-content" id="sessionTabContent">
 
-    <!-- ログイン失敗 -->
-    <div class="session-card">
-        <div class="session-card-title">
-            🔴 ログイン失敗一覧
-            <span class="badge-count" id="failed-count">-</span>
+        <!-- JWTセッションタブ -->
+        <div class="tab-pane fade show active" id="jwt-pane" role="tabpanel">
+            <div class="session-card">
+                <div class="session-card-title">
+                    🔑 アクティブJWTセッション
+                    <span class="badge-count" id="jwt-count">-</span>
+                    <span class="ms-auto text-muted" style="font-size:12px;font-weight:normal;">管理者・承認者のみ表示</span>
+                </div>
+                <div id="jwt-error" class="alert alert-warning d-none"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm session-table" id="jwt-table">
+                        <thead><tr>
+                            <th>ユーザー</th><th>ロール</th><th>IPアドレス</th><th>ログイン時刻</th><th>有効期限</th><th>操作</th>
+                        </tr></thead>
+                        <tbody id="jwt-tbody"><tr><td colspan="6" class="text-center text-muted">読み込み中...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        <div id="failed-error" class="alert alert-warning d-none"></div>
-        <div class="table-responsive">
-            <table class="table table-sm session-table" id="failed-table">
-                <thead><tr><th>詳細</th></tr></thead>
-                <tbody id="failed-tbody"><tr><td class="text-center text-muted">読み込み中...</td></tr></tbody>
-            </table>
-        </div>
-    </div>
 
-    <!-- wtmpサマリー -->
-    <div class="session-card">
-        <div class="session-card-title">
-            📊 ログイン統計サマリー
-            <span class="badge-count" id="wtmp-count">-</span>
+        <!-- レート制限タブ -->
+        <div class="tab-pane fade" id="ratelimit-pane" role="tabpanel">
+            <div class="session-card">
+                <div class="session-card-title">
+                    🚫 ブルートフォース対策 - ロック中エントリ
+                    <span class="badge-danger" id="ratelimit-count">-</span>
+                </div>
+                <div id="ratelimit-error" class="alert alert-warning d-none"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm session-table" id="ratelimit-table">
+                        <thead><tr>
+                            <th>IPアドレス</th><th>メールアドレス</th><th>失敗回数</th><th>残りロック時間</th><th>操作</th>
+                        </tr></thead>
+                        <tbody id="ratelimit-tbody"><tr><td colspan="5" class="text-center text-muted">読み込み中...</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="text-muted" style="font-size:12px;margin-top:8px;">
+                    最大試行回数: 5回 / ロック時間: 5分 / ウィンドウ: 10分
+                </div>
+            </div>
         </div>
-        <div id="wtmp-error" class="alert alert-warning d-none"></div>
-        <pre id="wtmp-pre" class="bg-light p-3 rounded" style="font-size:12px;max-height:300px;overflow-y:auto;">読み込み中...</pre>
-    </div>
+
+        <!-- システムセッションタブ -->
+        <div class="tab-pane fade" id="active-pane" role="tabpanel">
+            <div class="session-card">
+                <div class="session-card-title">
+                    🟢 アクティブシステムセッション
+                    <span class="badge-count" id="active-count">-</span>
+                </div>
+                <div id="active-error" class="alert alert-warning d-none"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm session-table" id="active-table">
+                        <thead><tr>
+                            <th>ユーザー</th><th>端末</th><th>IPアドレス</th><th>ログイン時刻</th><th>アイドル時間</th>
+                        </tr></thead>
+                        <tbody id="active-tbody"><tr><td colspan="5" class="text-center text-muted">読み込み中...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ログイン履歴タブ -->
+        <div class="tab-pane fade" id="history-pane" role="tabpanel">
+            <div class="session-card">
+                <div class="session-card-title">
+                    📋 ログイン履歴（最近50件）
+                    <span class="badge-count" id="history-count">-</span>
+                </div>
+                <div id="history-error" class="alert alert-warning d-none"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm session-table" id="history-table">
+                        <thead><tr>
+                            <th>ユーザー</th><th>端末</th><th>ホスト</th><th>ログイン</th><th>ログアウト</th>
+                        </tr></thead>
+                        <tbody id="history-tbody"><tr><td colspan="5" class="text-center text-muted">読み込み中...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ログイン失敗タブ -->
+        <div class="tab-pane fade" id="failed-pane" role="tabpanel">
+            <div class="session-card">
+                <div class="session-card-title">
+                    🔴 ログイン失敗一覧
+                    <span class="badge-count" id="failed-count">-</span>
+                </div>
+                <div id="failed-error" class="alert alert-warning d-none"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm session-table" id="failed-table">
+                        <thead><tr><th>詳細</th></tr></thead>
+                        <tbody id="failed-tbody"><tr><td class="text-center text-muted">読み込み中...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="session-card">
+                <div class="session-card-title">
+                    📊 ログイン統計サマリー
+                    <span class="badge-count" id="wtmp-count">-</span>
+                </div>
+                <div id="wtmp-error" class="alert alert-warning d-none"></div>
+                <pre id="wtmp-pre" class="bg-light p-3 rounded" style="font-size:12px;max-height:300px;overflow-y:auto;">読み込み中...</pre>
+            </div>
+        </div>
+
+    </div><!-- end tab-content -->
 </div>
 
 <script src="../js/auth.js"></script>
 <script src="../js/sidebar.js"></script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script>
     function escapeHtml(str) {
         return String(str)
@@ -161,6 +257,156 @@
             login: parts.slice(3, 7).join(" ") || "",
             logout: parts.slice(7).join(" ") || ""
         };
+    }
+
+    function formatDatetime(iso) {
+        if (!iso) return "-";
+        try {
+            return new Date(iso).toLocaleString("ja-JP");
+        } catch { return iso; }
+    }
+
+    function formatSeconds(sec) {
+        if (!sec) return "-";
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return m > 0 ? `${m}分${s}秒` : `${s}秒`;
+    }
+
+    async function forceLogout(sessionId) {
+        if (!confirm("このセッションを強制終了しますか？")) return;
+        try {
+            const resp = await fetch(`/api/sessions/jwt/${encodeURIComponent(sessionId)}`, {
+                method: "DELETE",
+                headers: getHeaders()
+            });
+            if (!resp.ok) {
+                const d = await resp.json();
+                alert("エラー: " + (d.detail?.message || d.detail || "不明なエラー"));
+                return;
+            }
+            alert("セッションを強制終了しました。");
+            loadJwtSessions();
+        } catch (e) {
+            alert("通信エラー: " + e.message);
+        }
+    }
+
+    async function forceLogoutUser(email) {
+        if (!confirm(`${email} の全セッションを強制終了しますか？`)) return;
+        try {
+            const resp = await fetch(`/api/sessions/jwt/user/${encodeURIComponent(email)}`, {
+                method: "DELETE",
+                headers: getHeaders()
+            });
+            if (!resp.ok) {
+                const d = await resp.json();
+                alert("エラー: " + (d.detail?.message || d.detail || "不明なエラー"));
+                return;
+            }
+            const d = await resp.json();
+            alert(`${d.revoked_count}件のセッションを強制終了しました。`);
+            loadJwtSessions();
+        } catch (e) {
+            alert("通信エラー: " + e.message);
+        }
+    }
+
+    async function clearRateLimit(identifier) {
+        if (!confirm(`${identifier} のレート制限を解除しますか？`)) return;
+        try {
+            const resp = await fetch(`/api/sessions/rate-limit/${encodeURIComponent(identifier)}`, {
+                method: "DELETE",
+                headers: getHeaders()
+            });
+            if (!resp.ok) {
+                const d = await resp.json();
+                alert("エラー: " + (d.detail?.message || d.detail || "不明なエラー"));
+                return;
+            }
+            alert("レート制限を解除しました。");
+            loadRateLimitStatus();
+        } catch (e) {
+            alert("通信エラー: " + e.message);
+        }
+    }
+
+    async function loadJwtSessions() {
+        try {
+            const resp = await fetch("/api/sessions/jwt", { headers: getHeaders() });
+            if (!resp.ok) {
+                const data = await resp.json();
+                throw new Error(data.detail || "HTTP " + resp.status);
+            }
+            const data = await resp.json();
+            document.getElementById("jwt-count").textContent = data.count;
+            const tbody = document.getElementById("jwt-tbody");
+            if (!data.sessions || data.sessions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">アクティブセッションなし</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.sessions.map(s => `<tr>
+                <td>
+                    ${escapeHtml(s.username)}<br>
+                    <small class="text-muted">${escapeHtml(s.email)}</small>
+                </td>
+                <td><span class="badge bg-secondary">${escapeHtml(s.role)}</span></td>
+                <td>${escapeHtml(s.ip_address)}</td>
+                <td>${escapeHtml(formatDatetime(s.created_at))}</td>
+                <td>${escapeHtml(formatDatetime(s.expires_at))}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger btn-force-logout me-1"
+                        onclick="forceLogout('${escapeHtml(s.session_id)}')">
+                        ログアウト
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning btn-force-logout"
+                        onclick="forceLogoutUser('${escapeHtml(s.email)}')">
+                        全セッション
+                    </button>
+                </td>
+            </tr>`).join("");
+        } catch (e) {
+            const el = document.getElementById("jwt-error");
+            el.textContent = "取得エラー: " + escapeHtml(e.message);
+            el.classList.remove("d-none");
+            document.getElementById("jwt-tbody").innerHTML =
+                '<tr><td colspan="6" class="text-center text-muted">権限がないか取得できませんでした</td></tr>';
+        }
+    }
+
+    async function loadRateLimitStatus() {
+        try {
+            const resp = await fetch("/api/sessions/rate-limit-status", { headers: getHeaders() });
+            if (!resp.ok) {
+                const data = await resp.json();
+                throw new Error(data.detail || "HTTP " + resp.status);
+            }
+            const data = await resp.json();
+            document.getElementById("ratelimit-count").textContent = data.count;
+            const tbody = document.getElementById("ratelimit-tbody");
+            if (!data.locked_entries || data.locked_entries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-success">ロック中のエントリなし ✅</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.locked_entries.map(e => `<tr class="locked-row">
+                <td>${escapeHtml(e.ip)}</td>
+                <td>${escapeHtml(e.email)}</td>
+                <td><span class="badge bg-danger">${escapeHtml(String(e.attempts))}</span></td>
+                <td>${escapeHtml(formatSeconds(e.remaining_seconds))}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-success btn-force-logout"
+                        onclick="clearRateLimit('${escapeHtml(e.ip)}')">IP解除</button>
+                    <button class="btn btn-sm btn-outline-success btn-force-logout ms-1"
+                        onclick="clearRateLimit('${escapeHtml(e.email)}')">メール解除</button>
+                </td>
+            </tr>`).join("");
+        } catch (e) {
+            const el = document.getElementById("ratelimit-error");
+            el.textContent = "取得エラー: " + escapeHtml(e.message);
+            el.classList.remove("d-none");
+            document.getElementById("ratelimit-tbody").innerHTML =
+                '<tr><td colspan="5" class="text-center text-muted">権限がないか取得できませんでした</td></tr>';
+        }
     }
 
     async function loadActiveSessions() {
@@ -256,6 +502,8 @@
     }
 
     function loadAll() {
+        loadJwtSessions();
+        loadRateLimitStatus();
         loadActiveSessions();
         loadHistory();
         loadFailed();

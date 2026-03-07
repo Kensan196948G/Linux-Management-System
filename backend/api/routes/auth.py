@@ -14,12 +14,14 @@ from pathlib import Path
 import pyotp
 import qrcode
 from cryptography.fernet import Fernet
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 
 from ...core import get_current_user, settings
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData, authenticate_user, create_access_token
+from ...core.rate_limiter import rate_limiter
+from ...core.session_store import session_store
 
 logger = logging.getLogger(__name__)
 
@@ -120,33 +122,62 @@ class TotpDisableRequest(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest):
+async def login(login_data: LoginRequest, request: Request):
     """
     ログイン
 
     Args:
-        request: ログインリクエスト
+        login_data: ログインリクエスト
+        request: HTTPリクエスト（IP取得用）
 
     Returns:
         JWT アクセストークン
 
     Raises:
-        HTTPException: 認証失敗時
+        HTTPException: 認証失敗時またはレート制限時
     """
-    logger.info(f"Login attempt: {request.email}")
+    ip_address = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+    # X-Forwarded-For は複数IPが含まれる場合があるので最初のIPを使用
+    ip_address = ip_address.split(",")[0].strip()
+
+    logger.info(f"Login attempt: {login_data.email}")
+
+    # ブルートフォース対策: ロック確認
+    locked, remaining = rate_limiter.is_locked(ip_address, login_data.email)
+    if locked:
+        audit_log.record(
+            operation="login",
+            user_id=login_data.email,
+            target="system",
+            status="denied",
+            details={"reason": "rate_limited", "remaining_seconds": remaining},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed attempts. Try again in {remaining} seconds.",
+        )
 
     # 認証
-    user = authenticate_user(request.email, request.password)
+    user = authenticate_user(login_data.email, login_data.password)
 
     if not user:
+        # ログイン失敗を記録（レート制限カウンタ更新）
+        allowed, remaining = rate_limiter.check_and_record(ip_address, login_data.email)
+
         # 監査ログ記録（失敗）
         audit_log.record(
             operation="login",
-            user_id=request.email,
+            user_id=login_data.email,
             target="system",
             status="failure",
             details={"reason": "invalid_credentials"},
         )
+
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many failed attempts. Try again in {remaining} seconds.",
+            )
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -160,6 +191,30 @@ async def login(request: LoginRequest):
         data={"sub": user.user_id, "username": user.username, "role": user.role, "email": user.email},
         expires_delta=access_token_expires,
     )
+
+    # ログイン成功: レート制限カウンタリセット
+    rate_limiter.record_success(ip_address, login_data.email)
+
+    # セッション登録（JTI追跡）
+    from jose import jwt as jose_jwt
+
+    try:
+        payload = jose_jwt.decode(access_token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        jti = payload.get("jti")
+        if jti:
+            user_agent = request.headers.get("User-Agent", "unknown")
+            session_store.register_session(
+                jti=jti,
+                user_id=user.user_id,
+                username=user.username,
+                email=user.email,
+                role=user.role,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                expires_at=payload["exp"],
+            )
+    except Exception:
+        pass  # セッション登録失敗はログインを妨げない
 
     # 監査ログ記録（成功）
     audit_log.record(
