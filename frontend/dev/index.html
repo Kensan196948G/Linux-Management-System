@@ -21,6 +21,7 @@
 
         <div id="login-alerts"></div>
 
+        <!-- Step 1: Email/Password フォーム -->
         <form id="login-form">
             <div class="form-group">
                 <label class="form-label" for="email">メールアドレス</label>
@@ -32,6 +33,24 @@
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%;">ログイン</button>
         </form>
+
+        <!-- Step 2: TOTP 検証フォーム (2FA有効ユーザーのみ表示) -->
+        <div id="totp-form" style="display: none;">
+            <div style="text-align:center; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">🔐</span>
+                <p style="font-weight: 600; margin-top: 0.5rem;">2段階認証</p>
+                <p style="font-size: 0.875rem; color: var(--text-secondary);">認証アプリの6桁コードを入力してください</p>
+            </div>
+            <div class="form-group" style="text-align: center;">
+                <input type="text" class="form-input" id="totp-code"
+                    inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                    placeholder="000000"
+                    autocomplete="one-time-code"
+                    style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; font-family: monospace;">
+            </div>
+            <button id="totp-submit-btn" class="btn btn-primary" style="width: 100%;">確認</button>
+            <button id="totp-cancel-btn" class="btn" style="width: 100%; margin-top: 0.5rem; background: transparent; border: 1px solid var(--border-color);">← 戻る</button>
+        </div>
 
         <div style="margin-top: 1.5rem; padding: 1rem; background-color: #f1f5f9; border-radius: 6px;">
             <p style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 0.5rem;">開発環境用デモアカウント:</p>
@@ -92,7 +111,26 @@
 
                 console.log('Login successful:', result);
 
-                // アラート表示
+                // 2FA 有効チェック
+                let requires2fa = false;
+                try {
+                    const twoFaStatus = await api.request('GET', '/api/auth/2fa/status');
+                    requires2fa = twoFaStatus && twoFaStatus.enabled === true;
+                    console.log('2FA status:', twoFaStatus);
+                } catch (e) {
+                    console.warn('2FA status check failed (non-fatal):', e);
+                }
+
+                if (requires2fa) {
+                    // 2FA 必要: TOTPフォームを表示
+                    alertsEl.innerHTML = '<div class="alert alert-success">✅ 認証情報確認済み。2段階認証コードを入力してください。</div>';
+                    document.getElementById('login-form').style.display = 'none';
+                    document.getElementById('totp-form').style.display = 'block';
+                    document.getElementById('totp-code').focus();
+                    return;
+                }
+
+                // 2FA 不要: 通常ログイン完了
                 alertsEl.innerHTML = '<div class="alert alert-success">✅ ログインしました。ダッシュボードに移動します...</div>';
 
                 // LocalStorageへの保存を確実にするため、少し待機（Edge対策）
@@ -128,6 +166,57 @@
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'ログイン';
             }
+        });
+
+        // TOTP フォーム: 6桁入力で自動サブミット
+        const totpInput = document.getElementById('totp-code');
+        totpInput.addEventListener('input', () => {
+            if (totpInput.value.replace(/\D/g, '').length === 6) {
+                totpInput.value = totpInput.value.replace(/\D/g, '');
+                document.getElementById('totp-submit-btn').click();
+            }
+        });
+
+        // TOTP サブミット
+        document.getElementById('totp-submit-btn').addEventListener('click', async () => {
+            const code = document.getElementById('totp-code').value.replace(/\D/g, '');
+            const alertsEl = document.getElementById('login-alerts');
+            const submitBtn = document.getElementById('totp-submit-btn');
+
+            if (code.length !== 6) {
+                alertsEl.innerHTML = '<div class="alert alert-error">❌ 6桁のコードを入力してください</div>';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = '検証中...';
+
+            try {
+                await api.request('POST', '/api/auth/2fa/verify', { code });
+                alertsEl.innerHTML = '<div class="alert alert-success">✅ 2FA認証成功。ダッシュボードに移動します...</div>';
+                sessionStorage.setItem('last_login_time', Date.now().toString());
+                localStorage.setItem('user_email', document.getElementById('email').value);
+                setTimeout(() => {
+                    window.location.replace(window.location.pathname.replace('index.html','') + 'dashboard.html');
+                }, 1200);
+            } catch (error) {
+                console.error('TOTP verification failed:', error);
+                alertsEl.innerHTML = `<div class="alert alert-error">❌ 認証コードが無効です: ${error.message || '再度お試しください'}</div>`;
+                document.getElementById('totp-code').value = '';
+                document.getElementById('totp-code').focus();
+                submitBtn.disabled = false;
+                submitBtn.textContent = '確認';
+            }
+        });
+
+        // TOTP キャンセル: ログアウトしてフォームに戻る
+        document.getElementById('totp-cancel-btn').addEventListener('click', () => {
+            api.clearToken && api.clearToken();
+            localStorage.removeItem('access_token');
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('totp-form').style.display = 'none';
+            document.getElementById('totp-code').value = '';
+            document.getElementById('login-alerts').innerHTML = '';
         });
 
         // 既にログイン済みの場合はダッシュボードにリダイレクト
