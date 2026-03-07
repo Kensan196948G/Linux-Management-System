@@ -40,13 +40,13 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, topic: str) -> None:
         """
-        WebSocket を受け入れ、topic の接続リストに追加する。
+        WebSocket を topic の接続リストに追加する。
+        接続の accept() は呼び出し元で事前に行うこと。
 
         Args:
-            websocket: 接続する WebSocket
+            websocket: 接続済みの WebSocket
             topic: 購読する topic 名
         """
-        await websocket.accept()
         self.active_connections.setdefault(topic, []).append(websocket)
         logger.debug("WS connected: topic=%s total=%d", topic, len(self.active_connections[topic]))
 

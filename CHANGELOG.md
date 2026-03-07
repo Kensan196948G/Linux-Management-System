@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.44.0] - 2026-03-07
+
+### Security
+- **WebSocket トークン認証方式変更** (セキュリティ強化)
+  - URLクエリパラメータ `?token=` からメッセージベース認証に移行
+  - 接続後、最初のメッセージ `{"type": "auth", "token": "<JWT>"}` でトークン送信
+  - トークンがnginxアクセスログ・ブラウザURLバー・履歴に残らなくなる
+  - 10秒タイムアウト（`WS_AUTH_TIMEOUT`）で未認証接続を自動切断
+  - `_ws_authenticate()` ヘルパー追加 (`backend/api/routes/websocket.py`)
+  - 影響フロントエンド: `dashboard.html` (dev/prod), `realtime-alerts.html`, `alert-center.js`
+- **X-Forwarded-For スプーフィング対策**
+  - `TRUSTED_PROXY_IPS` 環境変数で信頼プロキシIPを設定可能（デフォルト: `127.0.0.1,::1`）
+  - `_get_client_ip()` ヘルパーで信頼プロキシからのみX-Forwarded-Forを読み取る
+  - rate_limiterのIP取得に適用
+
+### Added
+- **承認フロー auto_execute 完全実装** (`backend/core/approval_service.py`)
+  - 13種の新オペレーションタイプをハンドル:
+    - `container_stop`, `container_restart`, `container_prune`
+    - `nfs_mount`, `nfs_umount`
+    - `backup_run`, `backup_restore`
+    - `ansible_playbook_run`
+    - `network_config_change`, `dns_config_change`
+    - `shutdown`, `reboot`
+    - `multi_ssh_execute`, `ssh_keypair_generate`
+- **sudo_wrapper 新メソッド追加** (`backend/core/sudo_wrapper.py`)
+  - `container_stop()`, `container_restart()`, `container_prune()`
+  - `nfs_mount()`, `nfs_umount()`
+  - `run_backup()`, `ansible_run_playbook()`
+  - `network_set_ip()`, `network_set_dns()`
+  - `system_shutdown()`, `system_reboot()`
+
 ## [v0.43.0] - 2026-03-07
 
 ### Added

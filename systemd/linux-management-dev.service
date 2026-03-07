@@ -13,7 +13,8 @@ WorkingDirectory=/mnt/LinuxHDD/Linux-Management-Systm
 # 環境変数
 Environment="ENV=dev"
 Environment="PYTHONUNBUFFERED=1"
-Environment="PATH=/home/kensan/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="VIRTUAL_ENV=/mnt/LinuxHDD/Linux-Management-Systm/venv"
+Environment="PATH=/mnt/LinuxHDD/Linux-Management-Systm/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # .env ファイルから静的環境変数を読み込む
 EnvironmentFile=/mnt/LinuxHDD/Linux-Management-Systm/.env
@@ -24,8 +25,8 @@ ExecStartPre=/mnt/LinuxHDD/Linux-Management-Systm/scripts/detect-ip.sh
 # .env.runtime（detect-ip.sh が生成）を読み込む
 EnvironmentFile=-/mnt/LinuxHDD/Linux-Management-Systm/.env.runtime
 
-# 実行コマンド（開発: uvicorn）
-ExecStart=/home/kensan/.local/bin/uvicorn \
+# 実行コマンド（開発: uvicorn ＋ venv）
+ExecStart=/mnt/LinuxHDD/Linux-Management-Systm/venv/bin/uvicorn \
     backend.api.main:app \
     --host 0.0.0.0 \
     --port 5012 \

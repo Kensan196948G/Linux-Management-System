@@ -13,7 +13,8 @@ WorkingDirectory=/mnt/LinuxHDD/Linux-Management-Systm
 # 環境変数
 Environment="ENV=prod"
 Environment="PYTHONUNBUFFERED=1"
-Environment="PATH=/home/kensan/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="VIRTUAL_ENV=/mnt/LinuxHDD/Linux-Management-Systm/venv"
+Environment="PATH=/mnt/LinuxHDD/Linux-Management-Systm/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # .env ファイルから静的環境変数を読み込む
 EnvironmentFile=/mnt/LinuxHDD/Linux-Management-Systm/.env
@@ -24,8 +25,8 @@ ExecStartPre=/mnt/LinuxHDD/Linux-Management-Systm/scripts/detect-ip.sh
 # .env.runtime（detect-ip.sh が生成）を読み込む
 EnvironmentFile=-/mnt/LinuxHDD/Linux-Management-Systm/.env.runtime
 
-# 実行コマンド（本番: gunicorn + uvicorn worker）
-ExecStart=/home/kensan/.local/bin/gunicorn \
+# 実行コマンド（本番: gunicorn + uvicorn worker ＋ venv）
+ExecStart=/mnt/LinuxHDD/Linux-Management-Systm/venv/bin/gunicorn \
     backend.api.main:app \
     --bind 0.0.0.0:8000 \
     --workers 2 \
@@ -51,8 +52,6 @@ LimitNOFILE=65536
 
 # セキュリティ強化
 PrivateTmp=yes
-# NoNewPrivileges=yes は sudo allowlist wrapper (adminui-*.sh) の実行に必要なため無効化
-# セキュリティは sudoers allowlist + 入力バリデーション + 監査ログで担保
 
 # ログ設定
 StandardOutput=journal

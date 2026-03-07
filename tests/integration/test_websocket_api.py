@@ -2,6 +2,7 @@
 WebSocket API 統合テスト
 
 /api/ws/system, /api/ws/processes, /api/ws/alerts の各エンドポイントを検証する。
+認証は最初のメッセージで行う（URLクエリパラメータは使用しない）。
 """
 
 import os
@@ -15,6 +16,7 @@ sys.path.insert(0, str(project_root))
 os.environ.setdefault("ENV", "dev")
 
 from starlette.testclient import TestClient  # noqa: E402
+from starlette.websockets import WebSocketDisconnect  # noqa: E402
 
 from backend.api.main import app  # noqa: E402
 from backend.core.auth import create_access_token  # noqa: E402
@@ -41,19 +43,21 @@ INVALID_TOKEN = "this.is.not.a.valid.token"
 
 
 class TestWsSystem:
-    """システム情報 WebSocket エンドポイントのテスト群"""
+    """システム情報 WebSocket エンドポイントのテスト群（最初のメッセージで認証）"""
 
     def test_ws_system_valid_token_connects(self):
-        """/api/ws/system: 有効なトークンで接続でき、初回データを受信できること"""
+        """/api/ws/system: 有効なトークンを最初のメッセージで送信すると接続でき、初回データを受信できること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/system?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/system") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 assert data["type"] == "system_update"
 
     def test_ws_system_data_has_required_fields(self):
         """/api/ws/system: レスポンスに cpu_percent など必須フィールドが含まれること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/system?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/system") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 payload = data["data"]
                 assert "cpu_percent" in payload
@@ -69,29 +73,33 @@ class TestWsSystem:
     def test_ws_system_timestamp_present(self):
         """/api/ws/system: timestamp フィールドが存在すること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/system?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/system") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 assert "timestamp" in data
                 assert data["timestamp"].endswith("Z")
 
     def test_ws_system_invalid_token_rejected(self):
-        """/api/ws/system: 無効なトークンは 4001 で切断されること"""
+        """/api/ws/system: 無効なトークンを最初のメッセージで送ると 4001 で切断されること"""
         with TestClient(app) as client:
-            with pytest.raises(Exception):
-                with client.websocket_connect(f"/api/ws/system?token={INVALID_TOKEN}") as ws:
+            with pytest.raises((WebSocketDisconnect, Exception)):
+                with client.websocket_connect("/api/ws/system") as ws:
+                    ws.send_json({"type": "auth", "token": INVALID_TOKEN})
                     ws.receive_json()
 
     def test_ws_system_missing_token_rejected(self):
-        """/api/ws/system: トークン未指定は接続拒否されること"""
+        """/api/ws/system: type が auth 以外のメッセージは認証失敗として 4001 で切断されること"""
         with TestClient(app) as client:
-            with pytest.raises(Exception):
+            with pytest.raises((WebSocketDisconnect, Exception)):
                 with client.websocket_connect("/api/ws/system") as ws:
+                    ws.send_json({"type": "not_auth", "token": VALID_TOKEN})
                     ws.receive_json()
 
     def test_ws_system_data_types(self):
         """/api/ws/system: 数値フィールドの型が正しいこと"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/system?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/system") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 payload = data["data"]
                 assert isinstance(payload["cpu_percent"], (int, float))
@@ -104,7 +112,8 @@ class TestWsSystem:
     def test_ws_system_cpu_range(self):
         """/api/ws/system: CPU 使用率が 0〜100 の範囲内であること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/system?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/system") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 cpu = data["data"]["cpu_percent"]
                 assert 0.0 <= cpu <= 100.0
@@ -112,17 +121,19 @@ class TestWsSystem:
     def test_ws_system_memory_values_positive(self):
         """/api/ws/system: メモリ値が正の数であること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/system?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/system") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 payload = data["data"]
                 assert payload["memory_total_gb"] > 0
                 assert payload["memory_used_gb"] >= 0
 
     def test_ws_system_viewer_role_accepted(self):
-        """/api/ws/system: Viewer ロールでも接続できること"""
+        """/api/ws/system: Viewer ロールでも最初のメッセージで認証して接続できること"""
         token = _make_token(role="Viewer")
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/system?token={token}") as ws:
+            with client.websocket_connect("/api/ws/system") as ws:
+                ws.send_json({"type": "auth", "token": token})
                 data = ws.receive_json()
                 assert data["type"] == "system_update"
 
@@ -133,19 +144,21 @@ class TestWsSystem:
 
 
 class TestWsProcesses:
-    """プロセス監視 WebSocket エンドポイントのテスト群"""
+    """プロセス監視 WebSocket エンドポイントのテスト群（最初のメッセージで認証）"""
 
     def test_ws_processes_valid_token_connects(self):
-        """/api/ws/processes: 有効なトークンで接続でき、初回データを受信できること"""
+        """/api/ws/processes: 有効なトークンを最初のメッセージで送ると接続でき、初回データを受信できること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/processes?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/processes") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 assert data["type"] == "processes_update"
 
     def test_ws_processes_data_structure(self):
         """/api/ws/processes: processes リストと total_count を含むこと"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/processes?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/processes") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 payload = data["data"]
                 assert "processes" in payload
@@ -156,14 +169,16 @@ class TestWsProcesses:
     def test_ws_processes_top10_limit(self):
         """/api/ws/processes: 返却プロセス数が最大 10 件であること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/processes?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/processes") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 assert len(data["data"]["processes"]) <= 10
 
     def test_ws_processes_process_fields(self):
         """/api/ws/processes: 各プロセスに必須フィールドが含まれること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/processes?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/processes") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 for proc in data["data"]["processes"]:
                     assert "pid" in proc
@@ -173,23 +188,26 @@ class TestWsProcesses:
                     assert "status" in proc
 
     def test_ws_processes_invalid_token_rejected(self):
-        """/api/ws/processes: 無効なトークンは拒否されること"""
+        """/api/ws/processes: 無効なトークンを最初のメッセージで送ると拒否されること"""
         with TestClient(app) as client:
-            with pytest.raises(Exception):
-                with client.websocket_connect(f"/api/ws/processes?token={INVALID_TOKEN}") as ws:
+            with pytest.raises((WebSocketDisconnect, Exception)):
+                with client.websocket_connect("/api/ws/processes") as ws:
+                    ws.send_json({"type": "auth", "token": INVALID_TOKEN})
                     ws.receive_json()
 
     def test_ws_processes_missing_token_rejected(self):
-        """/api/ws/processes: トークン未指定は拒否されること"""
+        """/api/ws/processes: type が auth 以外のメッセージは認証失敗として拒否されること"""
         with TestClient(app) as client:
-            with pytest.raises(Exception):
+            with pytest.raises((WebSocketDisconnect, Exception)):
                 with client.websocket_connect("/api/ws/processes") as ws:
+                    ws.send_json({"type": "not_auth", "token": VALID_TOKEN})
                     ws.receive_json()
 
     def test_ws_processes_total_count_positive(self):
         """/api/ws/processes: total_count が正の整数であること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/processes?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/processes") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 assert data["data"]["total_count"] > 0
 
@@ -200,19 +218,21 @@ class TestWsProcesses:
 
 
 class TestWsAlerts:
-    """アラート WebSocket エンドポイントのテスト群"""
+    """アラート WebSocket エンドポイントのテスト群（最初のメッセージで認証）"""
 
     def test_ws_alerts_valid_token_connects(self):
-        """/api/ws/alerts: 有効なトークンで接続でき、初回データを受信できること"""
+        """/api/ws/alerts: 有効なトークンを最初のメッセージで送ると接続でき、初回データを受信できること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/alerts?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/alerts") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 assert data["type"] == "alerts_update"
 
     def test_ws_alerts_data_structure(self):
         """/api/ws/alerts: alerts リストと count を含むこと"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/alerts?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/alerts") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 payload = data["data"]
                 assert "alerts" in payload
@@ -223,29 +243,33 @@ class TestWsAlerts:
     def test_ws_alerts_count_matches_list(self):
         """/api/ws/alerts: count が alerts リストの長さと一致すること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/alerts?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/alerts") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 payload = data["data"]
                 assert payload["count"] == len(payload["alerts"])
 
     def test_ws_alerts_invalid_token_rejected(self):
-        """/api/ws/alerts: 無効なトークンは拒否されること"""
+        """/api/ws/alerts: 無効なトークンを最初のメッセージで送ると拒否されること"""
         with TestClient(app) as client:
-            with pytest.raises(Exception):
-                with client.websocket_connect(f"/api/ws/alerts?token={INVALID_TOKEN}") as ws:
+            with pytest.raises((WebSocketDisconnect, Exception)):
+                with client.websocket_connect("/api/ws/alerts") as ws:
+                    ws.send_json({"type": "auth", "token": INVALID_TOKEN})
                     ws.receive_json()
 
     def test_ws_alerts_missing_token_rejected(self):
-        """/api/ws/alerts: トークン未指定は拒否されること"""
+        """/api/ws/alerts: type が auth 以外のメッセージは認証失敗として拒否されること"""
         with TestClient(app) as client:
-            with pytest.raises(Exception):
+            with pytest.raises((WebSocketDisconnect, Exception)):
                 with client.websocket_connect("/api/ws/alerts") as ws:
+                    ws.send_json({"type": "not_auth", "token": VALID_TOKEN})
                     ws.receive_json()
 
     def test_ws_alerts_timestamp_present(self):
         """/api/ws/alerts: timestamp フィールドが存在すること"""
         with TestClient(app) as client:
-            with client.websocket_connect(f"/api/ws/alerts?token={VALID_TOKEN}") as ws:
+            with client.websocket_connect("/api/ws/alerts") as ws:
+                ws.send_json({"type": "auth", "token": VALID_TOKEN})
                 data = ws.receive_json()
                 assert "timestamp" in data
 
