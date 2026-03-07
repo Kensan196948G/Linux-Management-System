@@ -249,8 +249,9 @@ function renderSidebar(activePage) {
 
     const a = (page) => activePage === page ? ' active' : '';
 
-    // 環境バッジ（URLパスで判定）
-    const isProd = window.location.pathname.includes('/prod/');
+    // 環境バッジ（ポート番号で判定: 5012=dev, 8000/80/443=prod）
+    const _port = parseInt(window.location.port || (window.location.protocol === 'https:' ? '443' : '80'), 10);
+    const isProd = _port === 8000 || _port === 80 || _port === 443 || window.location.pathname.includes('/prod/');
     const envBadge = isProd
         ? '<span class="env-badge prod" id="env-badge" style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">【本番】</span>'
         : '<span class="env-badge dev" id="env-badge" style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">【開発】</span>';
@@ -273,6 +274,25 @@ function renderSidebar(activePage) {
             <div class="menu-item${a('dashboard')}" onclick="location.href='dashboard.html'">
                 <span class="menu-item-icon">📊</span>
                 <span>${dashboardLabel}</span>
+            </div>
+
+            <!-- 承認ワークフロー -->
+            <div class="menu-item${a('approval')}" onclick="location.href='approval.html'">
+                <span class="menu-item-icon">✅</span>
+                <span>承認ワークフロー</span>
+                <span id="approval-pending-badge" class="badge bg-warning text-dark ms-1" style="display:none">0</span>
+            </div>
+
+            <!-- リソースアラート -->
+            <div class="menu-item${a('alerts')}" onclick="location.href='alerts.html'">
+                <span class="menu-item-icon">⚠️</span>
+                <span>リソースアラート <span id="alert-badge" class="badge bg-danger ms-1" style="display:none">0</span></span>
+            </div>
+
+            <!-- 通知設定 -->
+            <div class="menu-item${a('notifications')}" onclick="location.href='notifications.html'">
+                <span class="menu-item-icon">🔔</span>
+                <span>通知設定</span>
             </div>
 
             <!-- Linux管理システム カテゴリ -->
@@ -333,25 +353,6 @@ function renderSidebar(activePage) {
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- 承認ワークフロー -->
-            <div class="menu-item${a('approval')}" onclick="location.href='approval.html'">
-                <span class="menu-item-icon">✅</span>
-                <span>承認ワークフロー</span>
-                <span id="approval-pending-badge" class="badge bg-warning text-dark ms-1" style="display:none">0</span>
-            </div>
-
-            <!-- リソースアラート -->
-            <div class="menu-item${a('alerts')}" onclick="location.href='alerts.html'">
-                <span class="menu-item-icon">⚠️</span>
-                <span>リソースアラート <span id="alert-badge" class="badge bg-danger ms-1" style="display:none">0</span></span>
-            </div>
-
-            <!-- 通知設定 -->
-            <div class="menu-item${a('notifications')}" onclick="location.href='notifications.html'">
-                <span class="menu-item-icon">🔔</span>
-                <span>通知設定</span>
             </div>
 
             <!-- サーバー カテゴリ -->

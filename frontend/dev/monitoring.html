@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
     <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../vendor/chartjs/chart.umd.min.js"></script>
     <style>
         .mon-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
         .mon-header-right { display:flex; align-items:center; gap:10px; }
@@ -222,8 +222,10 @@
     </main>
 </div>
 
-<script src="../js/auth.js"></script>
+    <script src="../js/env-config.js"></script>
+    <script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('monitoring')):renderSidebar('monitoring');</script>
 <script src="../js/menu-i18n.js"></script>
 <script>
 const API = '/api/monitoring';
@@ -233,7 +235,7 @@ const REFRESH_INTERVAL = 10000; // 10秒
 let procSortBy = 'cpu';
 
 function getHeaders() {
-    const token = localStorage.getItem('lms_token');
+    const token = localStorage.getItem('access_token');
     return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 

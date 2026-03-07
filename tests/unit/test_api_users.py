@@ -15,7 +15,7 @@ from backend.core.sudo_wrapper import SudoWrapperError
 class TestListUsers:
     """GET /api/users テスト"""
 
-    def test_list_users_success(self, test_client, auth_headers):
+    def test_list_users_success(self, test_client, admin_headers):
         """正常系: ユーザー一覧取得"""
         mock_result = {
             "status": "success",
@@ -30,14 +30,14 @@ class TestListUsers:
         }
         with patch("backend.api.routes.users.sudo_wrapper") as mock_sw:
             mock_sw.list_users.return_value = mock_result
-            response = test_client.get("/api/users", headers=auth_headers)
+            response = test_client.get("/api/users", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert data["total_users"] == 2
 
-    def test_list_users_with_params(self, test_client, auth_headers):
+    def test_list_users_with_params(self, test_client, admin_headers):
         """クエリパラメータ付きで取得"""
         mock_result = {
             "status": "success",
@@ -51,25 +51,25 @@ class TestListUsers:
             mock_sw.list_users.return_value = mock_result
             response = test_client.get(
                 "/api/users?sort_by=uid&limit=50&filter_locked=true",
-                headers=auth_headers,
+                headers=admin_headers,
             )
 
         assert response.status_code == 200
 
-    def test_list_users_error_status(self, test_client, auth_headers):
+    def test_list_users_error_status(self, test_client, admin_headers):
         """エラーステータス → 403"""
         mock_result = {"status": "error", "message": "Permission denied"}
         with patch("backend.api.routes.users.sudo_wrapper") as mock_sw:
             mock_sw.list_users.return_value = mock_result
-            response = test_client.get("/api/users", headers=auth_headers)
+            response = test_client.get("/api/users", headers=admin_headers)
 
         assert response.status_code == 403
 
-    def test_list_users_wrapper_error(self, test_client, auth_headers):
+    def test_list_users_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時 → 500"""
         with patch("backend.api.routes.users.sudo_wrapper") as mock_sw:
             mock_sw.list_users.side_effect = SudoWrapperError("Wrapper failed")
-            response = test_client.get("/api/users", headers=auth_headers)
+            response = test_client.get("/api/users", headers=admin_headers)
 
         assert response.status_code == 500
 
@@ -82,7 +82,7 @@ class TestListUsers:
 class TestGetUserDetail:
     """GET /api/users/{username} テスト"""
 
-    def test_get_user_detail_success(self, test_client, auth_headers):
+    def test_get_user_detail_success(self, test_client, admin_headers):
         """正常系: ユーザー詳細取得"""
         mock_result = {
             "status": "success",
@@ -91,37 +91,37 @@ class TestGetUserDetail:
         }
         with patch("backend.api.routes.users.sudo_wrapper") as mock_sw:
             mock_sw.get_user_detail.return_value = mock_result
-            response = test_client.get("/api/users/testuser", headers=auth_headers)
+            response = test_client.get("/api/users/testuser", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert data["user"]["username"] == "testuser"
 
-    def test_get_user_detail_invalid_username(self, test_client, auth_headers):
+    def test_get_user_detail_invalid_username(self, test_client, admin_headers):
         """不正なユーザー名 → 400"""
         response = test_client.get(
-            "/api/users/root;rm%20-rf", headers=auth_headers
+            "/api/users/root;rm%20-rf", headers=admin_headers
         )
         assert response.status_code == 400
 
-    def test_get_user_detail_error_status(self, test_client, auth_headers):
+    def test_get_user_detail_error_status(self, test_client, admin_headers):
         """ユーザー未発見 → 404"""
         mock_result = {"status": "error", "message": "User not found"}
         with patch("backend.api.routes.users.sudo_wrapper") as mock_sw:
             mock_sw.get_user_detail.return_value = mock_result
             response = test_client.get(
-                "/api/users/nonexistent", headers=auth_headers
+                "/api/users/nonexistent", headers=admin_headers
             )
 
         assert response.status_code == 404
 
-    def test_get_user_detail_wrapper_error(self, test_client, auth_headers):
+    def test_get_user_detail_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時 → 500"""
         with patch("backend.api.routes.users.sudo_wrapper") as mock_sw:
             mock_sw.get_user_detail.side_effect = SudoWrapperError("Failed")
             response = test_client.get(
-                "/api/users/testuser", headers=auth_headers
+                "/api/users/testuser", headers=admin_headers
             )
 
         assert response.status_code == 500
@@ -384,7 +384,7 @@ class TestChangePassword:
 class TestListGroups:
     """GET /api/users/groups/list テスト"""
 
-    def test_list_groups_success(self, test_client, auth_headers):
+    def test_list_groups_success(self, test_client, admin_headers):
         """正常系: グループ一覧取得"""
         mock_result = {
             "status": "success",
@@ -401,7 +401,7 @@ class TestListGroups:
         with patch("backend.api.routes.users.sudo_wrapper") as mock_sw:
             mock_sw.list_groups.return_value = mock_result
             response = test_client.get(
-                "/api/users/groups/list", headers=auth_headers
+                "/api/users/groups/list", headers=admin_headers
             )
 
         assert response.status_code == 200
@@ -409,23 +409,23 @@ class TestListGroups:
         assert data["status"] == "success"
         assert data["total_groups"] == 3
 
-    def test_list_groups_error_status(self, test_client, auth_headers):
+    def test_list_groups_error_status(self, test_client, admin_headers):
         """エラーステータス → 403"""
         mock_result = {"status": "error", "message": "Access denied"}
         with patch("backend.api.routes.users.sudo_wrapper") as mock_sw:
             mock_sw.list_groups.return_value = mock_result
             response = test_client.get(
-                "/api/users/groups/list", headers=auth_headers
+                "/api/users/groups/list", headers=admin_headers
             )
 
         assert response.status_code == 403
 
-    def test_list_groups_wrapper_error(self, test_client, auth_headers):
+    def test_list_groups_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時 → 500"""
         with patch("backend.api.routes.users.sudo_wrapper") as mock_sw:
             mock_sw.list_groups.side_effect = SudoWrapperError("Failed")
             response = test_client.get(
-                "/api/users/groups/list", headers=auth_headers
+                "/api/users/groups/list", headers=admin_headers
             )
 
         assert response.status_code == 500

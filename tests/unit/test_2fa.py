@@ -19,10 +19,10 @@ from fastapi.testclient import TestClient
 from backend.api.main import app
 
 
-@pytest.fixture(scope="module")
-def client():
-    """FastAPI テストクライアント"""
-    return TestClient(app)
+@pytest.fixture(scope="session")
+def client(test_client):
+    """FastAPI テストクライアント（session-scoped conftest の test_client を再利用）"""
+    return test_client
 
 
 def _get_token(client: TestClient, email: str, password: str) -> str:

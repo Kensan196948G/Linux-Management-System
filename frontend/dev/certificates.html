@@ -5,7 +5,8 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+CjxyZWN0IHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgcng9IjMiIGZpbGw9IiNGOTczMTYiLz4KPGNpcmNsZSBjeD0iOCIgY3k9IjciIHI9IjMiIGZpbGw9IndoaXRlIi8+CjxjaXJjbGUgY3g9IjgiIGN5PSI3IiByPSIxLjUiIGZpbGw9IiNGOTczMTYiLz4KPHJlY3QgeD0iNyIgeT0iMiIgd2lkdGg9IjIiIGhlaWdodD0iMyIgcng9IjAuNSIgZmlsbD0id2hpdGUiLz4KPHJlY3QgeD0iNyIgeT0iMTEiIHdpZHRoPSIyIiBoZWlnaHQ9IjMiIHJ4PSIwLjUiIGZpbGw9IndoaXRlIi8+CjxyZWN0IHg9IjIiIHk9IjYiIHdpZHRoPSIzIiBoZWlnaHQ9IjIiIHJ4PSIwLjUiIGZpbGw9IndoaXRlIi8+CjxyZWN0IHg9IjExIiB5PSI2IiB3aWR0aD0iMyIgaGVpZ2h0PSIyIiByeD0iMC41IiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4="><rect width='16' height='16' rx='3' fill='%23F97316'/><circle cx='8' cy='7' r='3' fill='white'/><circle cx='8' cy='7' r='1.5' fill='%23F97316'/><rect x='7' y='2' width='2' height='3' rx='0.5' fill='white'/><rect x='7' y='11' width='2' height='3' rx='0.5' fill='white'/><rect x='2' y='6' width='3' height='2' rx='0.5' fill='white'/><rect x='11' y='6' width='3' height='2' rx='0.5' fill='white'/></svg>"><rect width="16" height="16" rx="3" fill="%23F97316"/><circle cx="8" cy="7" r="3" fill="white"/><circle cx="8" cy="7" r="1.5" fill="%23F97316"/><rect x="7" y="2" width="2" height="3" rx="0.5" fill="white"/><rect x="7" y="11" width="2" height="3" rx="0.5" fill="white"/><rect x="2" y="6" width="3" height="2" rx="0.5" fill="white"/><rect x="11" y="6" width="3" height="2" rx="0.5" fill="white"/></svg>">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TLS/SSL 証明書管理 - Linux Management System</title>
-  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/sidebar.css">
   <style>
     .cert-grid {
       display: grid;
@@ -216,19 +217,7 @@
 <body>
   <div class="layout">
     <!-- Sidebar -->
-    <nav class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <h2>🖥 LMS</h2>
-      </div>
-      <ul class="sidebar-menu">
-        <li><a href="/dashboard.html">📊 ダッシュボード</a></li>
-        <li><a href="/security.html">🔒 セキュリティ</a></li>
-        <li><a href="/sshkeys.html">🔑 SSH鍵</a></li>
-        <li><a href="/certificates.html" class="active">🔐 証明書</a></li>
-        <li><a href="/logs.html">📋 ログ</a></li>
-        <li><a href="/monitoring.html">📈 リソース監視</a></li>
-      </ul>
-    </nav>
+    <aside class="sidebar" id="sidebar-container"></aside>
 
     <main class="content">
       <header class="page-header">
@@ -538,6 +527,9 @@
     document.getElementById('domainInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') checkDomain();
     });
-  </script>
+  <script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('certificates')):renderSidebar('certificates');</script>
 </body>
 </html>

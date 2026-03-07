@@ -15,7 +15,7 @@ from backend.core.sudo_wrapper import SudoWrapperError
 class TestGetBootupStatus:
     """GET /api/bootup/status テスト"""
 
-    def test_get_status_success(self, test_client, auth_headers):
+    def test_get_status_success(self, test_client, admin_headers):
         """正常系: 起動状態取得"""
         mock_result = {
             "status": "success",
@@ -26,7 +26,7 @@ class TestGetBootupStatus:
         }
         with patch("backend.api.routes.bootup.sudo_wrapper") as mock_sw:
             mock_sw.get_bootup_status.return_value = mock_result
-            response = test_client.get("/api/bootup/status", headers=auth_headers)
+            response = test_client.get("/api/bootup/status", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -37,11 +37,11 @@ class TestGetBootupStatus:
         response = test_client.get("/api/bootup/status")
         assert response.status_code == 403
 
-    def test_get_status_wrapper_error(self, test_client, auth_headers):
+    def test_get_status_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時"""
         with patch("backend.api.routes.bootup.sudo_wrapper") as mock_sw:
             mock_sw.get_bootup_status.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/bootup/status", headers=auth_headers)
+            response = test_client.get("/api/bootup/status", headers=admin_headers)
 
         assert response.status_code == 500
 
@@ -49,7 +49,7 @@ class TestGetBootupStatus:
 class TestGetBootupServices:
     """GET /api/bootup/services テスト"""
 
-    def test_get_services_success(self, test_client, auth_headers):
+    def test_get_services_success(self, test_client, admin_headers):
         """正常系: 起動時サービス一覧取得"""
         mock_result = {
             "status": "success",
@@ -60,17 +60,17 @@ class TestGetBootupServices:
         }
         with patch("backend.api.routes.bootup.sudo_wrapper") as mock_sw:
             mock_sw.get_bootup_services.return_value = mock_result
-            response = test_client.get("/api/bootup/services", headers=auth_headers)
+            response = test_client.get("/api/bootup/services", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_get_services_wrapper_error(self, test_client, auth_headers):
+    def test_get_services_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時"""
         with patch("backend.api.routes.bootup.sudo_wrapper") as mock_sw:
             mock_sw.get_bootup_services.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/bootup/services", headers=auth_headers)
+            response = test_client.get("/api/bootup/services", headers=admin_headers)
 
         assert response.status_code == 500
 

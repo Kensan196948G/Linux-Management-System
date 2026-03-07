@@ -200,7 +200,7 @@
                 <div id="pending-loading" class="text-center py-4 text-muted">読み込み中...</div>
                 <div id="pending-content" style="display:none"></div>
                 <div id="pending-link" class="mt-3" style="display:none">
-                    <a href="approval.html" class="btn btn-sm btn-outline-primary">承認ワークフローページへ →</a>
+                    <a href="/approval.html" class="btn btn-sm btn-outline-primary">承認ワークフローページへ →</a>
                 </div>
             </div>
         </div>
@@ -678,7 +678,7 @@ async function submitPackageAction() {
         const data = await api.post(endpoint, { package_name: pkgName, reason: reason });
         resultDiv.innerHTML = `<div class="alert alert-success py-1">
             承認リクエストを送信しました。リクエストID: <code>${escapeHtml(data.request_id)}</code>
-            <br><a href="approval.html" class="alert-link">承認ワークフローページで確認 →</a>
+            <br><a href="/approval.html" class="alert-link">承認ワークフローページで確認 →</a>
         </div>`;
         document.getElementById('action-pkg-name').value = '';
         document.getElementById('action-reason').value = '';

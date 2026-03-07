@@ -4,6 +4,30 @@
 
 ---
 
+---
+
+## 📊 現在の実装状況 (v0.47.0)
+
+### フロントエンド
+- **55 dev pages / 46 prod pages** — 全サイドバー動作確認済み
+- Bootstrap Icons / Chart.js / SortableJS をCDN→vendor化済み
+
+### テスト
+| 種別 | 件数 | 状態 |
+|------|------|------|
+| unit | 1275件+ | ✅ 全合格（約62秒） |
+| integration | 実装中 | 🔄 |
+| security | 実装中 | 🔄 |
+| e2e | 実装中 | 🔄 |
+
+### API（全エンドポイント 200 OK）
+`/api/system` / `/api/services` / `/api/logs` / `/api/routing` / `/api/logsearch` / `/api/security` / `/api/users` / `/api/approval`
+
+### WebSocket
+- `ws-reconnect.js` — 自動再接続ライブラリ実装済み
+
+---
+
 ## 🎯 プロジェクト使命（必読）
 
 > このシステムは「Linuxを操作するツール」ではなく、
@@ -663,22 +687,21 @@ CLAUDE.md のセキュリティ原則を厳守してください。
 ### モジュール優先度
 
 ```
-Phase 1 (v0.1) - 完了済み:
+Phase 1 (v0.1) - 完了:
   ✅ System Status
   ✅ Service Restart
   ✅ Log Viewing
 
-Phase 2 (v0.2) - 実装中/完了:
+Phase 2 (v0.2) - 完了:
   ✅ Running Processes（実装済み - 179 test cases）
-  🔴 Users and Groups
-  🔴 Cron Jobs
-  🔴 Network Configuration
+  ✅ Users API（実装済み）
+  🔴 Cron Jobs（次期実装）
+  🔴 Network Configuration（次期実装）
 
 Phase 3 (v0.3):
-  🟡 MySQL/PostgreSQL
-  🟡 Firewall
-  🟡 Package Updates
-  🟡 Approval Workflow
+  🟡 Approval Workflow（実装済み）
+  🔴 MySQL/PostgreSQL（未）
+  🔴 Firewall UI（未）
 
 Phase 4-5 (v0.4-v0.5):
   🟢 Advanced Server Management

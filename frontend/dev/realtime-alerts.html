@@ -7,7 +7,7 @@
     <title>リアルタイムアラート - Linux Management System</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/sidebar.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../vendor/chartjs/chart.umd.min.js"></script>
     <style>
         /* タブ */
         .tabs { display:flex; gap:0; border-bottom:2px solid #e5e7eb; margin-bottom:20px; }
@@ -229,8 +229,10 @@
     </div><!-- /main-content -->
 </div><!-- /app -->
 
-<script src="../js/common.js"></script>
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('realtime-alerts')):renderSidebar('realtime-alerts');</script>
 <script>
 // =====================================================================
 // 定数
@@ -255,7 +257,7 @@ function showTab(name, btn) {
 // 認証ヘルパー
 // =====================================================================
 function getToken() {
-    return localStorage.getItem('token') || '';
+    return localStorage.getItem('access_token') || '';
 }
 function authHeaders() {
     return { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' };

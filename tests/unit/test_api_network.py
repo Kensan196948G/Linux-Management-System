@@ -15,7 +15,7 @@ from backend.core.sudo_wrapper import SudoWrapperError
 class TestGetInterfaces:
     """GET /api/network/interfaces テスト"""
 
-    def test_get_interfaces_success(self, test_client, auth_headers):
+    def test_get_interfaces_success(self, test_client, admin_headers):
         """正常系: インターフェース一覧取得"""
         mock_result = {
             "status": "success",
@@ -29,7 +29,7 @@ class TestGetInterfaces:
         }
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_interfaces.return_value = mock_result
-            response = test_client.get("/api/network/interfaces", headers=auth_headers)
+            response = test_client.get("/api/network/interfaces", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -41,16 +41,16 @@ class TestGetInterfaces:
         response = test_client.get("/api/network/interfaces")
         assert response.status_code == 403
 
-    def test_get_interfaces_error_status(self, test_client, auth_headers):
+    def test_get_interfaces_error_status(self, test_client, admin_headers):
         """エラーステータス"""
         mock_result = {"status": "error", "message": "ip command not found"}
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_interfaces.return_value = mock_result
-            response = test_client.get("/api/network/interfaces", headers=auth_headers)
+            response = test_client.get("/api/network/interfaces", headers=admin_headers)
 
         assert response.status_code == 503
 
-    def test_get_interfaces_wrapper_error_with_fallback(self, test_client, auth_headers):
+    def test_get_interfaces_wrapper_error_with_fallback(self, test_client, admin_headers):
         """SudoWrapperError 発生時 → ip コマンドフォールバック"""
         mock_proc = MagicMock()
         mock_proc.returncode = 0
@@ -59,18 +59,18 @@ class TestGetInterfaces:
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_interfaces.side_effect = SudoWrapperError("NoNewPrivileges")
             with patch("subprocess.run", return_value=mock_proc):
-                response = test_client.get("/api/network/interfaces", headers=auth_headers)
+                response = test_client.get("/api/network/interfaces", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_get_interfaces_wrapper_error_fallback_fails(self, test_client, auth_headers):
+    def test_get_interfaces_wrapper_error_fallback_fails(self, test_client, admin_headers):
         """SudoWrapperError + フォールバックも失敗"""
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_interfaces.side_effect = SudoWrapperError("Permission denied")
             with patch("subprocess.run", side_effect=OSError("ip not found")):
-                response = test_client.get("/api/network/interfaces", headers=auth_headers)
+                response = test_client.get("/api/network/interfaces", headers=admin_headers)
 
         assert response.status_code == 500
 
@@ -78,7 +78,7 @@ class TestGetInterfaces:
 class TestGetStats:
     """GET /api/network/stats テスト"""
 
-    def test_get_stats_success(self, test_client, auth_headers):
+    def test_get_stats_success(self, test_client, admin_headers):
         """正常系: ネットワーク統計取得"""
         mock_result = {
             "status": "success",
@@ -90,26 +90,26 @@ class TestGetStats:
         }
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_stats.return_value = mock_result
-            response = test_client.get("/api/network/stats", headers=auth_headers)
+            response = test_client.get("/api/network/stats", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_get_stats_error_status(self, test_client, auth_headers):
+    def test_get_stats_error_status(self, test_client, admin_headers):
         """エラーステータス"""
         mock_result = {"status": "error", "message": "stats unavailable"}
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_stats.return_value = mock_result
-            response = test_client.get("/api/network/stats", headers=auth_headers)
+            response = test_client.get("/api/network/stats", headers=admin_headers)
 
         assert response.status_code == 503
 
-    def test_get_stats_wrapper_error(self, test_client, auth_headers):
+    def test_get_stats_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時"""
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_stats.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/network/stats", headers=auth_headers)
+            response = test_client.get("/api/network/stats", headers=admin_headers)
 
         assert response.status_code == 500
 
@@ -117,7 +117,7 @@ class TestGetStats:
 class TestGetConnections:
     """GET /api/network/connections テスト"""
 
-    def test_get_connections_success(self, test_client, auth_headers):
+    def test_get_connections_success(self, test_client, admin_headers):
         """正常系: 接続一覧取得"""
         mock_result = {
             "status": "success",
@@ -131,26 +131,26 @@ class TestGetConnections:
         }
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_connections.return_value = mock_result
-            response = test_client.get("/api/network/connections", headers=auth_headers)
+            response = test_client.get("/api/network/connections", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_get_connections_error_status(self, test_client, auth_headers):
+    def test_get_connections_error_status(self, test_client, admin_headers):
         """エラーステータス"""
         mock_result = {"status": "error", "message": "ss command failed"}
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_connections.return_value = mock_result
-            response = test_client.get("/api/network/connections", headers=auth_headers)
+            response = test_client.get("/api/network/connections", headers=admin_headers)
 
         assert response.status_code == 503
 
-    def test_get_connections_wrapper_error(self, test_client, auth_headers):
+    def test_get_connections_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時"""
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_connections.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/network/connections", headers=auth_headers)
+            response = test_client.get("/api/network/connections", headers=admin_headers)
 
         assert response.status_code == 500
 
@@ -158,7 +158,7 @@ class TestGetConnections:
 class TestGetRoutes:
     """GET /api/network/routes テスト"""
 
-    def test_get_routes_success(self, test_client, auth_headers):
+    def test_get_routes_success(self, test_client, admin_headers):
         """正常系: ルーティングテーブル取得"""
         mock_result = {
             "status": "success",
@@ -172,26 +172,26 @@ class TestGetRoutes:
         }
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_routes.return_value = mock_result
-            response = test_client.get("/api/network/routes", headers=auth_headers)
+            response = test_client.get("/api/network/routes", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_get_routes_error_status(self, test_client, auth_headers):
+    def test_get_routes_error_status(self, test_client, admin_headers):
         """エラーステータス"""
         mock_result = {"status": "error", "message": "routes unavailable"}
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_routes.return_value = mock_result
-            response = test_client.get("/api/network/routes", headers=auth_headers)
+            response = test_client.get("/api/network/routes", headers=admin_headers)
 
         assert response.status_code == 503
 
-    def test_get_routes_wrapper_error(self, test_client, auth_headers):
+    def test_get_routes_wrapper_error(self, test_client, admin_headers):
         """SudoWrapperError 発生時"""
         with patch("backend.api.routes.network.sudo_wrapper") as mock_sw:
             mock_sw.get_network_routes.side_effect = SudoWrapperError("Failed")
-            response = test_client.get("/api/network/routes", headers=auth_headers)
+            response = test_client.get("/api/network/routes", headers=admin_headers)
 
         assert response.status_code == 500
 
@@ -199,9 +199,9 @@ class TestGetRoutes:
 class TestGetDns:
     """GET /api/network/dns テスト"""
 
-    def test_get_dns_success(self, test_client, auth_headers):
+    def test_get_dns_success(self, test_client, admin_headers):
         """正常系: DNS設定取得"""
-        response = test_client.get("/api/network/dns", headers=auth_headers)
+        response = test_client.get("/api/network/dns", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()

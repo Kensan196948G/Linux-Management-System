@@ -175,9 +175,15 @@ list-files)
 # recent-errors: syslog から直近エラー集約
 # ------------------------------------------------------------------
 recent-errors)
-    ERRORS=$(grep -i -E "error|critical|fatal" /var/log/syslog 2>/dev/null | tail -50 || true)
-    # auth.log も含める
-    AUTH_ERRORS=$(grep -i -E "error|critical|fatal|failed" /var/log/auth.log 2>/dev/null | tail -20 || true)
+    # journalctl を使って高速にエラー集約（大容量syslogでもタイムアウト防止）
+    if command -v journalctl &>/dev/null; then
+        ERRORS=$(journalctl -p err..crit --since "24 hours ago" --no-pager -q 2>/dev/null | tail -50 || true)
+        AUTH_ERRORS=$(journalctl -p warning --since "1 hour ago" --no-pager -q 2>/dev/null | grep -i -E "fail|auth" | tail -20 || true)
+    else
+        # fallback: grep --text でバイナリを強制テキスト扱いし末尾のみ処理
+        ERRORS=$(tail -c 5242880 /var/log/syslog 2>/dev/null | grep --text -i -E "error|critical|fatal" | tail -50 || true)
+        AUTH_ERRORS=$(tail -c 1048576 /var/log/auth.log 2>/dev/null | grep --text -i -E "error|critical|fatal|failed" | tail -20 || true)
+    fi
 
     ALL_ERRORS=$(printf '%s\n%s' "$ERRORS" "$AUTH_ERRORS" | grep -v '^$' | tail -50 || true)
     ERROR_COUNT=$(echo "$ALL_ERRORS" | grep -c . || true)

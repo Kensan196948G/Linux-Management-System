@@ -121,7 +121,10 @@
     </main>
 </div>
 
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
 <script src="../js/sidebar.js"></script>
+    <script>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>renderSidebar('journal')):renderSidebar('journal');</script>
 <script>
     function escapeHtml(str) {
         return String(str)

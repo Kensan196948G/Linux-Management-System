@@ -195,7 +195,7 @@
 
         async function tryLoadStatus(base) {
             try {
-                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                const token = localStorage.getItem('access_token') || sessionStorage.getItem('token');
                 if (!token) return;
                 const res = await fetch(base + '/api/modules/status', {
                     headers: { 'Authorization': 'Bearer ' + token }

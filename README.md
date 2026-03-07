@@ -1,4 +1,4 @@
-# 🖥️ Linux管理運用システム
+# 🖥️ Linux管理運用システム v0.47.0
 
 **Secure Linux Management WebUI with sudo allowlist control, audit logging, and approval workflow**
 
@@ -161,7 +161,7 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 | **Scheduled Commands** | スケジュールコマンド | 📋 v0.5計画 |
 | **Custom Commands** | カスタムコマンド | ⚠️ 制限付き実装予定 |
 
-### 現在実装済み（v0.26.0時点）
+### 現在実装済み（v0.47.0時点）
 
 | 機能 | 実装状況 |
 |------|---------|
@@ -201,6 +201,30 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 | ✅ System Resource Alerts（閾値ルール/アクティブアラート/サマリ） | v0.26.0実装済み |
 | ✅ User Session Management（アクティブ/履歴/失敗ログイン/統計） | v0.26.0実装済み |
 | ✅ Log Search UI（全文検索/ファイル一覧/直近エラー集約） | v0.27.0実装済み |
+| ✅ WebSocket自動再接続（ws-reconnect.js） | v0.45.0実装済み |
+| ✅ Bootstrap Icons / Chart.js / SortableJS のCDN→vendor化 | v0.46.0実装済み |
+| ✅ 全55ページサイドバー完全修正（dev/prod両対応） | v0.47.0実装済み |
+
+---
+
+## 🔧 最近の修正 (v0.45.0–v0.47.0)
+
+| 修正内容 | バージョン |
+|---------|----------|
+| 全55ページサイドバー完全修正（46 prodページ含む） | v0.47.0 |
+| API 500エラー修正（logsearch / security / routing） | v0.47.0 |
+| テスト高速化（fixture session化、約7倍速・62秒で1275件実行） | v0.47.0 |
+| WebSocket自動再接続ライブラリ（ws-reconnect.js）実装 | v0.45.0 |
+| Bootstrap Icons / Chart.js / SortableJS をCDN→vendor化 | v0.46.0 |
+
+### テスト状況
+
+| 種別 | 件数 | 状態 |
+|------|------|------|
+| unit tests | 1275+ | ✅ 全合格（約62秒） |
+| integration tests | 実装中 | 🔄 |
+| security tests | 実装中 | 🔄 |
+| e2e tests | 実装中 | 🔄 |
 
 ---
 
