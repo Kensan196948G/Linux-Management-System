@@ -19,6 +19,7 @@ from ..core import settings
 from .routes import (
     alerts,
     apache,
+    websocket as ws_router,
     approval,
     audit,
     auth,
@@ -159,6 +160,7 @@ app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
 app.include_router(alerts.router, prefix="/api")
 app.include_router(logsearch.router, prefix="/api/logsearch", tags=["logsearch"])
 app.include_router(notifications.router, prefix="/api")
+app.include_router(ws_router.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信

@@ -1,0 +1,167 @@
+{
+  "menu_translation": {
+    "version": "1.0.0",
+    "description": "Linux Management System - Sidebar menu English mapping",
+    "last_updated": "2026-03-07",
+
+    "top_level_menu": {
+      "Dashboard": "Dashboard",
+      "Services": "Services",
+      "Running Processes": "Running Processes"
+    },
+
+    "categories": {
+      "Linux Management System": "Linux Management System",
+      "System": "System",
+      "System Logs": "System Logs",
+      "Servers": "Servers",
+      "Networking": "Networking",
+      "Hardware": "Hardware",
+      "Cluster / Tools": "Cluster / Tools"
+    },
+
+    "submenu_items": {
+      "linux_management_system": {
+        "System Configuration": "System Configuration",
+        "System Users": "System Users",
+        "System Servers": "System Servers",
+        "System Actions Log": "System Actions Log",
+        "System Themes": "System Themes",
+        "System Modules": "System Modules"
+      },
+
+      "system": {
+        "Bootup and Shutdown": "Bootup and Shutdown",
+        "Disk and Network Filesystems": "Disk and Network Filesystems",
+        "Disk Quotas": "Disk Quotas",
+        "Local Disk": "Local Disk",
+        "Users and Groups": "Users and Groups",
+        "Software Package Updates": "Software Package Updates",
+        "Cron Jobs": "Cron Jobs",
+        "Running Processes": "Running Processes"
+      },
+
+      "system_logs": {
+        "System Logs": "System Logs",
+        "Kernel Messages": "Kernel Messages",
+        "Auth Logs": "Auth Logs",
+        "Application Logs": "Application Logs"
+      },
+
+      "servers": {
+        "Apache Webserver": "Apache Webserver",
+        "BIND DNS Server": "BIND DNS Server",
+        "Postfix / Sendmail": "Postfix / Sendmail",
+        "MySQL / MariaDB": "MySQL / MariaDB",
+        "PostgreSQL": "PostgreSQL",
+        "SSH Server": "SSH Server",
+        "ProFTPD / WU-FTP": "ProFTPD / WU-FTP",
+        "Squid Proxy": "Squid Proxy",
+        "DHCP Server": "DHCP Server"
+      },
+
+      "networking": {
+        "Linux Firewall": "Linux Firewall",
+        "Network Configuration": "Network Configuration",
+        "Routing and Gateways": "Routing and Gateways",
+        "Netstat": "Network Statistics",
+        "Bandwidth Monitoring": "Bandwidth Monitoring"
+      },
+
+      "hardware": {
+        "Partitions on Local Disks": "Partitions on Local Disks",
+        "System Time": "System Time",
+        "SMART Drive Status": "SMART Drive Status",
+        "Sensors (lm-sensors)": "Sensors (lm-sensors)"
+      },
+
+      "cluster_tools": {
+        "Cluster SSH": "Cluster SSH",
+        "Cluster Cron Jobs": "Cluster Cron Jobs",
+        "Cluster Users": "Cluster Users",
+        "Command Shell": "Command Shell",
+        "File Manager": "File Manager",
+        "Scheduled Commands": "Scheduled Commands",
+        "Custom Commands": "Custom Commands"
+      }
+    },
+
+    "status_badges": {
+      "実装済み": "Implemented",
+      "サンプル": "Sample",
+      "計画中": "Planned",
+      "v0.2": "v0.2",
+      "v0.3": "v0.3",
+      "v0.4": "v0.4",
+      "v0.5": "v0.5",
+      "禁止": "Prohibited"
+    },
+
+    "sidebar": {
+      "title": "Linux Admin",
+      "subtitle": "[Dev]",
+      "footer": {
+        "user_label": "User",
+        "role_label": "Role",
+        "logout_button": "Logout"
+      }
+    },
+
+    "ui": {
+      "dashboard": "Dashboard",
+      "approval_workflow": "Approval Workflow",
+      "notifications": "Notifications",
+      "system_category": "System",
+      "servers_category": "Servers",
+      "networking_category": "Networking",
+      "hardware_category": "Hardware",
+      "monitoring_category": "Monitoring",
+      "security_category": "Security",
+      "bootup_shutdown": "Bootup & Shutdown",
+      "users_groups": "Users & Groups",
+      "cron_jobs": "Cron Jobs",
+      "processes": "Processes",
+      "logs": "System Logs",
+      "journal": "Journal Logs",
+      "logsearch": "Log Search",
+      "packages": "Package Updates",
+      "filesystem": "Filesystem",
+      "disk": "Disk Usage",
+      "partitions": "Partitions",
+      "quotas": "Disk Quotas",
+      "backup": "Backup & Restore",
+      "sessions": "User Sessions",
+      "alerts": "Resource Alerts",
+      "audit": "Audit Log",
+      "services": "System Servers",
+      "network": "Network Config",
+      "firewall": "Firewall",
+      "netstat": "Netstat",
+      "routing": "Routing",
+      "bandwidth": "Bandwidth",
+      "ssh": "SSH Server",
+      "sshkeys": "SSH Keys",
+      "apache": "Apache",
+      "nginx": "Nginx",
+      "mysql": "MySQL",
+      "postgresql": "PostgreSQL",
+      "postfix": "Postfix Mail",
+      "bind": "BIND DNS",
+      "ftp": "FTP Server",
+      "squid": "Squid Proxy",
+      "dhcp": "DHCP Server",
+      "dbmonitor": "DB Monitor",
+      "hardware": "Hardware",
+      "sensors": "Sensors",
+      "smart": "SMART Status",
+      "system_time": "System Time",
+      "sysconfig": "Sys Config",
+      "filemanager": "File Manager",
+      "security": "Security",
+      "servers": "Servers",
+      "modules": "Modules",
+      "settings": "Settings",
+      "bootup": "Bootup"
+    }
+  }
+}

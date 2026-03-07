@@ -255,9 +255,14 @@ function renderSidebar(activePage) {
         ? '<span class="env-badge prod" id="env-badge" style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">【本番】</span>'
         : '<span class="env-badge dev" id="env-badge" style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">【開発】</span>';
 
+    // i18n 対応タイトル
+    const isEn = (typeof menuI18n !== 'undefined') && menuI18n.currentLocale === 'en';
+    const sidebarTitle = isEn ? '🖥️ Linux Admin' : '🖥️ Linux管理運用';
+    const dashboardLabel = isEn ? 'Dashboard' : 'ダッシュボード';
+
     container.innerHTML = `
         <div class="sidebar-header">
-            <h1 class="sidebar-title">🖥️ Linux管理運用</h1>
+            <h1 class="sidebar-title">${sidebarTitle}</h1>
             <p class="sidebar-subtitle">
                 ${envBadge}
             </p>
@@ -267,7 +272,7 @@ function renderSidebar(activePage) {
             <!-- ダッシュボード -->
             <div class="menu-item${a('dashboard')}" onclick="location.href='dashboard.html'">
                 <span class="menu-item-icon">📊</span>
-                <span>ダッシュボード</span>
+                <span>${dashboardLabel}</span>
             </div>
 
             <!-- Linux管理システム カテゴリ -->
