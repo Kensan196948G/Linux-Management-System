@@ -30,6 +30,16 @@
         .ring-wrap { display:flex; flex-direction:column; align-items:center; }
         .ring-canvas-wrap { position:relative; width:140px; height:140px; }
         .ring-canvas-wrap canvas { width:100% !important; height:100% !important; }
+        /* Health Score Card */
+        .health-score-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:16px; grid-column:1/-1; }
+        .health-score-number { font-size:64px; font-weight:800; line-height:1; text-align:center; }
+        .health-score-label { font-size:13px; color:#6b7280; text-align:center; margin-top:4px; }
+        .health-status-badge { display:inline-block; padding:2px 10px; border-radius:12px; font-size:12px; font-weight:600; margin-top:6px; }
+        .health-components { display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; }
+        .health-component { flex:1; min-width:140px; }
+        .health-comp-label { font-size:11px; color:#6b7280; margin-bottom:3px; display:flex; justify-content:space-between; }
+        .health-comp-bar-bg { background:#f3f4f6; border-radius:4px; height:8px; overflow:hidden; }
+        .health-comp-bar { height:8px; border-radius:4px; transition:width 0.5s; }
     </style>
 <script src="../js/theme.js"></script>
 </head>
@@ -51,6 +61,26 @@
         </div>
         <div class="main-body">
             <div class="charts-grid">
+                <!-- System Health Score -->
+                <div class="health-score-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                        <h3 style="margin:0;font-size:14px;font-weight:600;color:#374151">🏥 システムヘルススコア</h3>
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <span id="health-updated" style="font-size:11px;color:#9ca3af"></span>
+                            <button onclick="loadHealthScore()" style="font-size:11px;padding:2px 10px;border-radius:12px;border:1px solid #d1d5db;background:#fff;cursor:pointer">🔄</button>
+                        </div>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center">
+                        <div style="text-align:center;min-width:120px">
+                            <div class="health-score-number" id="health-score-num" style="color:#6b7280">--</div>
+                            <div class="health-score-label">/ 100</div>
+                            <div style="text-align:center;margin-top:6px"><span id="health-status-badge" class="health-status-badge" style="background:#f3f4f6;color:#6b7280">--</span></div>
+                        </div>
+                        <div class="health-components" id="health-components" style="flex:1">
+                            <div style="color:#9ca3af;font-size:12px">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
                 <!-- CPU リングチャート -->
                 <div class="chart-card">
                     <h3>CPU 使用率</h3>
@@ -255,6 +285,8 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(loadRecentErrorsWidget, 60000);
     loadNicStats();
     setInterval(loadNicStats, 30000);
+    loadHealthScore();
+    setInterval(loadHealthScore, 30000);
 });
 
 // ── 直近エラーウィジェット ────────────────────────────────
@@ -326,6 +358,52 @@ async function loadNicStats() {
                 '</span>' +
             '</div>';
         }).join('');
+    } catch(e) {}
+}
+
+// ── システムヘルススコアウィジェット ─────────────────────
+async function loadHealthScore() {
+    var token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+        var resp = await fetch((window.API_BASE_URL || '') + '/api/system/health-score', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) return;
+        var d = await resp.json();
+        var score = d.score;
+        var numEl = document.getElementById('health-score-num');
+        var badgeEl = document.getElementById('health-status-badge');
+        var updEl = document.getElementById('health-updated');
+        var compsEl = document.getElementById('health-components');
+
+        // スコア色分け
+        var color = score >= 90 ? '#059669' : score >= 70 ? '#3b82f6' : score >= 50 ? '#f59e0b' : '#dc2626';
+        numEl.style.color = color;
+        numEl.textContent = score;
+
+        // ステータスバッジ
+        var statusLabels = { excellent: '✅ 優秀', good: '✔ 良好', warning: '⚠ 注意', critical: '🔴 危険' };
+        var statusColors = { excellent: '#d1fae5:#065f46', good: '#dbeafe:#1e40af', warning: '#fef3c7:#92400e', critical: '#fee2e2:#991b1b' };
+        var sc = statusColors[d.status] ? statusColors[d.status].split(':') : ['#f3f4f6', '#6b7280'];
+        badgeEl.style.background = sc[0]; badgeEl.style.color = sc[1];
+        badgeEl.textContent = statusLabels[d.status] || d.status;
+
+        // コンポーネントバー
+        var compNames = { cpu: 'CPU', memory: 'メモリ', disk: 'ディスク', alerts: 'アラート', services: 'サービス' };
+        var html = '';
+        Object.keys(d.components).forEach(function(k) {
+            var c = d.components[k];
+            var barColor = c.score >= 90 ? '#059669' : c.score >= 70 ? '#3b82f6' : c.score >= 50 ? '#f59e0b' : '#dc2626';
+            var valStr = (k === 'alerts' || k === 'services') ? c.value + '件' : c.value + '%';
+            html += '<div class="health-component">' +
+                '<div class="health-comp-label"><span>' + (compNames[k] || k) + '</span><span style="color:' + barColor + '">' + valStr + '</span></div>' +
+                '<div class="health-comp-bar-bg"><div class="health-comp-bar" style="width:' + c.score + '%;background:' + barColor + '"></div></div>' +
+                '</div>';
+        });
+        compsEl.innerHTML = html;
+
+        if (updEl && d.generated_at) updEl.textContent = '更新: ' + d.generated_at.slice(11, 19) + ' UTC';
     } catch(e) {}
 }
 </script>

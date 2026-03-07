@@ -35,5 +35,9 @@ cryptography==44.0.0
 # システム情報（SSEダッシュボード用）
 psutil>=5.9.0,<7.0.0
 
+# 二要素認証 (TOTP)
+pyotp==2.9.0
+qrcode[pil]==8.0
+
 # HTTP クライアント（将来使用）
 httpx==0.28.1

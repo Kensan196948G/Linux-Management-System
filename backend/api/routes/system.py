@@ -4,7 +4,10 @@
 
 import glob as _glob
 import logging
+import subprocess
+from datetime import datetime, timezone
 
+import psutil
 from fastapi import APIRouter, Depends
 
 from ...core import require_permission, sudo_wrapper
@@ -12,6 +15,81 @@ from ...core.audit_log import audit_log
 from ...core.auth import TokenData
 
 logger = logging.getLogger(__name__)
+
+
+# ===================================================================
+# ヘルスコア計算ヘルパー
+# ===================================================================
+
+
+def _score_for_usage(value: float, warn_threshold: float, critical_threshold: float) -> int:
+    """使用率からスコア（0-100）を計算する。
+
+    Args:
+        value: 現在の使用率（0-100）
+        warn_threshold: 警告閾値（この値以下なら60-100）
+        critical_threshold: クリティカル閾値（この値以上で20以下）
+
+    Returns:
+        スコア 0-100
+    """
+    if value <= warn_threshold:
+        return max(0, int(100 - (value / warn_threshold) * 40))
+    elif value <= critical_threshold:
+        range_pct = (value - warn_threshold) / (critical_threshold - warn_threshold)
+        return max(0, int(60 - range_pct * 40))
+    else:
+        over = value - critical_threshold
+        return max(0, int(20 - over * 4))
+
+
+def _score_for_alerts(count: int) -> int:
+    """アクティブアラート数からスコアを計算する。"""
+    if count == 0:
+        return 100
+    elif count == 1:
+        return 70
+    elif count <= 3:
+        return 50
+    else:
+        return max(0, 50 - (count - 3) * 10)
+
+
+def _score_for_failed_services(count: int) -> int:
+    """失敗サービス数からスコアを計算する。"""
+    if count == 0:
+        return 100
+    elif count == 1:
+        return 60
+    else:
+        return max(0, 60 - (count - 1) * 20)
+
+
+def _status_label(score: int) -> str:
+    """スコアからステータスラベルを返す。"""
+    if score >= 90:
+        return "excellent"
+    elif score >= 70:
+        return "good"
+    elif score >= 50:
+        return "warning"
+    else:
+        return "critical"
+
+
+def _count_failed_services() -> int:
+    """systemctl でフェイルしたサービス数を取得する（shell=False）。"""
+    try:
+        result = subprocess.run(
+            ["systemctl", "list-units", "--state=failed", "--no-pager", "--no-legend"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
+        return len(lines)
+    except Exception:
+        return 0
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -170,3 +248,98 @@ async def get_detailed_system_info(
     )
 
     return {"status": "success", "data": info}
+
+
+@router.get("/health-score")
+async def get_health_score(
+    current_user: TokenData = Depends(require_permission("read:status")),
+) -> dict:
+    """システムヘルススコアを取得する（0-100の合成スコア）。
+
+    各コンポーネントの重み付け:
+        - CPU使用率: 30%
+        - メモリ使用率: 25%
+        - ディスク使用率: 25%
+        - アクティブアラート数: 10%
+        - 失敗サービス数: 10%
+
+    Args:
+        current_user: 現在のユーザー（read:status 権限必須）
+
+    Returns:
+        合成ヘルススコアとコンポーネント別詳細
+    """
+    # CPU使用率（0.1秒サンプリング）
+    cpu_pct = psutil.cpu_percent(interval=0.1)
+    cpu_score = _score_for_usage(cpu_pct, warn_threshold=80.0, critical_threshold=95.0)
+
+    # メモリ使用率
+    mem = psutil.virtual_memory()
+    mem_pct = mem.percent
+    mem_score = _score_for_usage(mem_pct, warn_threshold=80.0, critical_threshold=90.0)
+
+    # ディスク使用率（ルートパーティション）
+    disk = psutil.disk_usage("/")
+    disk_pct = disk.percent
+    disk_score = _score_for_usage(disk_pct, warn_threshold=80.0, critical_threshold=95.0)
+
+    # アクティブアラート数（CPU/メモリ/ディスクの閾値超過をカウント）
+    alerts_count = sum([
+        1 if cpu_pct > 90.0 else 0,
+        1 if mem_pct > 90.0 else 0,
+        1 if disk_pct > 90.0 else 0,
+    ])
+    alerts_score = _score_for_alerts(alerts_count)
+
+    # 失敗サービス数
+    failed_count = _count_failed_services()
+    services_score = _score_for_failed_services(failed_count)
+
+    # 合成スコア（重み付け平均）
+    overall_score = int(
+        0.30 * cpu_score
+        + 0.25 * mem_score
+        + 0.25 * disk_score
+        + 0.10 * alerts_score
+        + 0.10 * services_score
+    )
+
+    audit_log.record(
+        operation="health_score_view",
+        user_id=current_user.user_id,
+        target="system",
+        status="success",
+    )
+
+    return {
+        "score": overall_score,
+        "status": _status_label(overall_score),
+        "components": {
+            "cpu": {
+                "score": cpu_score,
+                "value": round(cpu_pct, 1),
+                "status": _status_label(cpu_score),
+            },
+            "memory": {
+                "score": mem_score,
+                "value": round(mem_pct, 1),
+                "status": _status_label(mem_score),
+            },
+            "disk": {
+                "score": disk_score,
+                "value": round(disk_pct, 1),
+                "status": _status_label(disk_score),
+            },
+            "alerts": {
+                "score": alerts_score,
+                "value": alerts_count,
+                "status": _status_label(alerts_score),
+            },
+            "services": {
+                "score": services_score,
+                "value": failed_count,
+                "status": _status_label(services_score),
+            },
+        },
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }

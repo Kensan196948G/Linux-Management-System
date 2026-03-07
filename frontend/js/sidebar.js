@@ -337,6 +337,12 @@ function renderSidebar(activePage) {
                 <span id="approval-pending-badge" class="badge bg-warning text-dark ms-1" style="display:none">0</span>
             </div>
 
+            <!-- 通知設定 -->
+            <div class="menu-item${a('notifications')}" onclick="location.href='notifications.html'">
+                <span class="menu-item-icon">🔔</span>
+                <span>通知設定</span>
+            </div>
+
             <!-- サーバー カテゴリ -->
             <div class="accordion-item ${['servers','ssh','apache','postfix','dbmonitor'].includes(activePage) ? 'open' : ''}">
                 <div class="accordion-header" onclick="toggleAccordion(this)">

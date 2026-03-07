@@ -104,6 +104,9 @@
                 <li class="nav-item">
                     <a class="nav-link" data-tab="services" onclick="switchTab('services')">🖥️ サービス管理</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-tab="twofa" onclick="switchTab('twofa')">🔑 二要素認証</a>
+                </li>
             </ul>
 
             <!-- SSH設定タブ -->
@@ -139,6 +142,16 @@
             <!-- サービス管理タブ -->
             <div class="tab-pane" id="tab-services">
                 <div id="services-content">
+                    <div class="loading-spinner">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        読み込み中...
+                    </div>
+                </div>
+            </div>
+
+            <!-- 二要素認証タブ -->
+            <div class="tab-pane" id="tab-twofa">
+                <div id="twofa-content">
                     <div class="loading-spinner">
                         <div class="spinner-border spinner-border-sm me-2" role="status"></div>
                         読み込み中...
@@ -191,6 +204,7 @@
             case 'users':    loadUsers();    break;
             case 'cron':     loadCron();     break;
             case 'services': loadServices(); break;
+            case 'twofa':    load2FA();      break;
         }
     }
 
@@ -488,6 +502,120 @@
 
     // 初回ロード
     loadTab('ssh');
+
+    // ──────────────────────────────────────────────
+    // 二要素認証 (2FA) タブ
+    // ──────────────────────────────────────────────
+    async function load2FA() {
+        const el = document.getElementById('twofa-content');
+        el.innerHTML = spinner();
+        try {
+            const data = await api.get('/api/auth/2fa/status');
+            el.innerHTML = render2FA(data);
+        } catch(e) {
+            el.innerHTML = `<div class="section-card">${errorBox('2FA状態の取得に失敗しました: ' + esc(e.message))}</div>`;
+        }
+    }
+
+    function render2FA(data) {
+        const enabled = data && data.enabled && data.verified;
+        const statusHtml = enabled
+            ? '<span style="color:#059669;font-weight:600">✅ 有効（検証済み）</span>'
+            : (data && data.enabled && !data.verified
+                ? '<span style="color:#f59e0b;font-weight:600">⚠ セットアップ中（未検証）</span>'
+                : '<span style="color:#6b7280">❌ 無効</span>');
+
+        return `
+        <div class="section-card">
+            <div class="section-title">🔑 二要素認証 (2FA / TOTP)</div>
+            <table class="table config-table mb-3">
+                <tr><th>現在の状態</th><td id="twofa-status-cell">${statusHtml}</td></tr>
+            </table>
+
+            ${!enabled ? `
+            <div id="twofa-setup-section">
+                <button class="btn btn-primary btn-sm" onclick="start2FASetup()">🔐 2FA設定開始</button>
+            </div>
+            <div id="twofa-qr-section" style="display:none;margin-top:16px">
+                <p class="small text-muted mb-2">① Google Authenticator / Authy 等でQRコードをスキャンしてください。</p>
+                <div id="twofa-qr-img" style="margin-bottom:10px"></div>
+                <p class="small text-muted mb-2">② または以下のシークレットキーを手動入力してください:</p>
+                <code id="twofa-secret-display" style="font-size:12px;background:#f3f4f6;padding:4px 8px;border-radius:4px"></code>
+                <p class="small text-muted mt-3 mb-1">③ アプリに表示された6桁のコードを入力して確認してください:</p>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <input type="text" id="twofa-verify-code" class="form-control form-control-sm" style="width:120px"
+                        placeholder="123456" maxlength="6" pattern="[0-9]{6}">
+                    <button class="btn btn-success btn-sm" onclick="verify2FA()">✔ 確認して有効化</button>
+                </div>
+                <div id="twofa-verify-msg" style="margin-top:8px;font-size:13px"></div>
+            </div>
+            ` : `
+            <div id="twofa-disable-section" style="margin-top:8px">
+                <p class="small text-muted mb-2">2FAを無効化するには、現在のTOTPコードを入力してください。</p>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <input type="text" id="twofa-disable-code" class="form-control form-control-sm" style="width:120px"
+                        placeholder="123456" maxlength="6" pattern="[0-9]{6}">
+                    <button class="btn btn-danger btn-sm" onclick="disable2FA()">🗑 2FA無効化</button>
+                </div>
+                <div id="twofa-disable-msg" style="margin-top:8px;font-size:13px"></div>
+            </div>
+            `}
+        </div>`;
+    }
+
+    async function start2FASetup() {
+        const btn = document.querySelector('#twofa-setup-section button');
+        if (btn) { btn.disabled = true; btn.textContent = '取得中...'; }
+        try {
+            const data = await api.post('/api/auth/2fa/setup', {});
+            document.getElementById('twofa-setup-section').style.display = 'none';
+            document.getElementById('twofa-qr-section').style.display = 'block';
+            document.getElementById('twofa-qr-img').innerHTML =
+                `<img src="${esc(data.qr_code_base64)}" alt="QR Code" style="width:180px;height:180px;border:1px solid #e5e7eb;border-radius:6px">`;
+            document.getElementById('twofa-secret-display').textContent = data.secret || '';
+        } catch(e) {
+            if (btn) { btn.disabled = false; btn.textContent = '🔐 2FA設定開始'; }
+            alert('2FA設定の開始に失敗しました: ' + e.message);
+        }
+    }
+
+    async function verify2FA() {
+        const code = (document.getElementById('twofa-verify-code') || {}).value || '';
+        const msgEl = document.getElementById('twofa-verify-msg');
+        if (!/^\d{6}$/.test(code)) {
+            msgEl.textContent = '❌ 6桁の数字を入力してください。';
+            msgEl.style.color = '#dc2626';
+            return;
+        }
+        try {
+            await api.post('/api/auth/2fa/verify', { code });
+            msgEl.textContent = '✅ 2FAが有効化されました！';
+            msgEl.style.color = '#059669';
+            setTimeout(() => { loadedTabs.delete('twofa'); load2FA(); }, 1500);
+        } catch(e) {
+            msgEl.textContent = '❌ ' + (e.message || '検証に失敗しました');
+            msgEl.style.color = '#dc2626';
+        }
+    }
+
+    async function disable2FA() {
+        const code = (document.getElementById('twofa-disable-code') || {}).value || '';
+        const msgEl = document.getElementById('twofa-disable-msg');
+        if (!/^\d{6}$/.test(code)) {
+            msgEl.textContent = '❌ 6桁の数字を入力してください。';
+            msgEl.style.color = '#dc2626';
+            return;
+        }
+        try {
+            await api.post('/api/auth/2fa/disable', { code });
+            msgEl.textContent = '✅ 2FAが無効化されました。';
+            msgEl.style.color = '#059669';
+            setTimeout(() => { loadedTabs.delete('twofa'); load2FA(); }, 1500);
+        } catch(e) {
+            msgEl.textContent = '❌ ' + (e.message || '無効化に失敗しました');
+            msgEl.style.color = '#dc2626';
+        }
+    }
 </script>
 </body>
 </html>

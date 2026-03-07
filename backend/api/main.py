@@ -42,6 +42,7 @@ from .routes import (
     netstat,
     network,
     nginx,
+    notifications,
     packages,
     partitions,
     postfix,
@@ -157,6 +158,7 @@ app.include_router(journal.router, prefix="/api/journal", tags=["journal"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
 app.include_router(alerts.router, prefix="/api")
 app.include_router(logsearch.router, prefix="/api/logsearch", tags=["logsearch"])
+app.include_router(notifications.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信

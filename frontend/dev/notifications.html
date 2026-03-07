@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通知設定 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .notif-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .dark-mode .notif-card {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        .dark-mode body, .dark-mode .main-content { background: #0f172a; color: #e2e8f0; }
+        .notif-card-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dark-mode .notif-card-title { color: #f1f5f9; }
+        .badge-info    { background: #2196F3; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        .badge-warning { background: #f59e0b; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        .badge-critical { background: #ef4444; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        .badge-ok      { background: #22c55e; color: white; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: #f3f4f6; padding: 8px 12px; text-align: left; font-weight: 600; }
+        .dark-mode th { background: #0f172a; color: #e2e8f0; }
+        td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
+        .dark-mode td { border-bottom-color: #334155; }
+        .form-control, .form-select {
+            font-size: 14px;
+        }
+        .dark-mode .form-control, .dark-mode .form-select {
+            background: #0f172a;
+            color: #e2e8f0;
+            border-color: #334155;
+        }
+        .dark-mode .form-control::placeholder { color: #64748b; }
+        .nav-tabs .nav-link { color: #374151; }
+        .dark-mode .nav-tabs .nav-link { color: #94a3b8; }
+        .dark-mode .nav-tabs .nav-link.active { background: #1e293b; color: #f1f5f9; border-color: #334155; }
+        .dark-mode .tab-content { background: #0f172a; }
+        .dark-mode .nav-tabs { border-color: #334155; }
+        .form-check-input:checked { background-color: #2563eb; border-color: #2563eb; }
+        .webhook-entry { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .webhook-entry input { flex: 1; }
+    </style>
+<script src="../js/theme.js"></script>
+</head>
+<body>
+<div id="sidebar-container"></div>
+<div class="main-content">
+    <div class="container-fluid py-4">
+        <div class="d-flex align-items-center mb-4 gap-2 justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-bell-fill fs-4 text-primary"></i>
+                <h1 class="h4 mb-0">通知設定</h1>
+            </div>
+            <div>
+                <span id="save-status" class="text-muted" style="font-size:13px;"></span>
+            </div>
+        </div>
+
+        <!-- タブナビゲーション -->
+        <ul class="nav nav-tabs mb-3" id="notifTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="settings-tab" data-bs-toggle="tab"
+                    data-bs-target="#settings-pane" type="button" role="tab">
+                    <i class="bi bi-gear"></i> 設定
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="webhooks-tab" data-bs-toggle="tab"
+                    data-bs-target="#webhooks-pane" type="button" role="tab"
+                    onclick="loadWebhooks()">
+                    <i class="bi bi-link-45deg"></i> Webhook管理
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab"
+                    data-bs-target="#history-pane" type="button" role="tab"
+                    onclick="loadHistory()">
+                    <i class="bi bi-clock-history"></i> 通知履歴
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="test-tab" data-bs-toggle="tab"
+                    data-bs-target="#test-pane" type="button" role="tab">
+                    <i class="bi bi-send"></i> テスト送信
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="notifTabContent">
+
+            <!-- ============================================================
+                 タブ1: 設定
+            ============================================================ -->
+            <div class="tab-pane fade show active" id="settings-pane" role="tabpanel">
+                <div id="settings-content">
+                    <div class="text-muted">読み込み中…</div>
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 タブ2: Webhook管理
+            ============================================================ -->
+            <div class="tab-pane fade" id="webhooks-pane" role="tabpanel">
+                <!-- Webhook 追加フォーム -->
+                <div class="notif-card mb-3">
+                    <div class="notif-card-title"><i class="bi bi-plus-circle text-primary"></i> Webhook 追加</div>
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <input type="text" class="form-control" id="wh-name" placeholder="名前（例: 本番アラート）">
+                        </div>
+                        <div class="col-md-5">
+                            <input type="url" class="form-control" id="wh-url" placeholder="https://hooks.slack.com/...">
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="wh-type">
+                                <option value="slack">Slack</option>
+                                <option value="discord">Discord</option>
+                                <option value="generic">Generic</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-primary w-100" onclick="addWebhook()">
+                                <i class="bi bi-plus"></i> 追加
+                            </button>
+                        </div>
+                    </div>
+                    <div id="wh-add-msg" class="mt-2" style="font-size:13px;"></div>
+                </div>
+
+                <!-- Webhook 一覧 -->
+                <div class="notif-card">
+                    <div class="notif-card-title"><i class="bi bi-list-ul text-secondary"></i> 登録済み Webhook</div>
+                    <div id="webhooks-list-content">
+                        <div class="text-muted">「Webhook管理」タブを開くと読み込まれます</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 タブ3: 通知履歴
+            ============================================================ -->
+            <div class="tab-pane fade" id="history-pane" role="tabpanel">
+                <div class="notif-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="notif-card-title mb-0"><i class="bi bi-clock-history text-secondary"></i> 通知履歴（直近50件）</div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="loadHistory()">
+                            <i class="bi bi-arrow-clockwise"></i> 更新
+                        </button>
+                    </div>
+                    <div id="history-content">
+                        <div class="text-muted">「通知履歴」タブを開くと読み込まれます</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 タブ4: テスト送信
+            ============================================================ -->
+            <div class="tab-pane fade" id="test-pane" role="tabpanel">
+                <div class="notif-card">
+                    <div class="notif-card-title"><i class="bi bi-send text-primary"></i> テスト通知送信</div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">メッセージ</label>
+                            <textarea class="form-control" id="test-message" rows="3"
+                                placeholder="テスト通知のメッセージを入力…"></textarea>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">重大度</label>
+                            <select class="form-select" id="test-severity">
+                                <option value="info">ℹ️ Info</option>
+                                <option value="warning">⚠️ Warning</option>
+                                <option value="critical">🔴 Critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">イベント種別</label>
+                            <select class="form-select" id="test-event-type">
+                                <option value="alert_triggered">alert_triggered</option>
+                                <option value="approval_requested">approval_requested</option>
+                                <option value="approval_executed">approval_executed</option>
+                                <option value="service_down">service_down</option>
+                                <option value="system_critical">system_critical</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <button class="btn btn-warning" onclick="sendTestNotification()">
+                                <i class="bi bi-send-fill"></i> テスト送信
+                            </button>
+                        </div>
+                        <div class="col-12">
+                            <div id="test-result" style="font-size:13px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /tab-content -->
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script>
+(async function () {
+    'use strict';
+
+    // ----------------------------------------------------------------
+    // 共通ユーティリティ
+    // ----------------------------------------------------------------
+
+    function escapeHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function getToken() {
+        return localStorage.getItem('token') || '';
+    }
+
+    function getHeaders() {
+        return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() };
+    }
+
+    async function apiFetch(url, options) {
+        const r = await fetch(url, { headers: getHeaders(), ...options });
+        if (!r.ok) {
+            const err = await r.json().catch(() => ({ message: r.statusText }));
+            throw new Error(err.message || r.statusText);
+        }
+        return r.json();
+    }
+
+    function severityBadge(sev) {
+        const map = {
+            info: '<span class="badge-info">INFO</span>',
+            warning: '<span class="badge-warning">WARNING</span>',
+            critical: '<span class="badge-critical">CRITICAL</span>',
+        };
+        return map[sev] || `<span class="badge-ok">${escapeHtml(sev)}</span>`;
+    }
+
+    // ----------------------------------------------------------------
+    // サイドバー読み込み
+    // ----------------------------------------------------------------
+    fetch('../_sidebar.html')
+        .then(r => r.ok ? r.text() : '')
+        .then(html => { if (html) document.getElementById('sidebar-container').innerHTML = html; })
+        .catch(() => {});
+
+    // ----------------------------------------------------------------
+    // 設定タブ
+    // ----------------------------------------------------------------
+
+    let currentSettings = {};
+
+    async function loadSettings() {
+        try {
+            const data = await apiFetch('/api/notifications/settings');
+            currentSettings = data.settings;
+            renderSettings(data.settings);
+        } catch (e) {
+            document.getElementById('settings-content').innerHTML =
+                `<div class="text-danger">設定の取得に失敗しました: ${escapeHtml(e.message)}</div>`;
+        }
+    }
+
+    function renderSettings(s) {
+        const levels = ['info', 'warning', 'critical'];
+        const events = ['alert_triggered', 'approval_requested', 'approval_executed', 'service_down', 'system_critical'];
+
+        const levelChecks = levels.map(l => `
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="level-${l}"
+                    ${(s.notification_levels || []).includes(l) ? 'checked' : ''}>
+                <label class="form-check-label" for="level-${l}">${l.toUpperCase()}</label>
+            </div>`).join('');
+
+        const eventChecks = events.map(ev => `
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="ev-${ev}"
+                    ${(s.event_types || []).includes(ev) ? 'checked' : ''}>
+                <label class="form-check-label" for="ev-${ev}">${ev}</label>
+            </div>`).join('');
+
+        document.getElementById('settings-content').innerHTML = `
+            <div class="notif-card">
+                <div class="notif-card-title"><i class="bi bi-toggles text-primary"></i> 基本設定</div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="notif-enabled"
+                        ${s.enabled ? 'checked' : ''} style="transform:scale(1.3);">
+                    <label class="form-check-label ms-2 fw-semibold" for="notif-enabled">通知を有効にする</label>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">通知レベル（このレベル以上を通知）</label>
+                    <div>${levelChecks}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">対象イベント種別</label>
+                    <div>${eventChecks}</div>
+                </div>
+            </div>
+            <div class="notif-card">
+                <div class="notif-card-title"><i class="bi bi-envelope text-secondary"></i> SMTP メール設定</div>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <label class="form-label">SMTPホスト</label>
+                        <input type="text" class="form-control" id="smtp-host" value="${escapeHtml(s.smtp_host || '')}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">ポート</label>
+                        <input type="number" class="form-control" id="smtp-port" value="${escapeHtml(s.smtp_port || 587)}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">ユーザー</label>
+                        <input type="text" class="form-control" id="smtp-user" value="${escapeHtml(s.smtp_user || '')}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">送信元メールアドレス</label>
+                        <input type="email" class="form-control" id="email-from" value="${escapeHtml(s.email_from || '')}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">送信先 (カンマ区切り)</label>
+                        <input type="text" class="form-control" id="email-to" value="${escapeHtml((s.email_to || []).join(', '))}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">パスワード環境変数名</label>
+                        <input type="text" class="form-control" id="smtp-password-env" value="${escapeHtml(s.smtp_password_env || 'SMTP_PASSWORD')}">
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="email-enabled"
+                                ${s.email_enabled ? 'checked' : ''}>
+                            <label class="form-check-label ms-2" for="email-enabled">メール通知を有効にする</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" onclick="saveSettings()">
+                    <i class="bi bi-save"></i> 設定を保存
+                </button>
+            </div>
+            <div id="settings-save-msg" class="mt-2" style="font-size:13px;"></div>
+        `;
+    }
+
+    window.saveSettings = async function () {
+        const levels = ['info', 'warning', 'critical'].filter(l =>
+            document.getElementById('level-' + l)?.checked);
+        const events = ['alert_triggered', 'approval_requested', 'approval_executed', 'service_down', 'system_critical']
+            .filter(ev => document.getElementById('ev-' + ev)?.checked);
+        const emailToRaw = document.getElementById('email-to')?.value || '';
+        const emailTo = emailToRaw.split(',').map(s => s.trim()).filter(Boolean);
+
+        const payload = {
+            enabled: document.getElementById('notif-enabled')?.checked ?? true,
+            notification_levels: levels,
+            event_types: events,
+            smtp_host: document.getElementById('smtp-host')?.value || '',
+            smtp_port: parseInt(document.getElementById('smtp-port')?.value || '587'),
+            smtp_user: document.getElementById('smtp-user')?.value || '',
+            email_from: document.getElementById('email-from')?.value || '',
+            email_to: emailTo,
+            smtp_password_env: document.getElementById('smtp-password-env')?.value || 'SMTP_PASSWORD',
+            email_enabled: document.getElementById('email-enabled')?.checked ?? false,
+        };
+
+        const msgEl = document.getElementById('settings-save-msg');
+        try {
+            await apiFetch('/api/notifications/settings', {
+                method: 'PUT',
+                body: JSON.stringify(payload),
+            });
+            msgEl.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> 設定を保存しました</span>';
+        } catch (e) {
+            msgEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> 保存失敗: ${escapeHtml(e.message)}</span>`;
+        }
+    };
+
+    // ----------------------------------------------------------------
+    // Webhook 管理タブ
+    // ----------------------------------------------------------------
+
+    window.loadWebhooks = async function () {
+        const el = document.getElementById('webhooks-list-content');
+        el.innerHTML = '<div class="text-muted">読み込み中…</div>';
+        try {
+            const data = await apiFetch('/api/notifications/webhooks');
+            let html = '';
+            const groups = [
+                { key: 'slack_webhooks',   label: 'Slack',   icon: 'bi-slack',       color: '#4A154B' },
+                { key: 'discord_webhooks', label: 'Discord', icon: 'bi-discord',     color: '#5865F2' },
+                { key: 'generic_webhooks', label: 'Generic', icon: 'bi-link-45deg',  color: '#6b7280' },
+            ];
+            for (const g of groups) {
+                const list = data[g.key] || [];
+                html += `<div class="mb-3"><strong style="color:${g.color}"><i class="bi ${g.icon}"></i> ${g.label} (${list.length}件)</strong></div>`;
+                if (list.length === 0) {
+                    html += '<div class="text-muted mb-3" style="font-size:13px;">登録なし</div>';
+                } else {
+                    html += '<table class="mb-3"><thead><tr><th>名前</th><th>URL</th><th>有効</th><th>登録日</th><th>操作</th></tr></thead><tbody>';
+                    for (const wh of list) {
+                        const enabled = wh.enabled
+                            ? '<span class="badge-ok">有効</span>'
+                            : '<span class="badge-warning">無効</span>';
+                        html += `<tr>
+                            <td>${escapeHtml(wh.name || '')}</td>
+                            <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                title="${escapeHtml(wh.url || '')}">${escapeHtml(wh.url || '')}</td>
+                            <td>${enabled}</td>
+                            <td>${escapeHtml((wh.created_at || '').slice(0, 10))}</td>
+                            <td><button class="btn btn-sm btn-danger" onclick="deleteWebhook('${escapeHtml(wh.id)}')">
+                                <i class="bi bi-trash"></i>
+                            </button></td>
+                        </tr>`;
+                    }
+                    html += '</tbody></table>';
+                }
+            }
+            el.innerHTML = html || '<div class="text-muted">Webhook が登録されていません</div>';
+        } catch (e) {
+            el.innerHTML = `<div class="text-danger">取得失敗: ${escapeHtml(e.message)}</div>`;
+        }
+    };
+
+    window.addWebhook = async function () {
+        const name = document.getElementById('wh-name').value.trim();
+        const url = document.getElementById('wh-url').value.trim();
+        const type = document.getElementById('wh-type').value;
+        const msgEl = document.getElementById('wh-add-msg');
+
+        if (!name || !url) {
+            msgEl.innerHTML = '<span class="text-danger">名前と URL を入力してください</span>';
+            return;
+        }
+
+        try {
+            await apiFetch('/api/notifications/webhooks', {
+                method: 'POST',
+                body: JSON.stringify({ name, url, type, enabled: true }),
+            });
+            msgEl.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> 追加しました</span>';
+            document.getElementById('wh-name').value = '';
+            document.getElementById('wh-url').value = '';
+            await loadWebhooks();
+        } catch (e) {
+            msgEl.innerHTML = `<span class="text-danger">追加失敗: ${escapeHtml(e.message)}</span>`;
+        }
+    };
+
+    window.deleteWebhook = async function (id) {
+        if (!confirm('このWebhookを削除しますか？')) return;
+        try {
+            await apiFetch('/api/notifications/webhooks/' + encodeURIComponent(id), { method: 'DELETE' });
+            await loadWebhooks();
+        } catch (e) {
+            alert('削除失敗: ' + e.message);
+        }
+    };
+
+    // ----------------------------------------------------------------
+    // 通知履歴タブ
+    // ----------------------------------------------------------------
+
+    window.loadHistory = async function () {
+        const el = document.getElementById('history-content');
+        el.innerHTML = '<div class="text-muted">読み込み中…</div>';
+        try {
+            const data = await apiFetch('/api/notifications/history?limit=50');
+            if (!data.history || data.history.length === 0) {
+                el.innerHTML = '<div class="text-muted">通知履歴がありません</div>';
+                return;
+            }
+            let html = `<div class="text-muted mb-2" style="font-size:13px;">${data.count} 件の通知履歴</div>
+                <table>
+                <thead><tr>
+                    <th>日時</th>
+                    <th>イベント種別</th>
+                    <th>重大度</th>
+                    <th>メッセージ</th>
+                    <th>通知数</th>
+                </tr></thead><tbody>`;
+            for (const h of data.history) {
+                const ts = (h.timestamp || '').slice(0, 19).replace('T', ' ');
+                html += `<tr>
+                    <td style="white-space:nowrap;">${escapeHtml(ts)}</td>
+                    <td>${escapeHtml(h.event_type || '')}</td>
+                    <td>${severityBadge(h.severity || 'info')}</td>
+                    <td>${escapeHtml(h.message || '')}</td>
+                    <td>${escapeHtml(String(h.channels_notified ?? 0))}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        } catch (e) {
+            el.innerHTML = `<div class="text-danger">取得失敗: ${escapeHtml(e.message)}</div>`;
+        }
+    };
+
+    // ----------------------------------------------------------------
+    // テスト送信タブ
+    // ----------------------------------------------------------------
+
+    window.sendTestNotification = async function () {
+        const message = document.getElementById('test-message').value.trim();
+        const severity = document.getElementById('test-severity').value;
+        const event_type = document.getElementById('test-event-type').value;
+        const resultEl = document.getElementById('test-result');
+
+        if (!message) {
+            resultEl.innerHTML = '<span class="text-danger">メッセージを入力してください</span>';
+            return;
+        }
+
+        resultEl.innerHTML = '<span class="text-muted">送信中…</span>';
+        try {
+            const data = await apiFetch('/api/notifications/test', {
+                method: 'POST',
+                body: JSON.stringify({ message, severity, event_type }),
+            });
+            const results = (data.results || []);
+            let detail = '';
+            if (results.length === 0) {
+                detail = '<div class="text-muted mt-2">送信先チャンネルが設定されていません（設定タブで Webhook を追加してください）</div>';
+            } else {
+                detail = '<ul class="mt-2 mb-0">' + results.map(r =>
+                    `<li>${escapeHtml(r.channel)}: ${r.success
+                        ? '<span class="text-success">成功</span>'
+                        : `<span class="text-danger">失敗 (${escapeHtml(r.error || '')})</span>`
+                    }</li>`
+                ).join('') + '</ul>';
+            }
+            resultEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> 送信完了 (${data.channels_notified}チャンネル)</span>${detail}`;
+        } catch (e) {
+            resultEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> 送信失敗: ${escapeHtml(e.message)}</span>`;
+        }
+    };
+
+    // ----------------------------------------------------------------
+    // 初期化
+    // ----------------------------------------------------------------
+
+    await loadSettings();
+
+})();
+</script>
+</body>
+</html>
