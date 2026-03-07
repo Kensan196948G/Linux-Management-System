@@ -263,14 +263,6 @@
     }
 
     // ----------------------------------------------------------------
-    // サイドバー読み込み
-    // ----------------------------------------------------------------
-    fetch('../_sidebar.html')
-        .then(r => r.ok ? r.text() : '')
-        .then(html => { if (html) document.getElementById('sidebar-container').innerHTML = html; })
-        .catch(() => {});
-
-    // ----------------------------------------------------------------
     // 設定タブ
     // ----------------------------------------------------------------
 
@@ -566,6 +558,8 @@
     await loadSettings();
 
 })();
-</script>
+<script src="../js/env-config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
 </body>
 </html>
