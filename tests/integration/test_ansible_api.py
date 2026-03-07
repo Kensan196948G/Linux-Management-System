@@ -563,3 +563,48 @@ def test_wrapper_path_not_list(client, admin_headers):
     import inspect
     source = inspect.getsource(ansible_mod._run_wrapper)
     assert "shell=True" not in source, "shell=True は禁止されています"
+
+
+class TestAnsibleValidate:
+    """POST /api/ansible/playbooks/{name}/validate のテスト"""
+
+    def test_validate_ok(self, test_client, admin_headers):
+        """Playbook構文チェックAPI応答確認"""
+        with patch("backend.api.routes.ansible._run_wrapper") as mock_run:
+            mock_run.return_value = {"status": "success", "message": "Syntax OK", "stdout": ""}
+            resp = test_client.post("/api/ansible/playbooks/site.yml/validate", headers=admin_headers)
+        assert resp.status_code == 200
+
+    def test_validate_response_structure(self, test_client, admin_headers):
+        """レスポンス構造確認"""
+        with patch("backend.api.routes.ansible._run_wrapper") as mock_run:
+            mock_run.return_value = {"status": "success", "message": "OK", "stdout": ""}
+            resp = test_client.post("/api/ansible/playbooks/site.yml/validate", headers=admin_headers)
+        data = resp.json()
+        assert "status" in data
+        assert "playbook" in data
+        assert "timestamp" in data
+
+    def test_validate_not_found(self, test_client, admin_headers):
+        """存在しないPlaybook は404"""
+        with patch("backend.api.routes.ansible._run_wrapper") as mock_run:
+            mock_run.return_value = {"status": "error", "message": "not found", "stdout": ""}
+            resp = test_client.post("/api/ansible/playbooks/ghost.yml/validate", headers=admin_headers)
+        assert resp.status_code == 404
+
+    def test_validate_unauthenticated_rejected(self, test_client):
+        """未認証は拒否"""
+        resp = test_client.post("/api/ansible/playbooks/site.yml/validate")
+        assert resp.status_code in (401, 403)
+
+    def test_validate_viewer_allowed(self, test_client, viewer_headers):
+        """Viewer は構文チェック可能（read:ansible）"""
+        with patch("backend.api.routes.ansible._run_wrapper") as mock_run:
+            mock_run.return_value = {"status": "success", "message": "OK", "stdout": ""}
+            resp = test_client.post("/api/ansible/playbooks/site.yml/validate", headers=viewer_headers)
+        assert resp.status_code == 200
+
+    def test_validate_invalid_name_rejected(self, test_client, admin_headers):
+        """不正なPlaybook名は拒否（特殊文字含む）"""
+        resp = test_client.post("/api/ansible/playbooks/bad;name.yml/validate", headers=admin_headers)
+        assert resp.status_code in (400, 422, 404)

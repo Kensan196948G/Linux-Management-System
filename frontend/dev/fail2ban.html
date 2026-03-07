@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fail2ban - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .stat-big {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #dc2626;
+            line-height: 1;
+        }
+        .stat-big.safe { color: #16a34a; }
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            padding: 20px 24px;
+            text-align: center;
+        }
+        .dark-mode .stat-card { background: #1e293b; border-color: #334155; }
+        .stat-card-label {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 6px;
+        }
+        .dark-mode .stat-card-label { color: #94a3b8; }
+        .jail-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+        }
+        .dark-mode .jail-card { background: #1e293b; border-color: #334155; }
+        .jail-card-title {
+            font-weight: 700;
+            font-size: 15px;
+            color: #111827;
+            margin-bottom: 10px;
+        }
+        .dark-mode .jail-card-title { color: #f1f5f9; }
+        .ban-badge {
+            background: #fee2e2;
+            color: #991b1b;
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .ban-badge.zero { background: #dcfce7; color: #15803d; }
+        .ip-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .ip-table th {
+            text-align: left;
+            padding: 6px 10px;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .ip-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: middle;
+        }
+        .dark-mode .ip-table th { border-color: #334155; color: #94a3b8; }
+        .dark-mode .ip-table td { border-color: #334155; color: #e2e8f0; }
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .dark-mode .nav-tabs .nav-link { color: #94a3b8; }
+        .dark-mode .nav-tabs .nav-link.active { color: #60a5fa; }
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dark-mode .section-title { color: #e2e8f0; }
+        .f2b-status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 13px;
+        }
+        .f2b-status-row:last-child { border-bottom: none; }
+        .dark-mode .f2b-status-row { border-color: #334155; }
+        .label-col { color: #6b7280; }
+        .dark-mode .label-col { color: #94a3b8; }
+        .val-col { font-weight: 600; }
+        .chart-wrap {
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .dark-mode .chart-wrap { background: #1e293b; border-color: #334155; }
+        .info-block {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #1e40af;
+            margin-bottom: 16px;
+        }
+        .dark-mode .info-block {
+            background: #1e3a5f;
+            border-color: #1d4ed8;
+            color: #93c5fd;
+        }
+        .spinner-inline {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid #e5e7eb;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+    <script src="../js/theme.js"></script>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="page-title">🚫 Fail2ban 管理</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">
+                🔄 更新
+            </button>
+        </div>
+
+        <div class="main-body">
+            <div id="alert-area"></div>
+
+            <!-- タブナビ -->
+            <ul class="nav nav-tabs mb-3" id="mainTabs">
+                <li class="nav-item">
+                    <a class="nav-link active" id="tab-summary" onclick="switchTab('summary')" href="#">
+                        📊 サマリー
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="tab-jails" onclick="switchTab('jails')" href="#">
+                        🔒 Jail 詳細
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="tab-logs" onclick="switchTab('logs')" href="#">
+                        📈 ログ可視化
+                    </a>
+                </li>
+            </ul>
+
+            <!-- ===== TAB: サマリー ===== -->
+            <div id="pane-summary">
+                <!-- 統計カード -->
+                <div class="row g-3 mb-3" id="stat-cards">
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-big" id="stat-total-banned">–</div>
+                            <div class="stat-card-label">🚫 現在の禁止 IP 総数</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-big" id="stat-jail-count">–</div>
+                            <div class="stat-card-label">🔒 Jail 数</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-big" id="stat-total-failed" style="color:#f59e0b">–</div>
+                            <div class="stat-card-label">⚠️ 現在の失敗試行数</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-big" id="stat-most-active" style="font-size:1.3rem;color:#7c3aed">–</div>
+                            <div class="stat-card-label">🏆 最アクティブ Jail</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- jail 別禁止数 横棒グラフ -->
+                <div class="chart-wrap">
+                    <div class="section-title">🔒 Jail 別 現在の禁止 IP 数</div>
+                    <canvas id="jailBanChart" height="120"></canvas>
+                    <div id="chart-loading" class="text-center py-3" style="display:none">
+                        <span class="spinner-inline"></span> 読み込み中…
+                    </div>
+                </div>
+
+                <!-- Fail2ban サービス状態 -->
+                <div class="jail-card">
+                    <div class="jail-card-title">⚙️ fail2ban サービス状態</div>
+                    <div id="service-status-content">
+                        <div class="text-muted" style="font-size:13px">読み込み中…</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== TAB: Jail 詳細 ===== -->
+            <div id="pane-jails" style="display:none">
+                <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+                    <label class="fw-semibold" style="font-size:13px">Jail 選択:</label>
+                    <select class="form-select form-select-sm" id="jail-select" onchange="loadJailDetail()" style="max-width:220px">
+                        <option value="">— 選択してください —</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadJailDetail()" id="jail-refresh-btn">
+                        🔄 更新
+                    </button>
+                </div>
+
+                <div id="jail-detail-area" style="display:none">
+                    <!-- jail 詳細カード -->
+                    <div class="jail-card mb-3">
+                        <div class="jail-card-title" id="jail-detail-title">–</div>
+                        <div id="jail-detail-stats"></div>
+                    </div>
+
+                    <!-- 禁止 IP テーブル -->
+                    <div class="jail-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="section-title mb-0">🚫 禁止 IP 一覧</div>
+                            <!-- ban フォーム（Approver/Admin のみ表示） -->
+                            <div class="d-flex gap-2 align-items-center" id="ban-form-area" style="display:none!important">
+                                <input type="text" class="form-control form-control-sm" id="ban-ip-input"
+                                    placeholder="IP アドレス" style="max-width:160px">
+                                <button class="btn btn-sm btn-danger" onclick="banIp()">
+                                    ＋ Ban
+                                </button>
+                            </div>
+                        </div>
+                        <div id="banned-ips-content">
+                            <div class="text-muted" style="font-size:13px">jail を選択してください</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="jail-select-hint" class="text-muted" style="font-size:13px">
+                    ← Jail を選択すると詳細が表示されます
+                </div>
+            </div>
+
+            <!-- ===== TAB: ログ可視化 ===== -->
+            <div id="pane-logs" style="display:none">
+                <div class="info-block">
+                    <strong>ℹ️ 情報:</strong> このビューは <code>/api/security/failed-logins</code> を再利用して
+                    過去 24 時間のSSH失敗ログインを時間別に表示します。
+                </div>
+
+                <div class="chart-wrap">
+                    <div class="section-title">⚠️ 過去 24 時間 SSH 失敗ログイン（時間別）</div>
+                    <canvas id="failedLoginsChart" height="160"></canvas>
+                </div>
+
+                <div class="jail-card">
+                    <div class="section-title">📋 統計サマリー</div>
+                    <div id="failed-login-stats">
+                        <div class="text-muted" style="font-size:13px">読み込み中…</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/sidebar.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/api.js"></script>
+<script src="../vendor/chart.js/chart.umd.min.js"></script>
+<script>
+    /* =====================================================================
+     * Fail2ban 管理ページ スクリプト
+     * ===================================================================== */
+
+    // チャートインスタンス
+    let jailBanChart = null;
+    let failedLoginsChart = null;
+
+    // 現在の jail
+    let currentJail = '';
+
+    // ===================================================================
+    // 初期化
+    // ===================================================================
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        // 認証確認
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+            return;
+        }
+        api.setToken(token);
+
+        // サイドバー読み込み
+        if (typeof loadSidebar === 'function') loadSidebar('fail2ban');
+
+        // 初期データ読み込み
+        await refreshAll();
+    });
+
+    // ===================================================================
+    // タブ切り替え
+    // ===================================================================
+
+    function switchTab(tab) {
+        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        ['summary', 'jails', 'logs'].forEach(t => {
+            document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
+        });
+
+        if (tab === 'jails' && document.getElementById('jail-select').options.length <= 1) {
+            loadJailList();
+        }
+        if (tab === 'logs') {
+            loadFailedLogins();
+        }
+    }
+
+    // ===================================================================
+    // 全データ更新
+    // ===================================================================
+
+    async function refreshAll() {
+        const btn = document.getElementById('refresh-btn');
+        if (btn) btn.disabled = true;
+        try {
+            await Promise.all([loadSummary(), loadServiceStatus()]);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    // ===================================================================
+    // アラート表示
+    // ===================================================================
+
+    function showAlert(msg, type = 'danger') {
+        const area = document.getElementById('alert-area');
+        area.innerHTML = `<div class="alert alert-${type} alert-dismissible" role="alert">
+            ${escapeHtml(msg)}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+        setTimeout(() => { if (area.firstChild) area.firstChild.remove(); }, 6000);
+    }
+
+    function escapeHtml(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ===================================================================
+    // サマリー読み込み
+    // ===================================================================
+
+    async function loadSummary() {
+        try {
+            const data = await api.request('GET', '/api/fail2ban/summary');
+            renderSummary(data);
+        } catch (e) {
+            if (e && e.status === 503) {
+                showAlert('fail2ban がインストールされていないか、サービスが停止しています。', 'warning');
+                clearSummary();
+            } else {
+                showAlert('サマリー取得エラー: ' + (e.message || e));
+            }
+        }
+    }
+
+    function clearSummary() {
+        document.getElementById('stat-total-banned').textContent = '–';
+        document.getElementById('stat-jail-count').textContent = '–';
+        document.getElementById('stat-total-failed').textContent = '–';
+        document.getElementById('stat-most-active').textContent = '–';
+    }
+
+    function renderSummary(data) {
+        const totalBanned = data.total_banned ?? 0;
+        const el = document.getElementById('stat-total-banned');
+        el.textContent = totalBanned;
+        el.className = 'stat-big' + (totalBanned === 0 ? ' safe' : '');
+
+        document.getElementById('stat-jail-count').textContent = data.jail_count ?? '–';
+        document.getElementById('stat-total-failed').textContent = data.total_failed ?? '–';
+        document.getElementById('stat-most-active').textContent = data.most_active_jail ?? '–';
+
+        // グラフ更新
+        renderJailBanChart(data.jails || []);
+    }
+
+    // ===================================================================
+    // Jail 別禁止数 グラフ
+    // ===================================================================
+
+    function renderJailBanChart(jails) {
+        const ctx = document.getElementById('jailBanChart').getContext('2d');
+        const labels = jails.map(j => j.name);
+        const values = jails.map(j => j.currently_banned);
+        const colors = values.map(v => v > 0 ? 'rgba(220,38,38,0.7)' : 'rgba(22,163,74,0.5)');
+
+        if (jailBanChart) {
+            jailBanChart.data.labels = labels;
+            jailBanChart.data.datasets[0].data = values;
+            jailBanChart.data.datasets[0].backgroundColor = colors;
+            jailBanChart.update();
+            return;
+        }
+
+        jailBanChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: '現在の禁止 IP 数',
+                    data: values,
+                    backgroundColor: colors,
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+    }
+
+    // ===================================================================
+    // サービス状態
+    // ===================================================================
+
+    async function loadServiceStatus() {
+        const el = document.getElementById('service-status-content');
+        try {
+            const data = await api.request('GET', '/api/fail2ban/status');
+            const lines = (data.output || '').split('\n').filter(l => l.trim());
+            el.innerHTML = lines.map(l =>
+                `<div class="f2b-status-row"><span class="font-monospace" style="font-size:12px">${escapeHtml(l)}</span></div>`
+            ).join('') || '<span class="text-muted" style="font-size:13px">情報なし</span>';
+        } catch (e) {
+            el.innerHTML = '<span class="text-muted" style="font-size:13px">取得できませんでした</span>';
+        }
+    }
+
+    // ===================================================================
+    // Jail 一覧読み込み
+    // ===================================================================
+
+    async function loadJailList() {
+        try {
+            const data = await api.request('GET', '/api/fail2ban/jails');
+            const select = document.getElementById('jail-select');
+            select.innerHTML = '<option value="">— 選択してください —</option>';
+            (data.jails || []).forEach(jail => {
+                const opt = document.createElement('option');
+                opt.value = jail;
+                opt.textContent = jail;
+                select.appendChild(opt);
+            });
+        } catch (e) {
+            showAlert('Jail 一覧取得エラー: ' + (e.message || e));
+        }
+    }
+
+    // ===================================================================
+    // Jail 詳細読み込み
+    // ===================================================================
+
+    async function loadJailDetail() {
+        const select = document.getElementById('jail-select');
+        const jail = select.value;
+        if (!jail) {
+            document.getElementById('jail-detail-area').style.display = 'none';
+            document.getElementById('jail-select-hint').style.display = '';
+            return;
+        }
+        currentJail = jail;
+        document.getElementById('jail-detail-area').style.display = '';
+        document.getElementById('jail-select-hint').style.display = 'none';
+        document.getElementById('jail-detail-title').textContent = `🔒 ${jail}`;
+
+        // 詳細と禁止 IP 並列取得
+        try {
+            const [detail, banned] = await Promise.all([
+                api.request('GET', `/api/fail2ban/jails/${encodeURIComponent(jail)}`),
+                api.request('GET', `/api/fail2ban/jails/${encodeURIComponent(jail)}/banned`),
+            ]);
+            renderJailDetail(detail.jail || {});
+            renderBannedIps(banned.banned_ips || [], jail);
+        } catch (e) {
+            showAlert('Jail 詳細取得エラー: ' + (e.message || e));
+        }
+    }
+
+    function renderJailDetail(jail) {
+        const el = document.getElementById('jail-detail-stats');
+        const rows = [
+            ['現在の失敗試行数', jail.currently_failed ?? '–'],
+            ['累計失敗試行数', jail.total_failed ?? '–'],
+            ['現在の禁止 IP 数', jail.currently_banned ?? '–'],
+            ['累計禁止 IP 数', jail.total_banned ?? '–'],
+            ['ログパス', jail.log_path ?? '–'],
+        ];
+        el.innerHTML = rows.map(([k, v]) =>
+            `<div class="f2b-status-row">
+                <span class="label-col">${escapeHtml(k)}</span>
+                <span class="val-col">${escapeHtml(String(v))}</span>
+            </div>`
+        ).join('');
+    }
+
+    function renderBannedIps(ips, jail) {
+        const el = document.getElementById('banned-ips-content');
+        if (!ips.length) {
+            el.innerHTML = '<div class="text-success" style="font-size:13px">✅ 現在 ban された IP はありません</div>';
+            return;
+        }
+        const rows = ips.map(ip =>
+            `<tr>
+                <td><code>${escapeHtml(ip)}</code></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger"
+                        onclick="unbanIp(${JSON.stringify(jail)}, ${JSON.stringify(ip)})">
+                        🔓 Unban
+                    </button>
+                </td>
+            </tr>`
+        ).join('');
+        el.innerHTML = `<table class="ip-table">
+            <thead><tr><th>IP アドレス</th><th>操作</th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    // ===================================================================
+    // Unban 操作
+    // ===================================================================
+
+    async function unbanIp(jail, ip) {
+        if (!confirm(`${ip} を ${jail} から unban しますか?`)) return;
+        try {
+            await api.request('POST', `/api/fail2ban/jails/${encodeURIComponent(jail)}/unban`, { ip });
+            showAlert(`✅ ${ip} を unban しました`, 'success');
+            await loadJailDetail();
+        } catch (e) {
+            const msg = (e && e.detail) ? e.detail : (e.message || String(e));
+            showAlert('Unban エラー: ' + msg);
+        }
+    }
+
+    // ===================================================================
+    // Ban 操作
+    // ===================================================================
+
+    async function banIp() {
+        const ip = document.getElementById('ban-ip-input').value.trim();
+        if (!ip) { showAlert('IP アドレスを入力してください', 'warning'); return; }
+        if (!currentJail) { showAlert('Jail を選択してください', 'warning'); return; }
+        if (!confirm(`${ip} を ${currentJail} に ban しますか?`)) return;
+        try {
+            await api.request('POST', `/api/fail2ban/jails/${encodeURIComponent(currentJail)}/ban`, { ip });
+            showAlert(`✅ ${ip} を ban しました`, 'success');
+            document.getElementById('ban-ip-input').value = '';
+            await loadJailDetail();
+        } catch (e) {
+            const msg = (e && e.detail) ? e.detail : (e.message || String(e));
+            showAlert('Ban エラー: ' + msg);
+        }
+    }
+
+    // ===================================================================
+    // 失敗ログイン可視化（security.html と同一エンドポイント再利用）
+    // ===================================================================
+
+    async function loadFailedLogins() {
+        try {
+            const data = await api.request('GET', '/api/security/failed-logins');
+            renderFailedLoginsChart(data.hourly || []);
+            renderFailedLoginStats(data);
+        } catch (e) {
+            document.getElementById('failed-login-stats').innerHTML =
+                '<span class="text-muted" style="font-size:13px">取得できませんでした</span>';
+        }
+    }
+
+    function renderFailedLoginsChart(hourly) {
+        const ctx = document.getElementById('failedLoginsChart').getContext('2d');
+        const labels = hourly.map(h => h.hour);
+        const values = hourly.map(h => h.count);
+
+        if (failedLoginsChart) {
+            failedLoginsChart.data.labels = labels;
+            failedLoginsChart.data.datasets[0].data = values;
+            failedLoginsChart.update();
+            return;
+        }
+
+        failedLoginsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: '失敗ログイン数',
+                    data: values,
+                    backgroundColor: 'rgba(239,68,68,0.6)',
+                    borderColor: 'rgba(239,68,68,1)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { font: { size: 11 } } },
+                    y: { beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+    }
+
+    function renderFailedLoginStats(data) {
+        const el = document.getElementById('failed-login-stats');
+        el.innerHTML = `
+            <div class="f2b-status-row">
+                <span class="label-col">24時間の失敗ログイン総数</span>
+                <span class="val-col">${data.total ?? '–'}</span>
+            </div>
+            <div class="f2b-status-row">
+                <span class="label-col">ユニーク IP 数</span>
+                <span class="val-col">${data.unique_ips ?? '–'}</span>
+            </div>
+        `;
+    }
+</script>
+</body>
+</html>

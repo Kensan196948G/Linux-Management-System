@@ -2,25 +2,28 @@
 システムリソース時系列モニタリング API
 
 提供エンドポイント:
-  GET /api/monitoring/metrics        - 現在のリソース使用量スナップショット
-  GET /api/monitoring/history        - 過去N分間の時系列データ（Chart.js用）
-  GET /api/monitoring/alerts         - リソースアラート一覧
+  GET /api/monitoring/metrics           - 現在のリソース使用量スナップショット
+  GET /api/monitoring/history           - 過去N点の時系列データ（メモリ内）
+  GET /api/monitoring/history/range     - 時間範囲指定の時系列データ（SQLite永続）
+  GET /api/monitoring/trends/daily      - 日別平均トレンド（7日分）
+  GET /api/monitoring/alerts            - リソースアラート一覧
   POST /api/monitoring/alerts/threshold - アラート閾値設定
-  GET /api/monitoring/processes/top  - CPU/メモリ上位プロセス
-  GET /api/monitoring/network/io     - ネットワークI/O統計
-  GET /api/monitoring/disk/io        - ディスクI/O統計
+  GET /api/monitoring/processes/top     - CPU/メモリ上位プロセス
+  GET /api/monitoring/network/io        - ネットワークI/O統計
+  GET /api/monitoring/disk/io           - ディスクI/O統計
 """
 
 import json
 import logging
+import sqlite3
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import psutil
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from ...core import require_permission
@@ -31,9 +34,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
-# メモリ内時系列バッファ（最大60点=60秒/60分など）
+# メモリ内時系列バッファ（直近120点の高速アクセス用）
 _HISTORY_MAXLEN = 120
 _metrics_history: deque = deque(maxlen=_HISTORY_MAXLEN)
+
+# SQLite 永続化設定
+_METRICS_DB_PATH = Path("data/metrics_history.db")
+_DB_RETENTION_DAYS = 7  # 7日分を保持
 
 # 閾値設定ファイル
 _THRESHOLD_FILE = Path("data/monitoring_thresholds.json")
@@ -47,6 +54,123 @@ DEFAULT_THRESHOLDS = {
     "disk_warn": 85.0,
     "disk_critical": 95.0,
 }
+
+
+
+# ===================================================================
+# SQLite メトリクス永続化
+# ===================================================================
+
+
+def _get_db_connection() -> sqlite3.Connection:
+    """メトリクス履歴 SQLite 接続を返す"""
+    _METRICS_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(_METRICS_DB_PATH))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _init_metrics_db() -> None:
+    """メトリクス履歴テーブルを初期化"""
+    with _get_db_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS metrics_history (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts        REAL NOT NULL,
+                timestamp TEXT NOT NULL,
+                cpu       REAL NOT NULL DEFAULT 0,
+                memory    REAL NOT NULL DEFAULT 0,
+                disk      REAL NOT NULL DEFAULT 0,
+                load1     REAL NOT NULL DEFAULT 0,
+                load5     REAL NOT NULL DEFAULT 0,
+                load15    REAL NOT NULL DEFAULT 0,
+                mem_used  INTEGER NOT NULL DEFAULT 0,
+                mem_total INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_ts ON metrics_history(ts)")
+        conn.commit()
+
+
+def _persist_snapshot(snapshot: Dict[str, Any]) -> None:
+    """スナップショットを SQLite に保存し、古いレコードを削除"""
+    try:
+        _init_metrics_db()
+        cutoff = time.time() - (_DB_RETENTION_DAYS * 86400)
+        with _get_db_connection() as conn:
+            conn.execute(
+                """INSERT INTO metrics_history
+                   (ts, timestamp, cpu, memory, disk, load1, load5, load15, mem_used, mem_total)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    snapshot.get("ts", time.time()),
+                    snapshot.get("timestamp", ""),
+                    snapshot.get("cpu_percent", 0),
+                    snapshot.get("mem_percent", 0),
+                    snapshot.get("disk_percent", 0),
+                    snapshot.get("load1", 0),
+                    snapshot.get("load5", 0),
+                    snapshot.get("load15", 0),
+                    snapshot.get("mem_used", 0),
+                    snapshot.get("mem_total", 0),
+                ),
+            )
+            # 保持期間外レコードを削除
+            conn.execute("DELETE FROM metrics_history WHERE ts < ?", (cutoff,))
+            conn.commit()
+    except Exception as e:
+        logger.debug("メトリクスDB保存エラー（無視）: %s", e)
+
+
+def _query_metrics_range(from_ts: float, to_ts: float, max_points: int = 1440) -> List[Dict[str, Any]]:
+    """時間範囲でメトリクス履歴を取得（最大 max_points 点に間引き）"""
+    try:
+        _init_metrics_db()
+        with _get_db_connection() as conn:
+            rows = conn.execute(
+                """SELECT ts, timestamp, cpu, memory, disk, load1, load5, load15, mem_used, mem_total
+                   FROM metrics_history
+                   WHERE ts BETWEEN ? AND ?
+                   ORDER BY ts ASC""",
+                (from_ts, to_ts),
+            ).fetchall()
+
+        # データ点数が多い場合は間引き
+        records = [dict(r) for r in rows]
+        if len(records) > max_points and max_points > 0:
+            step = len(records) / max_points
+            records = [records[int(i * step)] for i in range(max_points)]
+        return records
+    except Exception as e:
+        logger.debug("メトリクスDB読み取りエラー: %s", e)
+        return []
+
+
+def _query_daily_averages(days: int = 7) -> List[Dict[str, Any]]:
+    """日別平均値を返す（トレンドグラフ用）"""
+    try:
+        _init_metrics_db()
+        cutoff = time.time() - (days * 86400)
+        with _get_db_connection() as conn:
+            rows = conn.execute(
+                """SELECT
+                       DATE(timestamp) as day,
+                       ROUND(AVG(cpu), 1)    as avg_cpu,
+                       ROUND(MAX(cpu), 1)    as max_cpu,
+                       ROUND(AVG(memory), 1) as avg_memory,
+                       ROUND(MAX(memory), 1) as max_memory,
+                       ROUND(AVG(disk), 1)   as avg_disk,
+                       COUNT(*)              as samples
+                   FROM metrics_history
+                   WHERE ts > ?
+                   GROUP BY DATE(timestamp)
+                   ORDER BY day ASC""",
+                (cutoff,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.debug("日別平均取得エラー: %s", e)
+        return []
 
 
 # ===================================================================
@@ -199,9 +323,10 @@ def _check_alerts(snapshot: Dict[str, Any], thresholds: Dict[str, float]) -> Lis
 async def get_current_metrics(
     current_user: TokenData = Depends(require_permission("read:system")),
 ) -> Dict[str, Any]:
-    """現在のリソース使用量スナップショットを返す（メモリ内バッファに追記）"""
+    """現在のリソース使用量スナップショットを返す（メモリ内バッファとSQLiteに追記）"""
     snapshot = _collect_snapshot()
     _metrics_history.append(snapshot)
+    _persist_snapshot(snapshot)  # SQLite 永続化
 
     audit_log.record(
         user_id=current_user.username,
@@ -375,3 +500,78 @@ async def get_disk_io(
         "devices": devices,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.get("/history/range")
+async def get_metrics_history_range(
+    hours: int = Query(default=1, ge=1, le=168, description="過去N時間（最大168=7日）"),
+    max_points: int = Query(default=300, ge=10, le=1440, description="最大データ点数"),
+    current_user: TokenData = Depends(require_permission("read:system")),
+) -> Dict[str, Any]:
+    """SQLite から時間範囲指定でメトリクス履歴を返す（Chart.js長期グラフ用）"""
+    to_ts = time.time()
+    from_ts = to_ts - (hours * 3600)
+
+    records = _query_metrics_range(from_ts, to_ts, max_points)
+
+    return {
+        "status": "success",
+        "hours": hours,
+        "points": len(records),
+        "from": datetime.fromtimestamp(from_ts, tz=timezone.utc).isoformat(),
+        "to": datetime.fromtimestamp(to_ts, tz=timezone.utc).isoformat(),
+        "labels": [r["timestamp"] for r in records],
+        "cpu": [r["cpu"] for r in records],
+        "memory": [r["memory"] for r in records],
+        "disk": [r["disk"] for r in records],
+        "load1": [r["load1"] for r in records],
+    }
+
+
+@router.get("/trends/daily")
+async def get_daily_trends(
+    days: int = Query(default=7, ge=1, le=30, description="集計日数"),
+    current_user: TokenData = Depends(require_permission("read:system")),
+) -> Dict[str, Any]:
+    """日別平均・最大値トレンドを返す（週次レポート用）"""
+    daily = _query_daily_averages(days)
+
+    return {
+        "status": "success",
+        "days": days,
+        "retention_days": _DB_RETENTION_DAYS,
+        "data": daily,
+        "labels": [d["day"] for d in daily],
+        "avg_cpu": [d["avg_cpu"] for d in daily],
+        "max_cpu": [d["max_cpu"] for d in daily],
+        "avg_memory": [d["avg_memory"] for d in daily],
+        "max_memory": [d["max_memory"] for d in daily],
+        "avg_disk": [d["avg_disk"] for d in daily],
+        "samples": [d["samples"] for d in daily],
+    }
+
+
+@router.delete("/history", status_code=status.HTTP_200_OK)
+async def clear_metrics_history(
+    current_user: TokenData = Depends(require_permission("write:system")),
+) -> Dict[str, Any]:
+    """メトリクス履歴を全削除（管理者向け）"""
+    _metrics_history.clear()
+    try:
+        _init_metrics_db()
+        with _get_db_connection() as conn:
+            result = conn.execute("DELETE FROM metrics_history")
+            deleted = result.rowcount
+            conn.commit()
+    except Exception as e:
+        logger.warning("DB履歴削除エラー: %s", e)
+        deleted = 0
+
+    audit_log.record(
+        operation="monitoring_history_clear",
+        user_id=current_user.email,
+        target="metrics_history",
+        status="success",
+        details={"deleted_rows": deleted},
+    )
+    return {"status": "success", "message": "メトリクス履歴を削除しました", "deleted_rows": deleted}

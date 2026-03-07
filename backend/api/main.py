@@ -21,6 +21,7 @@ from .routes import (
     ansible,
     apache,
     certificates,
+    containers,
     websocket as ws_router,
     approval,
     audit,
@@ -70,6 +71,7 @@ from .routes import (
     system_time,
     users,
     monitoring,
+    fail2ban,
 )
 
 # ログ設定
@@ -171,6 +173,8 @@ app.include_router(notifications.router, prefix="/api")
 app.include_router(ws_router.router, prefix="/api")
 app.include_router(monitoring.router, prefix="/api")
 app.include_router(certificates.router, prefix="/api")
+app.include_router(fail2ban.router, prefix="/api")
+app.include_router(containers.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>コンテナ管理 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .table-compact td, .table-compact th { padding: 6px 10px; font-size: 13px; }
+
+        .status-badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .status-running  { background: #dcfce7; color: #166534; }
+        .status-exited   { background: #fee2e2; color: #991b1b; }
+        .status-stopped  { background: #f3f4f6; color: #374151; }
+        .status-paused   { background: #fef9c3; color: #854d0e; }
+        .status-created  { background: #dbeafe; color: #1e40af; }
+
+        .log-viewer {
+            background: #1e293b;
+            color: #e2e8f0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 14px;
+            border-radius: 6px;
+            height: 420px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .detail-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .detail-key   { font-weight: 600; color: #374151; min-width: 160px; }
+        .detail-value { color: #6b7280; font-family: monospace; font-size: 13px; }
+
+        .runtime-badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 1px 7px;
+            border-radius: 4px;
+            background: #eff6ff;
+            color: #1e40af;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .image-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+        }
+        .image-name { font-weight: 600; font-size: 14px; font-family: monospace; }
+        .image-meta { font-size: 12px; color: #6b7280; margin-top: 3px; }
+
+        .stats-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+        .stats-label { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+        .stats-value { font-size: 22px; font-weight: 700; color: #1e293b; }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <div class="page-header d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1 class="page-title mb-0">
+                    🐳 コンテナ管理
+                    <span id="runtime-badge" class="runtime-badge d-none"></span>
+                </h1>
+                <p class="text-muted small mb-0">Docker / Podman コンテナの監視と操作</p>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshCurrentTab()">
+                ↻ 更新
+            </button>
+        </div>
+
+        <!-- アラートエリア -->
+        <div id="alert-area"></div>
+
+        <!-- タブ -->
+        <ul class="nav nav-tabs mb-3" id="container-tabs">
+            <li class="nav-item">
+                <a class="nav-link active" onclick="showTab('tab-list')" id="tab-btn-list">
+                    📦 コンテナ一覧
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" onclick="showTab('tab-detail')" id="tab-btn-detail">
+                    🔍 コンテナ詳細
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" onclick="showTab('tab-logs')" id="tab-btn-logs">
+                    📜 ログ
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" onclick="showTab('tab-images')" id="tab-btn-images">
+                    🖼️ イメージ
+                </a>
+            </li>
+        </ul>
+
+        <!-- ①コンテナ一覧タブ -->
+        <div id="tab-list">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div id="container-summary" class="text-muted small"></div>
+                <button class="btn btn-sm btn-danger" onclick="requestPrune()" id="btn-prune">
+                    🗑 停止コンテナ削除
+                </button>
+            </div>
+            <div id="container-list-loading" class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-secondary me-2"></div>読み込み中...
+            </div>
+            <div id="container-list-content" class="d-none">
+                <table class="table table-hover table-compact">
+                    <thead class="table-light">
+                        <tr>
+                            <th>名前</th>
+                            <th>イメージ</th>
+                            <th>ステータス</th>
+                            <th>CPU/メモリ</th>
+                            <th>ポート</th>
+                            <th>作成日</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="container-tbody"></tbody>
+                </table>
+            </div>
+            <div id="container-list-empty" class="text-center text-muted py-4 d-none">
+                コンテナが見つかりません
+            </div>
+        </div>
+
+        <!-- ②コンテナ詳細タブ -->
+        <div id="tab-detail" class="d-none">
+            <div class="mb-3 d-flex gap-2">
+                <input type="text" id="detail-input" class="form-control form-control-sm" style="max-width:300px"
+                    placeholder="コンテナ名を入力..." onkeydown="if(event.key==='Enter')loadDetail()">
+                <button class="btn btn-sm btn-primary" onclick="loadDetail()">取得</button>
+            </div>
+            <div id="detail-loading" class="text-center py-4 d-none">
+                <div class="spinner-border spinner-border-sm text-secondary me-2"></div>読み込み中...
+            </div>
+            <div id="detail-content" class="d-none">
+                <div class="detail-card">
+                    <h6 id="detail-title" class="mb-3 fw-bold"></h6>
+                    <div id="detail-body"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ③ログビューアタブ -->
+        <div id="tab-logs" class="d-none">
+            <div class="mb-3 d-flex gap-2 align-items-center">
+                <input type="text" id="log-input" class="form-control form-control-sm" style="max-width:300px"
+                    placeholder="コンテナ名を入力..." onkeydown="if(event.key==='Enter')loadLogs()">
+                <button class="btn btn-sm btn-primary" onclick="loadLogs()">取得</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="scrollLogsToBottom()">↓ 末尾</button>
+            </div>
+            <div id="log-loading" class="text-center py-4 d-none">
+                <div class="spinner-border spinner-border-sm text-secondary me-2"></div>読み込み中...
+            </div>
+            <pre id="log-viewer" class="log-viewer">コンテナ名を入力してログを取得...</pre>
+        </div>
+
+        <!-- ④イメージ一覧タブ -->
+        <div id="tab-images" class="d-none">
+            <div id="image-list-loading" class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-secondary me-2"></div>読み込み中...
+            </div>
+            <div id="image-list-content" class="d-none">
+                <div id="image-summary" class="text-muted small mb-2"></div>
+                <div id="image-cards"></div>
+            </div>
+            <div id="image-list-empty" class="text-center text-muted py-4 d-none">
+                イメージが見つかりません
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+// ===================================================================
+// タブ管理
+// ===================================================================
+const TABS = ['tab-list', 'tab-detail', 'tab-logs', 'tab-images'];
+let currentTab = 'tab-list';
+
+function showTab(tabId) {
+    TABS.forEach(t => {
+        document.getElementById(t).classList.add('d-none');
+        document.getElementById('tab-btn-' + t.replace('tab-', '')).classList.remove('active');
+    });
+    document.getElementById(tabId).classList.remove('d-none');
+    document.getElementById('tab-btn-' + tabId.replace('tab-', '')).classList.add('active');
+    currentTab = tabId;
+
+    if (tabId === 'tab-images') loadImages();
+}
+
+function refreshCurrentTab() {
+    if (currentTab === 'tab-list') loadContainers();
+    else if (currentTab === 'tab-images') loadImages();
+    else if (currentTab === 'tab-detail') {
+        const name = document.getElementById('detail-input').value.trim();
+        if (name) loadDetail();
+    } else if (currentTab === 'tab-logs') {
+        const name = document.getElementById('log-input').value.trim();
+        if (name) loadLogs();
+    }
+}
+
+// ===================================================================
+// アラート
+// ===================================================================
+function showAlert(msg, type = 'danger') {
+    const area = document.getElementById('alert-area');
+    area.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${escHtml(msg)}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+function clearAlert() {
+    document.getElementById('alert-area').innerHTML = '';
+}
+
+// ===================================================================
+// ステータスバッジ
+// ===================================================================
+function statusBadge(status, state) {
+    const s = (state || status || '').toLowerCase();
+    let cls = 'status-stopped';
+    if (s.includes('running') || s.includes('up')) cls = 'status-running';
+    else if (s.includes('exited') || s.includes('exit')) cls = 'status-exited';
+    else if (s.includes('paused')) cls = 'status-paused';
+    else if (s.includes('created')) cls = 'status-created';
+    return `<span class="status-badge ${cls}">${escHtml(status || state || '-')}</span>`;
+}
+
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+}
+
+// ===================================================================
+// ①コンテナ一覧
+// ===================================================================
+async function loadContainers() {
+    clearAlert();
+    document.getElementById('container-list-loading').classList.remove('d-none');
+    document.getElementById('container-list-content').classList.add('d-none');
+    document.getElementById('container-list-empty').classList.add('d-none');
+
+    try {
+        const data = await api.get('/containers/');
+
+        // ランタイムバッジ
+        if (data.runtime) {
+            const badge = document.getElementById('runtime-badge');
+            badge.textContent = data.runtime;
+            badge.classList.remove('d-none');
+        }
+
+        document.getElementById('container-summary').textContent =
+            `合計 ${data.total} 件 (起動中: ${data.running}, 停止: ${data.stopped})`;
+
+        const tbody = document.getElementById('container-tbody');
+        if (!data.containers || data.containers.length === 0) {
+            document.getElementById('container-list-empty').classList.remove('d-none');
+        } else {
+            tbody.innerHTML = data.containers.map(c => `
+                <tr>
+                    <td><strong>${escHtml(c.name)}</strong><br><small class="text-muted">${escHtml(c.id)}</small></td>
+                    <td>${escHtml(c.image)}</td>
+                    <td>${statusBadge(c.status, c.state)}</td>
+                    <td><small class="text-muted">—</small></td>
+                    <td><small>${escHtml(c.ports || '—')}</small></td>
+                    <td><small>${escHtml(c.created ? c.created.substring(0, 19) : '—')}</small></td>
+                    <td>
+                        <div class="d-flex gap-1 flex-wrap">
+                            <button class="btn btn-xs btn-outline-success" title="起動"
+                                onclick="startContainer('${escHtml(c.name)}')">▶</button>
+                            <button class="btn btn-xs btn-outline-danger" title="停止"
+                                onclick="stopContainer('${escHtml(c.name)}')">■</button>
+                            <button class="btn btn-xs btn-outline-warning" title="再起動"
+                                onclick="restartContainer('${escHtml(c.name)}')">↺</button>
+                            <button class="btn btn-xs btn-outline-secondary" title="ログ"
+                                onclick="openLogs('${escHtml(c.name)}')">📜</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            document.getElementById('container-list-content').classList.remove('d-none');
+        }
+    } catch (err) {
+        showAlert(err.message || 'コンテナ一覧の取得に失敗しました');
+    } finally {
+        document.getElementById('container-list-loading').classList.add('d-none');
+    }
+}
+
+// ===================================================================
+// コンテナ操作
+// ===================================================================
+async function startContainer(name) {
+    clearAlert();
+    try {
+        const data = await api.post(`/containers/${encodeURIComponent(name)}/start`, {});
+        showAlert(`✅ ${data.message || name + ' を起動しました'}`, 'success');
+        setTimeout(loadContainers, 1000);
+    } catch (err) {
+        showAlert(err.message || '起動に失敗しました');
+    }
+}
+
+async function stopContainer(name) {
+    if (!confirm(`コンテナ "${name}" の停止を申請しますか？\n（承認フローが必要です）`)) return;
+    clearAlert();
+    try {
+        const data = await api.post(`/containers/${encodeURIComponent(name)}/stop`, {});
+        showAlert(`⏳ 停止申請を受け付けました。承認をお待ちください (ID: ${data.request_id})`, 'warning');
+    } catch (err) {
+        showAlert(err.message || '停止申請に失敗しました');
+    }
+}
+
+async function restartContainer(name) {
+    if (!confirm(`コンテナ "${name}" の再起動を申請しますか？\n（承認フローが必要です）`)) return;
+    clearAlert();
+    try {
+        const data = await api.post(`/containers/${encodeURIComponent(name)}/restart`, {});
+        showAlert(`⏳ 再起動申請を受け付けました。承認をお待ちください (ID: ${data.request_id})`, 'warning');
+    } catch (err) {
+        showAlert(err.message || '再起動申請に失敗しました');
+    }
+}
+
+async function requestPrune() {
+    if (!confirm('全停止コンテナの削除を申請しますか？\n（承認フローが必要です）')) return;
+    clearAlert();
+    try {
+        const data = await api.post('/containers/prune', {});
+        showAlert(`⏳ 削除申請を受け付けました (ID: ${data.request_id})`, 'warning');
+    } catch (err) {
+        showAlert(err.message || '削除申請に失敗しました');
+    }
+}
+
+// ===================================================================
+// ②コンテナ詳細
+// ===================================================================
+async function loadDetail() {
+    const name = document.getElementById('detail-input').value.trim();
+    if (!name) return;
+    clearAlert();
+
+    document.getElementById('detail-loading').classList.remove('d-none');
+    document.getElementById('detail-content').classList.add('d-none');
+
+    try {
+        const data = await api.get(`/containers/${encodeURIComponent(name)}`);
+        document.getElementById('detail-title').textContent = `コンテナ: ${name}`;
+
+        const detail = Array.isArray(data.detail) ? data.detail[0] : data.detail;
+        const body = document.getElementById('detail-body');
+
+        if (typeof detail === 'object' && detail) {
+            const rows = [
+                ['ID', detail.Id || detail.ID || '—'],
+                ['名前', detail.Name || name],
+                ['ステータス', detail.State?.Status || '—'],
+                ['イメージ', detail.Config?.Image || '—'],
+                ['起動時刻', detail.State?.StartedAt || '—'],
+                ['IPアドレス', detail.NetworkSettings?.IPAddress || '—'],
+                ['コマンド', Array.isArray(detail.Config?.Cmd) ? detail.Config.Cmd.join(' ') : (detail.Config?.Cmd || '—')],
+            ];
+            body.innerHTML = rows.map(([k, v]) =>
+                `<div class="d-flex mb-2"><div class="detail-key">${escHtml(k)}</div><div class="detail-value">${escHtml(String(v))}</div></div>`
+            ).join('') +
+            `<hr><details><summary class="text-muted small">JSON 全体を表示</summary>
+                <pre style="font-size:11px;background:#f8fafc;padding:10px;border-radius:4px;overflow:auto">${escHtml(JSON.stringify(data.detail, null, 2))}</pre>
+            </details>`;
+        } else {
+            body.innerHTML = `<pre style="font-size:12px">${escHtml(String(detail))}</pre>`;
+        }
+
+        document.getElementById('detail-content').classList.remove('d-none');
+    } catch (err) {
+        showAlert(err.message || '詳細の取得に失敗しました');
+    } finally {
+        document.getElementById('detail-loading').classList.add('d-none');
+    }
+}
+
+// ===================================================================
+// ③ログビューア
+// ===================================================================
+function openLogs(name) {
+    showTab('tab-logs');
+    document.getElementById('log-input').value = name;
+    loadLogs();
+}
+
+async function loadLogs() {
+    const name = document.getElementById('log-input').value.trim();
+    if (!name) return;
+    clearAlert();
+
+    document.getElementById('log-loading').classList.remove('d-none');
+    const viewer = document.getElementById('log-viewer');
+    viewer.textContent = '読み込み中...';
+
+    try {
+        const data = await api.get(`/containers/${encodeURIComponent(name)}/logs`);
+        viewer.textContent = data.logs || '(ログなし)';
+        scrollLogsToBottom();
+    } catch (err) {
+        viewer.textContent = 'ログの取得に失敗しました: ' + (err.message || '');
+        showAlert(err.message || 'ログの取得に失敗しました');
+    } finally {
+        document.getElementById('log-loading').classList.add('d-none');
+    }
+}
+
+function scrollLogsToBottom() {
+    const viewer = document.getElementById('log-viewer');
+    viewer.scrollTop = viewer.scrollHeight;
+}
+
+// ===================================================================
+// ④イメージ一覧
+// ===================================================================
+async function loadImages() {
+    document.getElementById('image-list-loading').classList.remove('d-none');
+    document.getElementById('image-list-content').classList.add('d-none');
+    document.getElementById('image-list-empty').classList.add('d-none');
+
+    try {
+        const data = await api.get('/containers/images');
+
+        document.getElementById('image-summary').textContent =
+            `合計 ${data.total} 件`;
+
+        const cards = document.getElementById('image-cards');
+        if (!data.images || data.images.length === 0) {
+            document.getElementById('image-list-empty').classList.remove('d-none');
+        } else {
+            cards.innerHTML = data.images.map(img => `
+                <div class="image-card">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="image-name">${escHtml(img.repository)}:<span style="color:#0891b2">${escHtml(img.tag)}</span></div>
+                            <div class="image-meta">
+                                ID: ${escHtml(img.id)} &nbsp;|&nbsp;
+                                サイズ: ${escHtml(img.size)} &nbsp;|&nbsp;
+                                作成: ${escHtml(img.created ? img.created.substring(0, 10) : '—')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('image-list-content').classList.remove('d-none');
+        }
+    } catch (err) {
+        showAlert(err.message || 'イメージ一覧の取得に失敗しました');
+    } finally {
+        document.getElementById('image-list-loading').classList.add('d-none');
+    }
+}
+
+// ===================================================================
+// 初期化
+// ===================================================================
+document.addEventListener('DOMContentLoaded', async function () {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+        return;
+    }
+    api.setToken(token);
+    loadContainers();
+});
+</script>
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -143,6 +143,10 @@ ROLES = {
             "write:dashboard",
             # TLS/SSL証明書管理
             "read:certificates",
+            # コンテナ管理
+            "read:containers",
+            # Fail2ban 管理
+            "read:fail2ban",
         ],
     ),
     "Operator": UserRole(
@@ -239,6 +243,12 @@ ROLES = {
             # TLS/SSL証明書管理
             "read:certificates",
             "write:certificates",
+            # コンテナ管理
+            "read:containers",
+            "write:containers",
+            # Fail2ban 管理
+            "read:fail2ban",
+            "write:fail2ban",
         ],
     ),
     "Approver": UserRole(
@@ -341,6 +351,13 @@ ROLES = {
             # TLS/SSL証明書管理
             "read:certificates",
             "write:certificates",
+            # コンテナ管理
+            "read:containers",
+            "write:containers",
+            # Fail2ban 管理
+            "read:fail2ban",
+            "write:fail2ban",
+            "admin:fail2ban",
         ],
     ),
     "Admin": UserRole(
@@ -458,6 +475,13 @@ ROLES = {
             # TLS/SSL証明書管理
             "read:certificates",
             "write:certificates",
+            # コンテナ管理
+            "read:containers",
+            "write:containers",
+            # Fail2ban 管理
+            "read:fail2ban",
+            "write:fail2ban",
+            "admin:fail2ban",
         ],
     ),
 }

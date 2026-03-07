@@ -793,3 +793,37 @@ async def get_history(
         count=len(history),
         timestamp=datetime.now().isoformat(),
     )
+
+
+@router.post(
+    "/playbooks/{name}/validate",
+    status_code=status.HTTP_200_OK,
+    summary="Playbook構文チェック",
+    description="ansible-lint / --syntax-check でPlaybookの構文を検証します（実行はしません）",
+)
+async def validate_playbook(
+    name: str,
+    current_user: TokenData = Depends(require_permission("read:ansible")),
+) -> dict:
+    """Playbookの構文チェックを実行する（書き込み不要、read権限で実行可能）"""
+    _validate_playbook_name(name)
+
+    result = _run_wrapper(["validate-playbook", name], timeout=60)
+
+    audit_log.record(
+        operation="ansible_playbook_validate",
+        user_id=current_user.user_id,
+        target=name,
+        status=result.get("status", "unknown"),
+    )
+
+    if result.get("status") == "error" and "not found" in result.get("message", "").lower():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Playbook not found: {name}")
+
+    return {
+        "status": result.get("status", "unknown"),
+        "playbook": name,
+        "message": result.get("message", ""),
+        "output": result.get("stdout", ""),
+        "timestamp": datetime.now().isoformat(),
+    }

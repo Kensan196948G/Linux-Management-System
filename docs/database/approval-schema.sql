@@ -297,6 +297,34 @@ VALUES
      1,
      24,
      0,
+     'HIGH'),
+
+    -- コンテナ管理
+    ('container_stop',
+     'コンテナ停止',
+     1,
+     '["Approver", "Admin"]',
+     1,
+     12,
+     0,
+     'HIGH'),
+
+    ('container_restart',
+     'コンテナ再起動',
+     1,
+     '["Approver", "Admin"]',
+     1,
+     12,
+     0,
+     'HIGH'),
+
+    ('container_prune',
+     '停止コンテナ一括削除',
+     1,
+     '["Admin"]',
+     1,
+     12,
+     0,
      'HIGH');
 
 

@@ -295,3 +295,170 @@ class TestDiskIOEndpoint:
         """未認証は401"""
         response = test_client.get("/api/monitoring/disk/io")
         assert response.status_code in (401, 403)
+
+
+# ===================================================================
+# SQLite 永続化 + 新エンドポイントテスト
+# ===================================================================
+
+
+class TestMetricsHistoryRange:
+    """GET /api/monitoring/history/range のテスト"""
+
+    def test_range_returns_200(self, test_client, admin_headers):
+        """時間範囲指定履歴取得が成功"""
+        resp = test_client.get("/api/monitoring/history/range?hours=1", headers=admin_headers)
+        assert resp.status_code == 200
+
+    def test_range_response_structure(self, test_client, admin_headers):
+        """レスポンス構造が正しい"""
+        resp = test_client.get("/api/monitoring/history/range?hours=1", headers=admin_headers)
+        data = resp.json()
+        assert "hours" in data
+        assert "points" in data
+        assert "labels" in data
+        assert "cpu" in data
+        assert "memory" in data
+        assert "disk" in data
+
+    def test_range_hours_too_large_rejected(self, test_client, admin_headers):
+        """168時間超は拒否"""
+        resp = test_client.get("/api/monitoring/history/range?hours=200", headers=admin_headers)
+        assert resp.status_code == 422
+
+    def test_range_hours_zero_rejected(self, test_client, admin_headers):
+        """hours=0 は拒否"""
+        resp = test_client.get("/api/monitoring/history/range?hours=0", headers=admin_headers)
+        assert resp.status_code == 422
+
+    def test_range_max_points_valid(self, test_client, admin_headers):
+        """max_points パラメータが機能する"""
+        resp = test_client.get(
+            "/api/monitoring/history/range?hours=1&max_points=50",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["points"] <= 50
+
+    def test_range_unauthenticated_rejected(self, test_client):
+        """未認証は拒否"""
+        resp = test_client.get("/api/monitoring/history/range?hours=1")
+        assert resp.status_code in (401, 403)
+
+    def test_range_viewer_can_read(self, test_client, viewer_headers):
+        """Viewer も履歴取得可能"""
+        resp = test_client.get("/api/monitoring/history/range?hours=1", headers=viewer_headers)
+        assert resp.status_code == 200
+
+
+class TestDailyTrends:
+    """GET /api/monitoring/trends/daily のテスト"""
+
+    def test_daily_returns_200(self, test_client, admin_headers):
+        """日別トレンド取得が成功"""
+        resp = test_client.get("/api/monitoring/trends/daily", headers=admin_headers)
+        assert resp.status_code == 200
+
+    def test_daily_response_structure(self, test_client, admin_headers):
+        """レスポンス構造が正しい"""
+        resp = test_client.get("/api/monitoring/trends/daily", headers=admin_headers)
+        data = resp.json()
+        assert "days" in data
+        assert "labels" in data
+        assert "avg_cpu" in data
+        assert "max_cpu" in data
+        assert "avg_memory" in data
+        assert "retention_days" in data
+        assert data["retention_days"] == 7
+
+    def test_daily_default_7_days(self, test_client, admin_headers):
+        """デフォルト7日分"""
+        resp = test_client.get("/api/monitoring/trends/daily", headers=admin_headers)
+        data = resp.json()
+        assert data["days"] == 7
+
+    def test_daily_custom_days(self, test_client, admin_headers):
+        """日数指定が機能する"""
+        resp = test_client.get("/api/monitoring/trends/daily?days=3", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["days"] == 3
+
+    def test_daily_days_too_large_rejected(self, test_client, admin_headers):
+        """30日超は拒否"""
+        resp = test_client.get("/api/monitoring/trends/daily?days=31", headers=admin_headers)
+        assert resp.status_code == 422
+
+    def test_daily_unauthenticated_rejected(self, test_client):
+        """未認証は拒否"""
+        resp = test_client.get("/api/monitoring/trends/daily")
+        assert resp.status_code in (401, 403)
+
+
+class TestClearMetricsHistory:
+    """DELETE /api/monitoring/history のテスト"""
+
+    def test_clear_admin_success(self, test_client, admin_headers):
+        """Admin は履歴削除可能"""
+        resp = test_client.delete("/api/monitoring/history", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+
+    def test_clear_viewer_forbidden(self, test_client, viewer_headers):
+        """Viewer は削除不可（write:system 権限なし）"""
+        resp = test_client.delete("/api/monitoring/history", headers=viewer_headers)
+        assert resp.status_code in (401, 403)
+
+    def test_clear_unauthenticated_rejected(self, test_client):
+        """未認証は拒否"""
+        resp = test_client.delete("/api/monitoring/history")
+        assert resp.status_code in (401, 403)
+
+
+class TestMetricsPersistence:
+    """SQLite 永続化のユニットテスト"""
+
+    def test_persist_snapshot_creates_db(self, tmp_path, monkeypatch):
+        """_persist_snapshot がDBを作成してデータを保存する"""
+        import time
+        from backend.api.routes import monitoring as m
+
+        db_path = tmp_path / "test_metrics.db"
+        monkeypatch.setattr(m, "_METRICS_DB_PATH", db_path)
+
+        snapshot = {
+            "ts": time.time(),
+            "timestamp": "2026-01-01T00:00:00Z",
+            "cpu_percent": 45.2,
+            "mem_percent": 60.1,
+            "disk_percent": 30.0,
+            "load1": 1.2,
+            "load5": 1.5,
+            "load15": 1.8,
+            "mem_used": 4096,
+            "mem_total": 8192,
+        }
+        m._persist_snapshot(snapshot)
+        assert db_path.exists()
+
+    def test_query_range_returns_list(self, tmp_path, monkeypatch):
+        """_query_metrics_range が空リストを返す（データなし）"""
+        from backend.api.routes import monitoring as m
+
+        db_path = tmp_path / "empty_metrics.db"
+        monkeypatch.setattr(m, "_METRICS_DB_PATH", db_path)
+
+        result = m._query_metrics_range(0, 9999999999)
+        assert isinstance(result, list)
+
+    def test_query_daily_returns_list(self, tmp_path, monkeypatch):
+        """_query_daily_averages が空リストを返す（データなし）"""
+        from backend.api.routes import monitoring as m
+
+        db_path = tmp_path / "empty_daily.db"
+        monkeypatch.setattr(m, "_METRICS_DB_PATH", db_path)
+
+        result = m._query_daily_averages(7)
+        assert isinstance(result, list)
