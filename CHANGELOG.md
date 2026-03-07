@@ -9,6 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.43.0] - 2026-03-07
+
+### Added
+- **2FA TOTPログイン検証ステップ** (`frontend/dev/index.html`)
+  - ログイン後に `/api/auth/2fa/status` を自動チェック
+  - 2FA有効ユーザー: TOTPフォーム表示（6桁自動サブミット）
+  - キャンセルボタンでトークンクリア・フォームに戻る
+
+## [v0.42.1] - 2026-03-07
+
+### Fixed
+- **DarkMode 全55ページ対応完了** (55/55, 100%)
+  - 未対応6ページに `theme.js` 追加: certificates, containers, multi-ssh, nfs, realtime-alerts, ssh-hosts
+
+## [v0.42.0] - 2026-03-07
+
+### Security
+- **Bandit MEDIUM /tmp hardcoded パス修正** (0件達成)
+  - `backup.py`: RestoreRequest.restore_target デフォルトを `/var/tmp/adminui-restore` に変更
+  - `filemanager.py`: `#nosec B108` 注釈でallowlist管理済みを明示
+  - `bandit -ll`: Medium/High 0件
+
+## [v0.41.0] - 2026-03-07
+
+### Added
+- **Prometheusメトリクスエンドポイント** (`GET /api/monitoring/prometheus`)
+  - OpenMetrics形式でCPU/メモリ/ディスク/ネットワーク/アラート状態を出力
+- **operator権限拡張**: `execute:service_restart`, `request:approval` 追加
+- **approval_service初期化修正**: startup時に `initialize_db()` 呼び出し追加
+
+### Fixed
+- `.gitignore`: `*.db-journal`, `*.db-wal`, `*.db-shm` 追加
+- 古いWorktree (v0.11-v0.15, 10個) 全削除・ブランチ削除
+
+### Tests
+- `test_services_api.py`: POST /api/services/restart 統合テスト22件追加 (services.py 100%カバレッジ)
+- `test_monitoring_api.py`: Prometheusエクスポート5テスト追加
+
 ## [v0.37.0] - 2026-03-07
 
 ### Added
