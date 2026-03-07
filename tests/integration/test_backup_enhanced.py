@@ -280,7 +280,7 @@ def test_restore_request_202(test_client, admin_headers):
     """リストア申請が202で返り、approval_requiredがTrue"""
     payload = {
         "backup_file": "/var/backups/test.tar.gz",
-        "restore_target": "/tmp/restore",
+        "restore_target": "/var/tmp/adminui-restore",
         "reason": "障害復旧のためリストアが必要です",
     }
     resp = test_client.post("/api/backup/restore", json=payload, headers=admin_headers)
@@ -295,7 +295,7 @@ def test_restore_request_403_no_auth(test_client):
     """認証なしは403"""
     payload = {
         "backup_file": "/var/backups/test.tar.gz",
-        "restore_target": "/tmp/restore",
+        "restore_target": "/var/tmp/adminui-restore",
         "reason": "テスト理由",
     }
     resp = test_client.post("/api/backup/restore", json=payload)
@@ -306,7 +306,7 @@ def test_restore_request_short_reason(test_client, admin_headers):
     """理由が短すぎる場合はバリデーションエラー"""
     payload = {
         "backup_file": "/var/backups/test.tar.gz",
-        "restore_target": "/tmp/restore",
+        "restore_target": "/var/tmp/adminui-restore",
         "reason": "ok",
     }
     resp = test_client.post("/api/backup/restore", json=payload, headers=admin_headers)
@@ -318,7 +318,7 @@ def test_restore_request_forbidden_char_in_file(test_client, admin_headers):
     """バックアップファイルパスに禁止文字があれば400または503"""
     payload = {
         "backup_file": "/var/backups/test;rm.tar.gz",
-        "restore_target": "/tmp/restore",
+        "restore_target": "/var/tmp/adminui-restore",
         "reason": "テスト目的のリストア申請です",
     }
     resp = test_client.post("/api/backup/restore", json=payload, headers=admin_headers)

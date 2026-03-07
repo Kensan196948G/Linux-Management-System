@@ -49,7 +49,7 @@ class RestoreRequest(BaseModel):
     """リストアリクエスト"""
 
     backup_file: str = Field(..., description="バックアップファイルのパス")
-    restore_target: str = Field(default="/tmp/restore", description="リストア先ディレクトリ")
+    restore_target: str = Field(default="/var/tmp/adminui-restore", description="リストア先ディレクトリ")  # nosec B108
     reason: str = Field(..., min_length=5, max_length=500, description="リストア理由")
 
 

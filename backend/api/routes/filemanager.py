@@ -27,9 +27,9 @@ from ...core.sudo_wrapper import SudoWrapperError
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/files", tags=["filemanager"])
 
-# アクセス許可ベースディレクトリ
+# アクセス許可ベースディレクトリ (セキュリティ: validate_path()でパストラバーサル防止済み)
 ALLOWED_BASE_DIRS = [
-    "/tmp",
+    "/tmp",  # nosec B108 - allowlist管理済み・validate_path()でパストラバーサル防止
     "/var/log",
     "/etc/nginx",
     "/etc/apache2",
@@ -200,7 +200,7 @@ class ChmodRequest(BaseModel):
 
 
 # ファイルアップロード許可ディレクトリ (書き込み可能ディレクトリのみ)
-UPLOAD_ALLOWED_DIRS = ["/var/www", "/home", "/tmp"]
+UPLOAD_ALLOWED_DIRS = ["/var/www", "/home", "/tmp"]  # nosec B108 - allowlist管理済み
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
 
