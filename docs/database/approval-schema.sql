@@ -271,6 +271,25 @@ VALUES
      0,
      'CRITICAL'),
 
+    -- ネットワーク設定管理 (v0.40)
+    ('network_config_change',
+     'ネットワークインターフェース IP/CIDR/ゲートウェイ変更',
+     1,
+     '["Approver", "Admin"]',
+     1,
+     12,
+     0,
+     'HIGH'),
+
+    ('dns_config_change',
+     'DNS サーバ設定変更',
+     1,
+     '["Approver", "Admin"]',
+     1,
+     12,
+     0,
+     'HIGH'),
+
     -- パッケージ管理
     ('package_install',
      'パッケージインストール',
@@ -353,7 +372,25 @@ VALUES
      1,
      1,
      0,
-     'MEDIUM');
+     'MEDIUM'),
+
+    ('network_config_change',
+     'ネットワーク設定変更',
+     1,
+     '["Approver", "Admin"]',
+     1,
+     1,
+     0,
+     'HIGH'),
+
+    ('dns_config_change',
+     'DNS設定変更',
+     1,
+     '["Approver", "Admin"]',
+     1,
+     1,
+     0,
+     'HIGH');
 
 
 -- ============================================================

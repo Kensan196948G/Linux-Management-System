@@ -1,26 +1,36 @@
 """
-ネットワーク管理 API エンドポイント（読み取り専用）
+ネットワーク管理 API エンドポイント
 
-提供エンドポイント:
-  GET /api/network/interfaces   - インターフェース一覧
-  GET /api/network/stats        - インターフェース統計
-  GET /api/network/connections  - アクティブな接続
-  GET /api/network/routes       - ルーティングテーブル
-  GET /api/network/dns          - DNS設定
+提供エンドポイント（読み取り）:
+  GET /api/network/interfaces         - インターフェース一覧
+  GET /api/network/interfaces/{name}  - 特定インターフェース詳細
+  GET /api/network/stats              - インターフェース統計
+  GET /api/network/connections        - アクティブな接続
+  GET /api/network/routes             - ルーティングテーブル
+  GET /api/network/dns                - DNS設定
+
+提供エンドポイント（設定変更 - 承認フロー経由）:
+  PATCH /api/network/interfaces/{name} - IP/CIDR/GW変更リクエスト
+  PATCH /api/network/dns               - DNS設定変更リクエスト
 """
 
+import ipaddress
 import logging
 import re
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ...core import require_permission, sudo_wrapper
+from ...core.approval_service import ApprovalService
 from ...core.audit_log import audit_log
 from ...core.auth import TokenData
+from ...core.config import settings
 from ...core.sudo_wrapper import SudoWrapperError
 from ._utils import parse_wrapper_result
+
+_approval_service = ApprovalService(db_path=settings.database.path)
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +72,83 @@ class NetworkRoutesResponse(BaseModel):
     status: str
     routes: list[Any] = Field(default_factory=list)
     timestamp: str
+
+
+# -------------------------------------------------------------------
+# 設定変更リクエストモデル (v0.40)
+# -------------------------------------------------------------------
+
+
+class NetworkInterfaceConfigRequest(BaseModel):
+    """IPアドレス/CIDR/ゲートウェイ変更リクエスト"""
+
+    ip_cidr: str = Field(..., description="IPアドレス/CIDR形式 (例: 192.168.1.100/24)")
+    gateway: str = Field(..., description="デフォルトゲートウェイIPアドレス (例: 192.168.1.1)")
+    reason: str = Field(..., min_length=1, max_length=500, description="変更理由")
+
+
+class NetworkDnsConfigRequest(BaseModel):
+    """DNS設定変更リクエスト"""
+
+    dns1: str = Field(..., description="プライマリDNSサーバIPアドレス")
+    dns2: Optional[str] = Field(None, description="セカンダリDNSサーバIPアドレス（省略可）")
+    reason: str = Field(..., min_length=1, max_length=500, description="変更理由")
+
+
+# -------------------------------------------------------------------
+# バリデーション関数 (v0.40)
+# -------------------------------------------------------------------
+
+
+def validate_interface_name(name: str) -> bool:
+    """
+    インターフェース名を検証する。
+
+    eth0, ens3, enp2s0, lo, wlan0 等の形式のみ許可。
+
+    Args:
+        name: 検証するインターフェース名
+
+    Returns:
+        有効な場合 True
+    """
+    return bool(re.match(r"^[a-z][a-z0-9]{0,15}$", name))
+
+
+def validate_ip_cidr(ip_cidr: str) -> bool:
+    """
+    IPアドレス/CIDR形式を検証する。
+
+    192.168.1.100/24 形式のIPv4アドレスのみ許可（CIDR必須）。
+
+    Args:
+        ip_cidr: 検証するIP/CIDR文字列
+
+    Returns:
+        有効な場合 True
+    """
+    try:
+        ipaddress.ip_interface(ip_cidr)
+        return True
+    except ValueError:
+        return False
+
+
+def validate_ip_address(ip: str) -> bool:
+    """
+    IPアドレス（CIDR無し）を検証する。
+
+    Args:
+        ip: 検証するIPアドレス文字列
+
+    Returns:
+        有効な場合 True
+    """
+    try:
+        ipaddress.ip_address(ip)
+        return True
+    except ValueError:
+        return False
 
 
 # ===================================================================
@@ -556,3 +643,333 @@ async def get_active_connections(
     except Exception as e:
         logger.error(f"Network active-connections failed: {e}")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+# ===================================================================
+# v0.40 追加エンドポイント: 特定IF詳細取得・設定変更（承認フロー）
+# ===================================================================
+
+
+@router.get("/interfaces/{interface_name}")
+async def get_interface_detail(
+    interface_name: str,
+    current_user: TokenData = Depends(require_permission("read:network")),
+):
+    """
+    特定ネットワークインターフェースの詳細を取得する。
+
+    Args:
+        interface_name: インターフェース名 (例: eth0, ens3)
+        current_user: 現在のユーザー (read:network 権限必須)
+
+    Returns:
+        インターフェース詳細情報
+
+    Raises:
+        HTTPException 400: 不正なインターフェース名
+        HTTPException 404: インターフェースが存在しない
+    """
+    if not validate_interface_name(interface_name):
+        audit_log.record(
+            operation="network_interface_detail",
+            user_id=current_user.user_id,
+            target=interface_name,
+            status="denied",
+            details={"reason": "invalid_interface_name"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"status": "error", "message": f"Invalid interface name: {interface_name}"},
+        )
+
+    logger.info(f"Network interface detail requested: if={interface_name} by={current_user.username}")
+
+    audit_log.record(
+        operation="network_interface_detail",
+        user_id=current_user.user_id,
+        target=interface_name,
+        status="attempt",
+        details={},
+    )
+
+    import datetime
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            ["/usr/sbin/ip", "-j", "addr", "show", "dev", interface_name],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if proc.returncode != 0:
+            audit_log.record(
+                operation="network_interface_detail",
+                user_id=current_user.user_id,
+                target=interface_name,
+                status="failure",
+                details={"stderr": proc.stderr},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"status": "error", "message": f"Interface not found: {interface_name}"},
+            )
+
+        import json as _json
+
+        iface_data = _json.loads(proc.stdout) if proc.stdout.strip() else []
+        audit_log.record(
+            operation="network_interface_detail",
+            user_id=current_user.user_id,
+            target=interface_name,
+            status="success",
+            details={},
+        )
+        return {
+            "status": "success",
+            "interface": iface_data,
+            "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Network interface detail failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "message": str(e)},
+        )
+
+
+@router.patch("/interfaces/{interface_name}", status_code=status.HTTP_202_ACCEPTED)
+async def update_interface_config(
+    interface_name: str,
+    req: NetworkInterfaceConfigRequest,
+    current_user: TokenData = Depends(require_permission("write:network")),
+):
+    """
+    ネットワークインターフェースのIP/CIDR/ゲートウェイ変更を承認フロー経由でリクエストする。
+
+    変更は直接適用されず、承認フロー経由で実行される（危険操作）。
+
+    Args:
+        interface_name: 対象インターフェース名 (例: eth0)
+        req: 変更内容（ip_cidr, gateway, reason）
+        current_user: 現在のユーザー (write:network 権限必須)
+
+    Returns:
+        202 Accepted: 承認リクエストID
+
+    Raises:
+        HTTPException 400: 不正なIF名・IP形式
+        HTTPException 403: 権限不足
+    """
+    # インターフェース名バリデーション
+    if not validate_interface_name(interface_name):
+        audit_log.record(
+            operation="network_interface_config_request",
+            user_id=current_user.user_id,
+            target=interface_name,
+            status="denied",
+            details={"reason": "invalid_interface_name"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"status": "error", "message": f"Invalid interface name: {interface_name}"},
+        )
+
+    # IP/CIDR バリデーション
+    if not validate_ip_cidr(req.ip_cidr):
+        audit_log.record(
+            operation="network_interface_config_request",
+            user_id=current_user.user_id,
+            target=interface_name,
+            status="denied",
+            details={"reason": "invalid_ip_cidr", "ip_cidr": req.ip_cidr},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"status": "error", "message": f"Invalid IP/CIDR format: {req.ip_cidr}"},
+        )
+
+    # ゲートウェイ バリデーション
+    if not validate_ip_address(req.gateway):
+        audit_log.record(
+            operation="network_interface_config_request",
+            user_id=current_user.user_id,
+            target=interface_name,
+            status="denied",
+            details={"reason": "invalid_gateway", "gateway": req.gateway},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"status": "error", "message": f"Invalid gateway address: {req.gateway}"},
+        )
+
+    logger.info(
+        f"Network interface config change requested: if={interface_name} "
+        f"ip={req.ip_cidr} gw={req.gateway} by={current_user.username}"
+    )
+
+    audit_log.record(
+        operation="network_interface_config_request",
+        user_id=current_user.user_id,
+        target=interface_name,
+        status="attempt",
+        details={"ip_cidr": req.ip_cidr, "gateway": req.gateway},
+    )
+
+    try:
+        approval_req = await _approval_service.create_request(
+            request_type="network_config_change",
+            payload={
+                "interface": interface_name,
+                "ip_cidr": req.ip_cidr,
+                "gateway": req.gateway,
+            },
+            reason=req.reason,
+            requester_id=current_user.user_id,
+            requester_name=current_user.email,
+            requester_role=current_user.role,
+        )
+
+        audit_log.record(
+            operation="network_interface_config_request",
+            user_id=current_user.user_id,
+            target=interface_name,
+            status="success",
+            details={
+                "approval_id": approval_req.get("id"),
+                "ip_cidr": req.ip_cidr,
+                "gateway": req.gateway,
+            },
+        )
+
+        return {
+            "status": "pending_approval",
+            "message": "ネットワーク設定変更リクエストを承認待ちキューに登録しました",
+            "approval_id": approval_req.get("id"),
+            "interface": interface_name,
+            "ip_cidr": req.ip_cidr,
+            "gateway": req.gateway,
+        }
+
+    except Exception as e:
+        audit_log.record(
+            operation="network_interface_config_request",
+            user_id=current_user.user_id,
+            target=interface_name,
+            status="failure",
+            details={"error": str(e)},
+        )
+        logger.error(f"Network interface config request failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "message": f"承認リクエスト作成失敗: {str(e)}"},
+        )
+
+
+@router.patch("/dns", status_code=status.HTTP_202_ACCEPTED)
+async def update_dns_config(
+    req: NetworkDnsConfigRequest,
+    current_user: TokenData = Depends(require_permission("write:network")),
+):
+    """
+    DNS設定変更を承認フロー経由でリクエストする。
+
+    変更は直接適用されず、承認フロー経由で実行される（危険操作）。
+
+    Args:
+        req: DNS変更内容（dns1, dns2, reason）
+        current_user: 現在のユーザー (write:network 権限必須)
+
+    Returns:
+        202 Accepted: 承認リクエストID
+
+    Raises:
+        HTTPException 422: 不正なIPアドレス形式
+        HTTPException 403: 権限不足
+    """
+    # DNS1 バリデーション
+    if not validate_ip_address(req.dns1):
+        audit_log.record(
+            operation="network_dns_config_request",
+            user_id=current_user.user_id,
+            target="dns",
+            status="denied",
+            details={"reason": "invalid_dns1", "dns1": req.dns1},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"status": "error", "message": f"Invalid DNS1 address: {req.dns1}"},
+        )
+
+    # DNS2 バリデーション（指定時のみ）
+    if req.dns2 is not None and not validate_ip_address(req.dns2):
+        audit_log.record(
+            operation="network_dns_config_request",
+            user_id=current_user.user_id,
+            target="dns",
+            status="denied",
+            details={"reason": "invalid_dns2", "dns2": req.dns2},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"status": "error", "message": f"Invalid DNS2 address: {req.dns2}"},
+        )
+
+    logger.info(
+        f"DNS config change requested: dns1={req.dns1} dns2={req.dns2} by={current_user.username}"
+    )
+
+    audit_log.record(
+        operation="network_dns_config_request",
+        user_id=current_user.user_id,
+        target="dns",
+        status="attempt",
+        details={"dns1": req.dns1, "dns2": req.dns2},
+    )
+
+    try:
+        payload: dict = {"dns1": req.dns1}
+        if req.dns2:
+            payload["dns2"] = req.dns2
+
+        approval_req = await _approval_service.create_request(
+            request_type="dns_config_change",
+            payload=payload,
+            reason=req.reason,
+            requester_id=current_user.user_id,
+            requester_name=current_user.email,
+            requester_role=current_user.role,
+        )
+
+        audit_log.record(
+            operation="network_dns_config_request",
+            user_id=current_user.user_id,
+            target="dns",
+            status="success",
+            details={"approval_id": approval_req.get("id"), "dns1": req.dns1, "dns2": req.dns2},
+        )
+
+        return {
+            "status": "pending_approval",
+            "message": "DNS設定変更リクエストを承認待ちキューに登録しました",
+            "approval_id": approval_req.get("id"),
+            "dns1": req.dns1,
+            "dns2": req.dns2,
+        }
+
+    except Exception as e:
+        audit_log.record(
+            operation="network_dns_config_request",
+            user_id=current_user.user_id,
+            target="dns",
+            status="failure",
+            details={"error": str(e)},
+        )
+        logger.error(f"DNS config request failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "message": f"承認リクエスト作成失敗: {str(e)}"},
+        )

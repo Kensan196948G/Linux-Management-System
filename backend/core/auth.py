@@ -5,6 +5,7 @@ JWT ベースの認証と、ユーザーロールベースの認可を実装
 """
 
 import logging
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -159,19 +160,9 @@ ROLES = {
             "read:journal",
             "read:processes",
             "read:network",
+            # ネットワーク設定変更（承認フロー経由）
+            "write:network",
             "read:servers",
-            "read:hardware",
-            "read:firewall",
-            "read:packages",
-            "read:ssh",
-            "execute:service_restart",
-            # Cron ジョブ管理
-            "read:cron",
-            "write:cron",
-            # ユーザー・グループ管理
-            "read:users",
-            # 承認関連
-            "request:approval",
             "view:approval_policies",
             # 監査ログ（自分のログのみ）
             "read:audit",
@@ -265,6 +256,8 @@ ROLES = {
             "read:journal",
             "read:processes",
             "read:network",
+            # ネットワーク設定変更（承認フロー経由）
+            "write:network",
             "read:servers",
             "read:hardware",
             "read:firewall",
@@ -369,6 +362,8 @@ ROLES = {
             "read:nfs",
             "write:nfs",
             "admin:nfs",
+            # セッション管理（読み取り）
+            "read:session_mgmt",
         ],
     ),
     "Admin": UserRole(
@@ -379,6 +374,8 @@ ROLES = {
             "read:journal",
             "read:processes",
             "read:network",
+            # ネットワーク設定変更（承認フロー経由）
+            "write:network",
             "read:servers",
             "read:hardware",
             "read:firewall",
@@ -498,6 +495,9 @@ ROLES = {
             "read:nfs",
             "write:nfs",
             "admin:nfs",
+            # セッション管理（読み取り・管理）
+            "read:session_mgmt",
+            "manage:sessions",
         ],
     ),
 }
@@ -586,7 +586,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.jwt_expiration_minutes)
 
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
 
     encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
@@ -665,6 +665,14 @@ def decode_token(token: str) -> TokenData:
 
         if user_id is None or username is None or role is None:
             raise credentials_exception
+
+        # JTIブロックリストチェック（後方互換: jtiなしトークンは許容）
+        jti: str = payload.get("jti")
+        if jti:
+            from .session_store import session_store
+
+            if session_store.is_revoked(jti):
+                raise credentials_exception
 
         return TokenData(user_id=user_id, username=username, role=role, email=email)
 

@@ -99,6 +99,11 @@
                         🔗 接続一覧
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" onclick="showTab('network-config')" id="tab-network-config">
+                        ⚙️ 設定変更
+                    </a>
+                </li>
             </ul>
 
             <!-- インターフェース一覧 -->
@@ -191,6 +196,69 @@
                     <pre id="active-connections-pre" class="bg-light p-3 rounded" style="font-size:12px;max-height:500px;overflow:auto"></pre>
                 </div>
             </div>
+
+            <!-- 設定変更タブ（承認フロー経由） -->
+            <div id="pane-network-config" style="display:none">
+                <div class="alert alert-warning mb-3">
+                    <strong>⚠️ 注意:</strong> 設定変更は承認フロー経由で実行されます。Approver/Admin の承認が必要です。
+                </div>
+                <div id="network-config-result" class="mb-3"></div>
+
+                <!-- IP/GW変更フォーム -->
+                <div class="card mb-4">
+                    <div class="card-header fw-bold">🔧 IPアドレス・ゲートウェイ変更</div>
+                    <div class="card-body">
+                        <form id="ip-config-form" onsubmit="submitIpConfig(event)">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">インターフェース名 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="ip-interface" placeholder="例: eth0, ens3, enp2s0"
+                                    pattern="^[a-z][a-z0-9]{0,15}$" required>
+                                <div class="form-text">英小文字・数字のみ（例: eth0, ens3, wlan0）</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">IPアドレス/CIDR <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="ip-cidr" placeholder="例: 192.168.1.100/24" required>
+                                <div class="form-text">CIDR形式 (例: 192.168.1.100/24)</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">デフォルトゲートウェイ <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="ip-gateway" placeholder="例: 192.168.1.1" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">変更理由 <span class="text-danger">*</span></label>
+                                <textarea class="form-control" id="ip-reason" rows="2" placeholder="変更理由を入力してください" required maxlength="500"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-warning" id="ip-submit-btn">
+                                📋 変更リクエストを送信
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- DNS変更フォーム -->
+                <div class="card mb-4">
+                    <div class="card-header fw-bold">🌐 DNS設定変更</div>
+                    <div class="card-body">
+                        <form id="dns-config-form" onsubmit="submitDnsConfig(event)">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">プライマリ DNS <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="dns1" placeholder="例: 8.8.8.8" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">セカンダリ DNS（省略可）</label>
+                                <input type="text" class="form-control" id="dns2" placeholder="例: 8.8.4.4">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">変更理由 <span class="text-danger">*</span></label>
+                                <textarea class="form-control" id="dns-reason" rows="2" placeholder="変更理由を入力してください" required maxlength="500"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-warning" id="dns-submit-btn">
+                                📋 DNS変更リクエストを送信
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 </div>
@@ -205,7 +273,7 @@ let currentTab = 'interfaces';
 
 // タブ切り替え
 function showTab(tab) {
-    ['interfaces', 'connections', 'routes', 'stats', 'interfaces-detail', 'dns-config', 'active-connections'].forEach(t => {
+    ['interfaces', 'connections', 'routes', 'stats', 'interfaces-detail', 'dns-config', 'active-connections', 'network-config'].forEach(t => {
         document.getElementById(`pane-${t}`).style.display = t === tab ? '' : 'none';
         document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
     });
@@ -217,6 +285,7 @@ function showTab(tab) {
     else if (tab === 'interfaces-detail') loadInterfacesDetail();
     else if (tab === 'dns-config') loadDnsConfig();
     else if (tab === 'active-connections') loadActiveConnections();
+    // network-config は静的フォームなので追加ロードは不要
 }
 
 function showAlert(msg, type = 'danger') {
@@ -428,6 +497,98 @@ async function loadActiveConnections() {
 
 function refreshAll() {
     showTab(currentTab);
+}
+
+// ===================================================================
+// 設定変更フォーム処理 (v0.40)
+// ===================================================================
+
+function showConfigResult(msg, type = 'success') {
+    const el = document.getElementById('network-config-result');
+    el.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${msg}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+async function submitIpConfig(event) {
+    event.preventDefault();
+    const iface = document.getElementById('ip-interface').value.trim();
+    const ipCidr = document.getElementById('ip-cidr').value.trim();
+    const gateway = document.getElementById('ip-gateway').value.trim();
+    const reason = document.getElementById('ip-reason').value.trim();
+
+    const btn = document.getElementById('ip-submit-btn');
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+
+    try {
+        const resp = await fetch(`/api/network/interfaces/${encodeURIComponent(iface)}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            },
+            body: JSON.stringify({ ip_cidr: ipCidr, gateway: gateway, reason: reason })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            showConfigResult(
+                `✅ 承認リクエストを送信しました。承認ID: <code>${data.approval_id || '(取得中)'}</code>`,
+                'success'
+            );
+            document.getElementById('ip-config-form').reset();
+        } else {
+            const msg = data.detail?.message || data.message || JSON.stringify(data);
+            showConfigResult(`❌ エラー: ${msg}`, 'danger');
+        }
+    } catch (e) {
+        showConfigResult(`❌ 通信エラー: ${e.message}`, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📋 変更リクエストを送信';
+    }
+}
+
+async function submitDnsConfig(event) {
+    event.preventDefault();
+    const dns1 = document.getElementById('dns1').value.trim();
+    const dns2 = document.getElementById('dns2').value.trim() || null;
+    const reason = document.getElementById('dns-reason').value.trim();
+
+    const btn = document.getElementById('dns-submit-btn');
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+
+    try {
+        const body = { dns1, reason };
+        if (dns2) body.dns2 = dns2;
+
+        const resp = await fetch('/api/network/dns', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            },
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            showConfigResult(
+                `✅ DNS変更リクエストを送信しました。承認ID: <code>${data.approval_id || '(取得中)'}</code>`,
+                'success'
+            );
+            document.getElementById('dns-config-form').reset();
+        } else {
+            const msg = data.detail?.message || data.message || JSON.stringify(data);
+            showConfigResult(`❌ エラー: ${msg}`, 'danger');
+        }
+    } catch (e) {
+        showConfigResult(`❌ 通信エラー: ${e.message}`, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📋 DNS変更リクエストを送信';
+    }
 }
 
 // 認証チェックして初期化
