@@ -132,6 +132,10 @@ ROLES = {
             "read:logsearch",
             # 通知管理
             "read:notifications",
+            # Ansible連携
+            "read:ansible",
+            # システムリソース監視
+            "read:system",
         ],
     ),
     "Operator": UserRole(
@@ -208,10 +212,17 @@ ROLES = {
             "read:alerts",
             # バックアップ管理
             "read:backup",
+            "write:backup",
             # ログ検索
             "read:logsearch",
             # 通知管理
             "read:notifications",
+            # Ansible連携
+            "read:ansible",
+            "write:ansible",
+            # システムリソース監視
+            "read:system",
+            "write:system",
         ],
     ),
     "Approver": UserRole(
@@ -295,10 +306,16 @@ ROLES = {
             "read:alerts",
             # バックアップ管理
             "read:backup",
+            "write:backup",
             # ログ検索
             "read:logsearch",
             # 通知管理
             "read:notifications",
+            # Ansible連携
+            "read:ansible",
+            "write:ansible",
+            # システムリソース監視
+            "read:system",
         ],
     ),
     "Admin": UserRole(
@@ -395,11 +412,18 @@ ROLES = {
             "read:alerts",
             # バックアップ管理
             "read:backup",
+            "write:backup",
             # ログ検索
             "read:logsearch",
             # 通知管理
             "read:notifications",
             "write:notifications",
+            # Ansible連携
+            "read:ansible",
+            "write:ansible",
+            # システムリソース監視
+            "read:system",
+            "write:system",
         ],
     ),
 }

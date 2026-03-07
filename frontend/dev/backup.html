@@ -9,247 +9,535 @@
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <style>
         .backup-card {
-            background: white;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-            padding: 20px;
-            margin-bottom: 16px;
+            background: white; border-radius: 8px;
+            border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px;
         }
-        .dark-mode .backup-card {
-            background: #1e293b;
-            border-color: #334155;
-            color: #e2e8f0;
-        }
+        .dark-mode .backup-card { background: #1e293b; border-color: #334155; color: #e2e8f0; }
         .dark-mode body, .dark-mode .main-content { background: #0f172a; color: #e2e8f0; }
         .backup-card-title {
-            font-size: 15px;
-            font-weight: bold;
-            color: #111827;
-            margin-bottom: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            font-size: 15px; font-weight: bold; color: #111827;
+            margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
         }
         .dark-mode .backup-card-title { color: #f1f5f9; }
         .usage-value { font-size: 28px; font-weight: bold; color: #2563eb; }
         .dark-mode .usage-value { color: #60a5fa; }
         .log-pre {
-            background: #1e293b;
-            color: #e2e8f0;
-            border-radius: 6px;
-            padding: 14px;
-            font-size: 12px;
-            max-height: 320px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
+            background: #1e293b; color: #e2e8f0; border-radius: 6px;
+            padding: 14px; font-size: 12px; max-height: 320px;
+            overflow-y: auto; white-space: pre-wrap; word-break: break-all;
         }
         .approval-badge {
-            display: inline-block;
-            background: #fef3c7;
-            color: #92400e;
-            border-radius: 4px;
-            padding: 2px 8px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-left: 8px;
+            display: inline-block; background: #fef3c7; color: #92400e;
+            border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; margin-left: 8px;
         }
         .dark-mode .approval-badge { background: #451a03; color: #fde68a; }
         .loading-placeholder { color: #9ca3af; font-size: 13px; }
         #theme-toggle-btn { position: fixed; top: 16px; right: 20px; z-index: 1000; }
+        .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+        .status-running { background: #22c55e; }
+        .progress-bar-wrap { background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden; margin: 8px 0; }
+        .progress-bar-fill { height: 100%; background: #2563eb; transition: width 0.4s ease; border-radius: 4px; }
+        .dark-mode .progress-bar-wrap { background: #334155; }
+        .nav-tabs .nav-link { color: #64748b; }
+        .nav-tabs .nav-link.active { font-weight: 600; }
+        .dark-mode .nav-tabs .nav-link { color: #94a3b8; border-color: #334155; }
+        .dark-mode .nav-tabs .nav-link.active { color: #f1f5f9; background: #1e293b; border-color: #475569 #475569 #1e293b; }
+        .cron-preset-btn { cursor: pointer; }
     </style>
-<script src="../js/theme.js"></script>
+    <script src="../js/theme.js"></script>
 </head>
 <body>
 <div class="app-layout">
     <aside class="sidebar" id="sidebar-container"></aside>
-
     <main class="main-content">
         <div class="main-header">
-            <h2>💾 バックアップ管理</h2>
+            <h2>&#x1F4BE; バックアップ管理</h2>
             <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()" id="refresh-btn">🔄 更新</button>
-                <button class="btn btn-sm btn-outline-secondary" id="theme-toggle-btn" onclick="toggleTheme()">🌙 ダーク</button>
+                <span id="running-indicator" class="d-none">
+                    <span class="status-dot status-running"></span>
+                    <span style="font-size:13px;color:#22c55e;">実行中</span>
+                </span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshCurrentTab()" id="refresh-btn">&#x1F504; 更新</button>
+                <button class="btn btn-sm btn-outline-secondary" id="theme-toggle-btn" onclick="toggleTheme()">&#x1F319; ダーク</button>
             </div>
         </div>
-
         <div class="main-body">
             <div id="alert-area"></div>
 
-            <div class="row g-3">
-                <!-- ディスク使用量 -->
-                <div class="col-md-4">
-                    <div class="backup-card">
-                        <div class="backup-card-title">📊 ディスク使用量</div>
-                        <div id="disk-usage-content"><div class="loading-placeholder">読み込み中...</div></div>
+            <!-- 概要バー -->
+            <div class="backup-card mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="usage-value" id="disk-usage-val">---</span>
+                        <span style="font-size:13px;color:#6b7280;margin-left:8px;">バックアップ総サイズ</span>
                     </div>
+                    <span id="backup-status-badge" class="badge bg-secondary">確認中...</span>
                 </div>
+                <div id="status-progress-wrap" class="progress-bar-wrap d-none">
+                    <div id="status-progress-bar" class="progress-bar-fill" style="width:0%"></div>
+                </div>
+            </div>
 
-                <!-- バックアップステータス -->
-                <div class="col-md-8">
+            <!-- 4タブ -->
+            <ul class="nav nav-tabs" id="backupTabs" role="tablist">
+                <li class="nav-item"><button class="nav-link active" id="tab-now-btn" data-bs-toggle="tab" data-bs-target="#tab-now" type="button" onclick="loadNowTab()">&#x25B6;&#xFE0F; 今すぐバックアップ</button></li>
+                <li class="nav-item"><button class="nav-link" id="tab-schedule-btn" data-bs-toggle="tab" data-bs-target="#tab-schedule" type="button" onclick="loadScheduleTab()">&#x1F553; スケジュール管理</button></li>
+                <li class="nav-item"><button class="nav-link" id="tab-history-btn" data-bs-toggle="tab" data-bs-target="#tab-history" type="button" onclick="loadHistoryTab()">&#x1F4DC; 履歴・ストレージ</button></li>
+                <li class="nav-item"><button class="nav-link" id="tab-restore-btn" data-bs-toggle="tab" data-bs-target="#tab-restore" type="button" onclick="loadRestoreTab()">&#x267B;&#xFE0F; リストア <span class="approval-badge">要承認</span></button></li>
+            </ul>
+
+            <div class="tab-content border border-top-0 p-3 rounded-bottom" id="backupTabContent">
+
+                <!-- タブ1: 今すぐバックアップ -->
+                <div class="tab-pane fade show active" id="tab-now" role="tabpanel">
                     <div class="backup-card">
-                        <div class="backup-card-title">⏱️ バックアップステータス</div>
+                        <div class="backup-card-title">&#x23F1;&#xFE0F; バックアップステータス</div>
                         <div id="status-content"><div class="loading-placeholder">読み込み中...</div></div>
                     </div>
-                </div>
-
-                <!-- バックアップ一覧 -->
-                <div class="col-12">
                     <div class="backup-card">
-                        <div class="backup-card-title">📁 バックアップファイル一覧</div>
+                        <div class="backup-card-title">&#x1F4C1; バックアップファイル一覧</div>
                         <div id="backup-list-content"><div class="loading-placeholder">読み込み中...</div></div>
                     </div>
-                </div>
-
-                <!-- ログビューア -->
-                <div class="col-12">
                     <div class="backup-card">
-                        <div class="backup-card-title">📋 バックアップログ</div>
+                        <div class="backup-card-title">&#x1F4CB; バックアップログ</div>
                         <div id="log-content"><div class="loading-placeholder">読み込み中...</div></div>
                     </div>
                 </div>
 
-                <!-- 操作パネル（承認フロー経由） -->
-                <div class="col-12">
+                <!-- タブ2: スケジュール管理 -->
+                <div class="tab-pane fade" id="tab-schedule" role="tabpanel">
                     <div class="backup-card">
-                        <div class="backup-card-title">
-                            ⚙️ バックアップ操作
-                            <span class="approval-badge">要承認</span>
-                        </div>
-                        <p class="text-muted" style="font-size:13px;">
-                            バックアップの実行・リストアは承認フロー経由でのみ実行できます。
-                            申請後、承認者の承認が必要です。
-                        </p>
-                        <div class="d-flex gap-2 flex-wrap">
-                            <button class="btn btn-sm btn-outline-primary" onclick="requestApproval('backup-run')">
-                                ▶️ バックアップ実行を申請
-                            </button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="requestApproval('backup-restore')">
-                                ♻️ リストアを申請
-                            </button>
-                        </div>
+                        <div class="backup-card-title">&#x2795; スケジュール追加</div>
+                        <form id="schedule-form" onsubmit="createSchedule(event)">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">スケジュール名</label>
+                                    <input type="text" class="form-control" id="sched-name" placeholder="例: 毎日深夜バックアップ" required maxlength="100">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">対象ディレクトリ</label>
+                                    <select class="form-select" id="sched-target">
+                                        <option value="/home">/home</option>
+                                        <option value="/etc">/etc</option>
+                                        <option value="/var/www">/var/www</option>
+                                        <option value="/opt">/opt</option>
+                                        <option value="/var/backups">/var/backups</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label fw-semibold">cron式 <small class="text-muted ms-2">分 時 日 月 曜日</small></label>
+                                    <input type="text" class="form-control font-monospace" id="sched-cron" placeholder="0 2 * * *" required>
+                                    <div class="mt-2 d-flex gap-2 flex-wrap">
+                                        <span class="badge bg-light text-dark border cron-preset-btn" onclick="setCronPreset('daily')">毎日 (0 2 * * *)</span>
+                                        <span class="badge bg-light text-dark border cron-preset-btn" onclick="setCronPreset('weekly')">毎週日曜 (0 2 * * 0)</span>
+                                        <span class="badge bg-light text-dark border cron-preset-btn" onclick="setCronPreset('monthly')">毎月1日 (0 2 1 * *)</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="sched-enabled" checked>
+                                        <label class="form-check-label" for="sched-enabled">有効</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button type="submit" class="btn btn-primary btn-sm">&#x1F4BE; スケジュール追加</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="backup-card">
+                        <div class="backup-card-title">&#x1F4CB; スケジュール一覧</div>
+                        <div id="schedule-list-content"><div class="loading-placeholder">読み込み中...</div></div>
                     </div>
                 </div>
+
+                <!-- タブ3: 履歴・ストレージ -->
+                <div class="tab-pane fade" id="tab-history" role="tabpanel">
+                    <div class="backup-card">
+                        <div class="backup-card-title">&#x1F4CA; ストレージ使用量・ファイル一覧</div>
+                        <div id="storage-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                    <div class="backup-card">
+                        <div class="backup-card-title">&#x1F4DC; バックアップ実行履歴（最新50件）</div>
+                        <div id="history-content"><div class="loading-placeholder">読み込み中...</div></div>
+                    </div>
+                </div>
+
+                <!-- タブ4: リストア -->
+                <div class="tab-pane fade" id="tab-restore" role="tabpanel">
+                    <div class="backup-card">
+                        <div class="backup-card-title">&#x267B;&#xFE0F; リストア申請 <span class="approval-badge">承認フロー経由</span></div>
+                        <p class="text-muted" style="font-size:13px;">リストアは承認者による承認が必要です。申請後、承認者が承認するとリストアが実行されます。</p>
+                        <form id="restore-form" onsubmit="submitRestore(event)">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">バックアップファイル選択</label>
+                                <select class="form-select" id="restore-file-select">
+                                    <option value="">-- ストレージタブを開いてファイルを読み込んでください --</option>
+                                </select>
+                                <input type="text" class="form-control mt-2 font-monospace" id="restore-file-path" placeholder="/var/backups/backup.tar.gz（直接入力も可）">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">リストア先ディレクトリ</label>
+                                <input type="text" class="form-control font-monospace" id="restore-target" value="/tmp/restore">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">申請理由 <span class="text-danger">*</span></label>
+                                <textarea class="form-control" id="restore-reason" rows="3" required minlength="5" maxlength="500" placeholder="リストアが必要な理由を記入してください（必須）"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-warning btn-sm">&#x1F4E4; リストア申請を送信</button>
+                        </form>
+                        <div id="restore-result" class="mt-3 d-none"></div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </main>
 </div>
 
+<!-- 確認ダイアログ -->
+<div class="modal fade" id="restoreConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">&#x26A0;&#xFE0F; リストア申請の確認</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>以下の内容でリストア申請を送信します。承認者の承認後にリストアが実行されます。</p>
+                <table class="table table-sm">
+                    <tr><th style="width:40%">対象ファイル</th><td id="confirm-file" class="font-monospace"></td></tr>
+                    <tr><th>リストア先</th><td id="confirm-target" class="font-monospace"></td></tr>
+                    <tr><th>申請理由</th><td id="confirm-reason"></td></tr>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-warning" id="confirm-restore-btn" onclick="executeRestore()">&#x1F4E4; 申請を送信</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="../js/sidebar.js"></script>
 <script src="../js/auth.js"></script>
 <script>
+    const CRON_PRESETS = { daily: '0 2 * * *', weekly: '0 2 * * 0', monthly: '0 2 1 * *' };
+    let storageFiles = [];
+    let pendingRestorePayload = null;
+
     function escapeHtml(str) {
         if (str == null) return '';
         return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
     function showAlert(msg, type) {
+        if (!type) type = 'info';
         const area = document.getElementById('alert-area');
-        area.innerHTML = `<div class="alert alert-${escapeHtml(type)} alert-dismissible fade show" role="alert">
-            ${escapeHtml(msg)}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>`;
+        area.innerHTML = '<div class="alert alert-' + escapeHtml(type) + ' alert-dismissible fade show" role="alert">'
+            + escapeHtml(msg) + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
     }
 
-    async function apiFetch(path) {
+    async function apiFetch(path, opts) {
+        if (!opts) opts = {};
         const token = localStorage.getItem('access_token');
-        const res = await fetch(path, {
-            headers: token ? { 'Authorization': 'Bearer ' + token } : {}
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const headers = Object.assign({}, opts.headers || {});
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const res = await fetch(path, Object.assign({}, opts, { headers }));
+        if (!res.ok) {
+            const body = await res.json().catch(function() { return {}; });
+            throw new Error((body.detail) || ('HTTP ' + res.status));
+        }
         return res.json();
     }
 
-    async function loadDiskUsage() {
-        const el = document.getElementById('disk-usage-content');
+    function setCronPreset(name) {
+        document.getElementById('sched-cron').value = CRON_PRESETS[name] || '';
+    }
+
+    function toggleTheme() {
+        document.body.classList.toggle('dark-mode');
+        const btn = document.getElementById('theme-toggle-btn');
+        btn.textContent = document.body.classList.contains('dark-mode') ? '\u2600\uFE0F ライト' : '\uD83C\uDF19 ダーク';
+    }
+
+    function refreshCurrentTab() {
+        const btn = document.getElementById('refresh-btn');
+        btn.disabled = true; btn.textContent = '⏳ 更新中...';
+        const active = document.querySelector('.nav-tabs .nav-link.active');
+        let p;
+        if (active && active.id === 'tab-schedule-btn') p = loadScheduleTab();
+        else if (active && active.id === 'tab-history-btn') p = loadHistoryTab();
+        else if (active && active.id === 'tab-restore-btn') p = loadRestoreTab();
+        else p = loadNowTab();
+        Promise.allSettled([p, loadSummary()]).then(function() {
+            btn.disabled = false; btn.textContent = '🔄 更新';
+        });
+    }
+
+    async function loadSummary() {
         try {
-            const data = await apiFetch('/api/backup/disk-usage');
-            el.innerHTML = `<div class="usage-value">${escapeHtml(data.usage || '---')}</div>
-                <div style="font-size:12px;color:#6b7280;margin-top:6px;">${escapeHtml(data.timestamp || '')}</div>`;
-        } catch(e) {
-            el.innerHTML = `<span class="text-danger">取得エラー: ${escapeHtml(e.message)}</span>`;
-        }
+            const usage = await apiFetch('/api/backup/disk-usage').catch(function() { return null; });
+            const stat = await apiFetch('/api/backup/status').catch(function() { return null; });
+            if (usage) document.getElementById('disk-usage-val').textContent = usage.usage || '---';
+            if (stat) {
+                const running = stat.running;
+                const badge = document.getElementById('backup-status-badge');
+                const indicator = document.getElementById('running-indicator');
+                if (running) {
+                    badge.className = 'badge bg-success'; badge.textContent = '実行中';
+                    indicator.classList.remove('d-none');
+                } else {
+                    badge.className = 'badge bg-secondary'; badge.textContent = 'アイドル';
+                    indicator.classList.add('d-none');
+                }
+            }
+        } catch(e) {}
+    }
+
+    async function loadNowTab() {
+        await Promise.allSettled([loadStatus(), loadBackupList(), loadRecentLogs()]);
     }
 
     async function loadStatus() {
         const el = document.getElementById('status-content');
         try {
             const data = await apiFetch('/api/backup/status');
-            const lines = (data.status || 'No backup timers found').trim().split('\n');
-            if (lines.length === 0 || (lines.length === 1 && lines[0] === '')) {
-                el.innerHTML = '<span class="text-muted">バックアップタイマーなし</span>';
-            } else {
-                const rows = lines.map(l =>
-                    `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid #f3f4f6;">${escapeHtml(l)}</div>`
-                ).join('');
-                el.innerHTML = rows;
-            }
-        } catch(e) {
-            el.innerHTML = `<span class="text-danger">取得エラー: ${escapeHtml(e.message)}</span>`;
-        }
+            const lines = data.status_lines || [];
+            if (!lines.length) { el.innerHTML = '<span class="text-muted">バックアップタイマーなし</span>'; return; }
+            el.innerHTML = lines.map(function(l) {
+                return '<div style="font-size:13px;padding:4px 0;border-bottom:1px solid #f3f4f6;">' + escapeHtml(l) + '</div>';
+            }).join('');
+        } catch(e) { el.innerHTML = '<span class="text-danger">取得エラー: ' + escapeHtml(e.message) + '</span>'; }
     }
 
     async function loadBackupList() {
         const el = document.getElementById('backup-list-content');
         try {
             const data = await apiFetch('/api/backup/list');
-            if (!data.backups || data.backups.length === 0) {
-                el.innerHTML = '<span class="text-muted">バックアップファイルなし</span>';
-                return;
-            }
-            let html = `<p class="mb-2" style="font-size:12px;color:#6b7280;">合計: ${escapeHtml(String(data.count))} 件</p>`;
+            if (!data.backups || !data.backups.length) { el.innerHTML = '<span class="text-muted">バックアップファイルなし</span>'; return; }
+            let html = '<p class="mb-2" style="font-size:12px;color:#6b7280;">合計: ' + escapeHtml(String(data.count)) + ' 件</p>';
             html += '<table class="table table-sm table-hover" style="font-size:13px;"><tbody>';
-            for (const line of data.backups) {
-                html += `<tr><td><code>${escapeHtml(line)}</code></td></tr>`;
-            }
+            for (let i = 0; i < data.backups.length; i++)
+                html += '<tr><td><code>' + escapeHtml(data.backups[i]) + '</code></td></tr>';
             html += '</tbody></table>';
             el.innerHTML = html;
-        } catch(e) {
-            el.innerHTML = `<span class="text-danger">取得エラー: ${escapeHtml(e.message)}</span>`;
-        }
+        } catch(e) { el.innerHTML = '<span class="text-danger">取得エラー: ' + escapeHtml(e.message) + '</span>'; }
     }
 
     async function loadRecentLogs() {
         const el = document.getElementById('log-content');
         try {
             const data = await apiFetch('/api/backup/recent-logs');
-            if (!data.logs || data.logs.length === 0) {
-                el.innerHTML = '<span class="text-muted">ログなし</span>';
-                return;
+            if (!data.logs || !data.logs.length) { el.innerHTML = '<span class="text-muted">ログなし</span>'; return; }
+            el.innerHTML = '<pre class="log-pre">' + data.logs.map(function(l) { return escapeHtml(l); }).join('\n') + '</pre>';
+        } catch(e) { el.innerHTML = '<span class="text-danger">取得エラー: ' + escapeHtml(e.message) + '</span>'; }
+    }
+
+    async function loadScheduleTab() { await loadScheduleList(); }
+
+    async function loadScheduleList() {
+        const el = document.getElementById('schedule-list-content');
+        try {
+            const data = await apiFetch('/api/backup/schedules');
+            const schedules = data.schedules || [];
+            if (!schedules.length) { el.innerHTML = '<span class="text-muted">スケジュールなし</span>'; return; }
+            let html = '<table class="table table-sm table-hover" style="font-size:13px;">'
+                + '<thead><tr><th>名前</th><th>cron</th><th>対象</th><th>有効</th><th>作成日</th><th></th></tr></thead><tbody>';
+            for (let i = 0; i < schedules.length; i++) {
+                const s = schedules[i];
+                const created = s.created_at ? new Date(s.created_at).toLocaleString('ja-JP') : '-';
+                html += '<tr><td>' + escapeHtml(s.name) + '</td>'
+                    + '<td><code>' + escapeHtml(s.cron) + '</code></td>'
+                    + '<td><code>' + escapeHtml(s.target) + '</code></td>'
+                    + '<td><span class="badge ' + (s.enabled ? 'bg-success' : 'bg-secondary') + '">' + (s.enabled ? '有効' : '無効') + '</span></td>'
+                    + '<td style="font-size:11px;">' + escapeHtml(created) + '</td>'
+                    + '<td><button class="btn btn-outline-danger btn-sm" style="font-size:11px;padding:1px 6px;"'
+                    + ' onclick="deleteSchedule(' + "'" + escapeHtml(s.id) + "'" + ',' + "'" + escapeHtml(s.name) + "'" + ')">削除</button></td></tr>';
             }
-            const text = data.logs.map(l => escapeHtml(l)).join('\n');
-            el.innerHTML = `<pre class="log-pre">${text}</pre>`;
-        } catch(e) {
-            el.innerHTML = `<span class="text-danger">取得エラー: ${escapeHtml(e.message)}</span>`;
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        } catch(e) { el.innerHTML = '<span class="text-danger">取得エラー: ' + escapeHtml(e.message) + '</span>'; }
+    }
+
+    async function createSchedule(e) {
+        e.preventDefault();
+        const name = document.getElementById('sched-name').value.trim();
+        const cron = document.getElementById('sched-cron').value.trim();
+        const target = document.getElementById('sched-target').value;
+        const enabled = document.getElementById('sched-enabled').checked;
+        try {
+            await apiFetch('/api/backup/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, cron: cron, target: target, enabled: enabled })
+            });
+            showAlert('スケジュールを追加しました', 'success');
+            document.getElementById('schedule-form').reset();
+            await loadScheduleList();
+        } catch(e) { showAlert('スケジュール追加エラー: ' + e.message, 'danger'); }
+    }
+
+    async function deleteSchedule(id, name) {
+        if (!confirm('スケジュール「' + name + '」を削除しますか？')) return;
+        try {
+            await apiFetch('/api/backup/schedules/' + encodeURIComponent(id), { method: 'DELETE' });
+            showAlert('スケジュールを削除しました', 'success');
+            await loadScheduleList();
+        } catch(e) { showAlert('削除エラー: ' + e.message, 'danger'); }
+    }
+
+    async function loadHistoryTab() { await Promise.allSettled([loadStorage(), loadHistory()]); }
+
+    async function loadStorage() {
+        const el = document.getElementById('storage-content');
+        try {
+            const data = await apiFetch('/api/backup/storage');
+            storageFiles = data.files || [];
+            updateRestoreFileSelect();
+            let html = '<p class="mb-2"><strong>総使用量:</strong> ' + escapeHtml(data.total_usage || '---') + ' &nbsp;'
+                + '<span style="font-size:12px;color:#6b7280;">' + escapeHtml(String(data.count)) + ' ファイル</span></p>';
+            if (!storageFiles.length) {
+                html += '<span class="text-muted">バックアップファイルなし</span>';
+            } else {
+                html += '<table class="table table-sm table-hover" style="font-size:13px;">'
+                    + '<thead><tr><th>ファイル名</th><th>パス</th><th>サイズ(bytes)</th><th>更新日時</th></tr></thead><tbody>';
+                for (let i = 0; i < storageFiles.length; i++) {
+                    const f = storageFiles[i];
+                    const size = f.size != null ? Number(f.size).toLocaleString() : '-';
+                    const mtime = f.mtime ? new Date(f.mtime).toLocaleString('ja-JP') : '-';
+                    html += '<tr><td>' + escapeHtml(f.name || '-') + '</td>'
+                        + '<td><code>' + escapeHtml(f.path || '-') + '</code></td>'
+                        + '<td class="text-end">' + size + '</td>'
+                        + '<td>' + escapeHtml(mtime) + '</td></tr>';
+                }
+                html += '</tbody></table>';
+            }
+            el.innerHTML = html;
+        } catch(e) { el.innerHTML = '<span class="text-danger">取得エラー: ' + escapeHtml(e.message) + '</span>'; }
+    }
+
+    async function loadHistory() {
+        const el = document.getElementById('history-content');
+        try {
+            const data = await apiFetch('/api/backup/history');
+            const history = data.history || [];
+            if (!history.length) { el.innerHTML = '<span class="text-muted">実行履歴なし</span>'; return; }
+            let html = '<table class="table table-sm table-hover" style="font-size:13px;">'
+                + '<thead><tr><th>実行日時</th><th>ターゲット</th><th>サイズ</th><th>ステータス</th></tr></thead><tbody>';
+            for (let i = 0; i < history.length; i++) {
+                const h = history[i];
+                const dt = h.timestamp ? new Date(h.timestamp).toLocaleString('ja-JP') : '-';
+                const sc = h.status === 'success' ? 'bg-success' : (h.status === 'failed' ? 'bg-danger' : 'bg-secondary');
+                html += '<tr><td>' + escapeHtml(dt) + '</td>'
+                    + '<td><code>' + escapeHtml(h.target || '-') + '</code></td>'
+                    + '<td>' + escapeHtml(h.size ? String(h.size) : '-') + '</td>'
+                    + '<td><span class="badge ' + sc + '">' + escapeHtml(h.status || '-') + '</span></td></tr>';
+            }
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        } catch(e) { el.innerHTML = '<span class="text-danger">取得エラー: ' + escapeHtml(e.message) + '</span>'; }
+    }
+
+    async function loadRestoreTab() {
+        if (storageFiles.length === 0) {
+            try {
+                const data = await apiFetch('/api/backup/storage');
+                storageFiles = data.files || [];
+                updateRestoreFileSelect();
+            } catch(e) {}
         }
     }
 
-    function requestApproval(action) {
-        showAlert(`承認申請: ${escapeHtml(action)} — 承認フローページから申請してください。`, 'info');
+    function updateRestoreFileSelect() {
+        const sel = document.getElementById('restore-file-select');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">-- ファイルを選択 --</option>';
+        for (let i = 0; i < storageFiles.length; i++) {
+            const f = storageFiles[i];
+            const opt = document.createElement('option');
+            opt.value = f.path || '';
+            opt.textContent = (f.name || f.path || '-') + (f.size ? ' (' + Number(f.size).toLocaleString() + ' bytes)' : '');
+            sel.appendChild(opt);
+        }
+        sel.onchange = function() {
+            if (sel.value) document.getElementById('restore-file-path').value = sel.value;
+        };
     }
 
-    function toggleTheme() {
-        document.body.classList.toggle('dark-mode');
-        const btn = document.getElementById('theme-toggle-btn');
-        btn.textContent = document.body.classList.contains('dark-mode') ? '☀️ ライト' : '🌙 ダーク';
+    function submitRestore(e) {
+        e.preventDefault();
+        const fileSel = document.getElementById('restore-file-select').value;
+        const filePath = document.getElementById('restore-file-path').value.trim() || fileSel;
+        const target = document.getElementById('restore-target').value.trim();
+        const reason = document.getElementById('restore-reason').value.trim();
+        if (!filePath) { showAlert('バックアップファイルを選択または入力してください', 'warning'); return; }
+        if (!reason || reason.length < 5) { showAlert('申請理由を5文字以上で入力してください', 'warning'); return; }
+        document.getElementById('confirm-file').textContent = filePath;
+        document.getElementById('confirm-target').textContent = target;
+        document.getElementById('confirm-reason').textContent = reason;
+        pendingRestorePayload = { backup_file: filePath, restore_target: target, reason: reason };
+        const modal = new bootstrap.Modal(document.getElementById('restoreConfirmModal'));
+        modal.show();
     }
 
-    async function refreshAll() {
-        const btn = document.getElementById('refresh-btn');
-        btn.disabled = true;
-        btn.textContent = '⏳ 更新中...';
-        await Promise.allSettled([loadDiskUsage(), loadStatus(), loadBackupList(), loadRecentLogs()]);
-        btn.disabled = false;
-        btn.textContent = '🔄 更新';
+    async function executeRestore() {
+        if (!pendingRestorePayload) return;
+        const btn = document.getElementById('confirm-restore-btn');
+        btn.disabled = true; btn.textContent = '送信中...';
+        try {
+            const data = await apiFetch('/api/backup/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pendingRestorePayload)
+            });
+            bootstrap.Modal.getInstance(document.getElementById('restoreConfirmModal')).hide();
+            const resultEl = document.getElementById('restore-result');
+            resultEl.className = 'mt-3';
+            resultEl.innerHTML = '<div class="alert alert-success">&#x2705; リストア申請を送信しました。<br>'
+                + '<strong>申請ID:</strong> <code>' + escapeHtml(data.request_id || '-') + '</code><br>'
+                + '承認者の承認後にリストアが実行されます。</div>';
+            document.getElementById('restore-form').reset();
+        } catch(e) {
+            bootstrap.Modal.getInstance(document.getElementById('restoreConfirmModal')).hide();
+            showAlert('リストア申請エラー: ' + e.message, 'danger');
+        } finally {
+            btn.disabled = false; btn.textContent = '📤 申請を送信';
+            pendingRestorePayload = null;
+        }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        refreshAll();
+    function startStatusPolling() {
+        setInterval(function() {
+            apiFetch('/api/backup/status').then(function(data) {
+                const running = data.running;
+                const indicator = document.getElementById('running-indicator');
+                const badge = document.getElementById('backup-status-badge');
+                const wrap = document.getElementById('status-progress-wrap');
+                if (running) {
+                    indicator.classList.remove('d-none');
+                    badge.className = 'badge bg-success'; badge.textContent = '実行中';
+                    wrap.classList.remove('d-none');
+                    const bar = document.getElementById('status-progress-bar');
+                    const cur = parseInt(bar.style.width) || 0;
+                    bar.style.width = Math.min(cur + 5, 90) + '%';
+                } else {
+                    indicator.classList.add('d-none');
+                    badge.className = 'badge bg-secondary'; badge.textContent = 'アイドル';
+                    wrap.classList.add('d-none');
+                    document.getElementById('status-progress-bar').style.width = '0%';
+                }
+            }).catch(function() {});
+        }, 15000);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSummary();
+        loadNowTab();
+        startStatusPolling();
     });
 </script>
 </body>

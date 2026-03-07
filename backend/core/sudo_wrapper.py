@@ -2678,6 +2678,30 @@ class SudoWrapper:
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
+    def list_backup_files(self) -> dict:
+        """バックアップファイル詳細一覧を取得（JSON形式）"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "list-backups"], capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def list_backup_schedules(self) -> dict:
+        """cronからバックアップスケジュール一覧を取得"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "list-schedules"], capture_output=True, text=True, timeout=30
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
+    def restore_backup_file(self, backup_file: str, restore_dir: str) -> dict:
+        """バックアップファイルをリストア（承認フロー経由でのみ呼ばれる）"""
+        result = subprocess.run(
+            ["sudo", "/usr/local/sbin/adminui-backup.sh", "restore-file", backup_file, restore_dir],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+
     def get_active_sessions(self) -> dict:
         """アクティブなユーザーセッション一覧 (who -u)"""
         result = subprocess.run(
