@@ -368,3 +368,80 @@ async def request_restore(
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
 
+
+
+@router.patch("/schedules/{schedule_id}/toggle", status_code=status.HTTP_200_OK)
+async def toggle_schedule(
+    schedule_id: str,
+    current_user: Annotated[TokenData, Depends(require_permission("write:backup"))] = None,
+):
+    """スケジュールの有効/無効を切り替える（write:backup権限）"""
+    try:
+        data = _load_schedules()
+        target_sched = next((s for s in data["schedules"] if s["id"] == schedule_id), None)
+        if not target_sched:
+            raise HTTPException(status_code=404, detail=f"スケジュール '{schedule_id}' が見つかりません")
+
+        target_sched["enabled"] = not target_sched.get("enabled", True)
+        target_sched["updated_at"] = datetime.now(timezone.utc).isoformat()
+        _save_schedules(data)
+
+        audit_log.record(
+            user_id=current_user.user_id,
+            operation="backup_schedule_toggle",
+            target=target_sched.get("target", ""),
+            status="success",
+            details={"schedule_id": schedule_id, "enabled": target_sched["enabled"]},
+        )
+        return {
+            "status": "updated",
+            "schedule_id": schedule_id,
+            "enabled": target_sched["enabled"],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/schedules/{schedule_id}/run-now", status_code=status.HTTP_202_ACCEPTED)
+async def run_schedule_now(
+    schedule_id: str,
+    current_user: Annotated[TokenData, Depends(require_permission("write:backup"))] = None,
+):
+    """スケジュールを即時実行（承認フロー経由・write:backup権限）"""
+    try:
+        data = _load_schedules()
+        target_sched = next((s for s in data["schedules"] if s["id"] == schedule_id), None)
+        if not target_sched:
+            raise HTTPException(status_code=404, detail=f"スケジュール '{schedule_id}' が見つかりません")
+
+        result = await approval_service.create_request(
+            request_type="backup_run",
+            payload={"schedule_id": schedule_id, "target": target_sched.get("target", ""), "triggered_by": "manual"},
+            reason=f"手動実行: {target_sched.get('name', schedule_id)}",
+            requester_id=current_user.user_id,
+            requester_name=current_user.username,
+            requester_role=current_user.role,
+        )
+
+        audit_log.record(
+            user_id=current_user.user_id,
+            operation="backup_schedule_run_now",
+            target=target_sched.get("target", ""),
+            status="pending_approval",
+            details={"schedule_id": schedule_id, "request_id": result.get("request_id")},
+        )
+
+        return {
+            "status": "accepted",
+            "message": f"バックアップ実行リクエストを承認待ちに追加しました",
+            "schedule_id": schedule_id,
+            "request_id": result.get("request_id"),
+        }
+    except HTTPException:
+        raise
+    except LookupError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))

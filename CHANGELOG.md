@@ -9,7 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [v0.36.0] - 2026-03-07
+## [v0.37.0] - 2026-03-07
+
+### Added
+- **Docker/Podman コンテナ管理** (9エンドポイント)
+  - GET /api/containers: コンテナ一覧 (docker/podman自動検出)
+  - GET /api/containers/{name}: inspect詳細
+  - POST /api/containers/{name}/start: 即時起動
+  - POST /api/containers/{name}/stop: 承認フロー経由停止
+  - POST /api/containers/{name}/restart: 承認フロー経由再起動
+  - GET /api/containers/{name}/logs, stats
+  - GET /api/containers/images: イメージ一覧
+  - POST /api/containers/prune: 承認フロー経由一括削除
+- **Fail2ban 統合** (8エンドポイント)
+  - jail一覧・詳細・ban/unban・統計・ログ・設定再読込
+  - adminui-fail2ban.sh: jail名・IPアドレス検証付きラッパー
+- **メトリクス履歴DB永続化** (SQLite + 3新エンドポイント)
+  - GET /api/monitoring/history/range: 1h〜7day時間範囲指定
+  - GET /api/monitoring/trends/daily: 日別平均・最大値トレンド
+  - DELETE /api/monitoring/history: 履歴全削除
+  - 7日間自動パージ、data/metrics_history.db
+- **Ansible Playbook 構文チェック**
+  - POST /api/ansible/playbooks/{name}/validate
+
+### Fixed
+- containers.py: create_request() AsyncMock対応
+- main.py: fail2ban重複include_router削除
+
+### Tests
+- 3527 passed (+104 from v0.36.0)
+
+
 
 ### 🆕 新機能
 

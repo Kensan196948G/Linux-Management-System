@@ -147,6 +147,8 @@ ROLES = {
             "read:containers",
             # Fail2ban 管理
             "read:fail2ban",
+            # NFS マウント管理
+            "read:nfs",
         ],
     ),
     "Operator": UserRole(
@@ -224,6 +226,7 @@ ROLES = {
             "read:sessions",
             # アラート管理
             "read:alerts",
+            "write:alerts",
             # バックアップ管理
             "read:backup",
             "write:backup",
@@ -249,6 +252,9 @@ ROLES = {
             # Fail2ban 管理
             "read:fail2ban",
             "write:fail2ban",
+            # NFS マウント管理
+            "read:nfs",
+            "write:nfs",
         ],
     ),
     "Approver": UserRole(
@@ -333,6 +339,7 @@ ROLES = {
             "read:sessions",
             # アラート管理
             "read:alerts",
+            "write:alerts",
             # バックアップ管理
             "read:backup",
             "write:backup",
@@ -358,6 +365,10 @@ ROLES = {
             "read:fail2ban",
             "write:fail2ban",
             "admin:fail2ban",
+            # NFS マウント管理
+            "read:nfs",
+            "write:nfs",
+            "admin:nfs",
         ],
     ),
     "Admin": UserRole(
@@ -455,6 +466,7 @@ ROLES = {
             "read:sessions",
             # アラート管理
             "read:alerts",
+            "write:alerts",
             # バックアップ管理
             "read:backup",
             "write:backup",
@@ -482,6 +494,10 @@ ROLES = {
             "read:fail2ban",
             "write:fail2ban",
             "admin:fail2ban",
+            # NFS マウント管理
+            "read:nfs",
+            "write:nfs",
+            "admin:nfs",
         ],
     ),
 }

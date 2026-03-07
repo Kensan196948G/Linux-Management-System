@@ -72,6 +72,8 @@ from .routes import (
     users,
     monitoring,
     fail2ban,
+    nfs,
+    realtime_alerts,
 )
 
 # ログ設定
@@ -175,6 +177,8 @@ app.include_router(monitoring.router, prefix="/api")
 app.include_router(certificates.router, prefix="/api")
 app.include_router(fail2ban.router, prefix="/api")
 app.include_router(containers.router, prefix="/api")
+app.include_router(realtime_alerts.router, prefix="/api")
+app.include_router(nfs.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信

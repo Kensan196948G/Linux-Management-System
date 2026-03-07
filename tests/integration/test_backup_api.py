@@ -251,3 +251,92 @@ def test_recent_logs_reraises_http_exception(mock_method):
     headers = get_auth_headers()
     resp = client.get("/api/backup/recent-logs", headers=headers)
     assert resp.status_code == 503
+
+
+# ─── スケジュール toggle / run-now テスト ─────────────────────────────────────
+
+class TestScheduleToggle:
+    """PATCH /api/backup/schedules/{id}/toggle のテスト"""
+
+    def test_toggle_not_found(self):
+        """存在しないスケジュールは404"""
+        headers = get_auth_headers()
+        resp = client.patch("/api/backup/schedules/nonexistent-id/toggle", headers=headers)
+        assert resp.status_code == 404
+
+    def test_toggle_unauthenticated_rejected(self):
+        """未認証は拒否"""
+        resp = client.patch("/api/backup/schedules/test-id/toggle")
+        assert resp.status_code in (401, 403)
+
+    def test_toggle_create_and_toggle(self, tmp_path, monkeypatch):
+        """スケジュール作成後にトグル可能"""
+        import backend.api.routes.backup as backup_mod
+        schedule_file = tmp_path / "schedules.json"
+        monkeypatch.setattr(backup_mod, "SCHEDULES_FILE", schedule_file)
+
+        headers = get_auth_headers()
+
+        # スケジュール作成
+        create_resp = client.post(
+            "/api/backup/schedules",
+            json={"name": "test-sched", "cron": "0 2 * * *", "target": "/home", "enabled": True},
+            headers=headers,
+        )
+        assert create_resp.status_code == 201
+        sched_id = create_resp.json()["schedule"]["id"]
+
+        # トグル (有効→無効)
+        toggle_resp = client.patch(f"/api/backup/schedules/{sched_id}/toggle", headers=headers)
+        assert toggle_resp.status_code == 200
+        assert toggle_resp.json()["enabled"] is False
+
+        # 再度トグル (無効→有効)
+        toggle_resp2 = client.patch(f"/api/backup/schedules/{sched_id}/toggle", headers=headers)
+        assert toggle_resp2.status_code == 200
+        assert toggle_resp2.json()["enabled"] is True
+
+
+class TestScheduleRunNow:
+    """POST /api/backup/schedules/{id}/run-now のテスト"""
+
+    def test_run_now_not_found(self):
+        """存在しないスケジュールは404"""
+        headers = get_auth_headers()
+        resp = client.post("/api/backup/schedules/nonexistent-id/run-now", headers=headers)
+        assert resp.status_code == 404
+
+    def test_run_now_unauthenticated_rejected(self):
+        """未認証は拒否"""
+        resp = client.post("/api/backup/schedules/test-id/run-now")
+        assert resp.status_code in (401, 403)
+
+    def test_run_now_creates_approval(self, tmp_path, monkeypatch):
+        """run-now は承認フロー経由で202を返す"""
+        from unittest.mock import AsyncMock
+        import backend.api.routes.backup as backup_mod
+        schedule_file = tmp_path / "schedules2.json"
+        monkeypatch.setattr(backup_mod, "SCHEDULES_FILE", schedule_file)
+
+        headers = get_auth_headers()
+
+        # スケジュール作成
+        create_resp = client.post(
+            "/api/backup/schedules",
+            json={"name": "run-test", "cron": "0 3 * * *", "target": "/home", "enabled": True},
+            headers=headers,
+        )
+        assert create_resp.status_code == 201
+        sched_id = create_resp.json()["schedule"]["id"]
+
+        # 承認フローをモック
+        with patch(
+            "backend.api.routes.backup.approval_service.create_request",
+            new=AsyncMock(return_value={"request_id": "test-req-001", "status": "pending"}),
+        ):
+            resp = client.post(f"/api/backup/schedules/{sched_id}/run-now", headers=headers)
+
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["status"] == "accepted"
+        assert "request_id" in data

@@ -629,3 +629,103 @@ class TestAuditExceptionPaths:
             headers=admin_headers,
         )
         assert resp.status_code == 200
+
+
+class TestUserActivityReport:
+    """GET /api/audit/report/user-activity のテスト"""
+
+    def test_admin_can_access_report(self, test_client, admin_headers):
+        """Admin はレポートを閲覧できる"""
+        resp = test_client.get("/api/audit/report/user-activity", headers=admin_headers)
+        assert resp.status_code == 200
+
+    def test_report_response_structure(self, test_client, admin_headers):
+        """レスポンス構造確認"""
+        resp = test_client.get("/api/audit/report/user-activity", headers=admin_headers)
+        data = resp.json()
+        assert data["status"] == "success"
+        assert "total_operations" in data
+        assert "by_user" in data
+        assert "by_operation" in data
+        assert "by_status" in data
+        assert "by_hour" in data
+
+    def test_report_default_7_days(self, test_client, admin_headers):
+        """デフォルト7日集計"""
+        resp = test_client.get("/api/audit/report/user-activity", headers=admin_headers)
+        data = resp.json()
+        assert data["period_days"] == 7
+
+    def test_report_custom_days(self, test_client, admin_headers):
+        """日数指定が機能する"""
+        resp = test_client.get("/api/audit/report/user-activity?days=30", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["period_days"] == 30
+
+    def test_report_days_too_large_rejected(self, test_client, admin_headers):
+        """91日以上は拒否"""
+        resp = test_client.get("/api/audit/report/user-activity?days=91", headers=admin_headers)
+        assert resp.status_code == 422
+
+    def test_viewer_cannot_access_report(self, test_client, viewer_headers):
+        """Viewer はレポート閲覧不可（Approver以上専用）"""
+        resp = test_client.get("/api/audit/report/user-activity", headers=viewer_headers)
+        assert resp.status_code in (401, 403)
+
+    def test_unauthenticated_rejected(self, test_client):
+        """未認証は拒否"""
+        resp = test_client.get("/api/audit/report/user-activity")
+        assert resp.status_code in (401, 403)
+
+    def test_by_hour_has_24_entries(self, test_client, admin_headers):
+        """時間帯別集計は24件（0〜23時）"""
+        resp = test_client.get("/api/audit/report/user-activity", headers=admin_headers)
+        data = resp.json()
+        assert len(data["by_hour"]) == 24
+
+
+class TestAuditSummary:
+    """GET /api/audit/report/summary のテスト"""
+
+    def test_summary_returns_200(self, test_client, admin_headers):
+        """サマリーレポート取得が成功"""
+        resp = test_client.get("/api/audit/report/summary", headers=admin_headers)
+        assert resp.status_code == 200
+
+    def test_summary_response_structure(self, test_client, admin_headers):
+        """レスポンス構造確認"""
+        resp = test_client.get("/api/audit/report/summary", headers=admin_headers)
+        data = resp.json()
+        assert data["status"] == "success"
+        assert "total" in data
+        assert "success_rate" in data
+        assert "top_operations" in data
+
+    def test_summary_viewer_can_access(self, test_client, viewer_headers):
+        """Viewer は read:audit がないため 403 (Operator以上が必要)"""
+        resp = test_client.get("/api/audit/report/summary", headers=viewer_headers)
+        assert resp.status_code in (401, 403)
+
+    def test_summary_custom_hours(self, test_client, admin_headers):
+        """時間指定が機能する"""
+        resp = test_client.get("/api/audit/report/summary?hours=48", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["period_hours"] == 48
+
+    def test_summary_hours_too_large_rejected(self, test_client, admin_headers):
+        """720時間超は拒否"""
+        resp = test_client.get("/api/audit/report/summary?hours=721", headers=admin_headers)
+        assert resp.status_code == 422
+
+    def test_summary_unauthenticated_rejected(self, test_client):
+        """未認証は拒否"""
+        resp = test_client.get("/api/audit/report/summary")
+        assert resp.status_code in (401, 403)
+
+    def test_success_rate_is_valid_percent(self, test_client, admin_headers):
+        """success_rate は 0.0〜100.0 の範囲"""
+        resp = test_client.get("/api/audit/report/summary", headers=admin_headers)
+        data = resp.json()
+        assert 0.0 <= data["success_rate"] <= 100.0

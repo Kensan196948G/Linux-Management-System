@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFS マウント管理 - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 999px;
+        }
+        .status-badge.online  { background: #dcfce7; color: #15803d; }
+        .status-badge.offline { background: #fee2e2; color: #991b1b; }
+        .dark-mode .status-badge.online  { background: #14532d; color: #86efac; }
+        .dark-mode .status-badge.offline { background: #450a0a; color: #fca5a5; }
+
+        .nfs-card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+        }
+        .dark-mode .nfs-card { background: #1e293b; border-color: #334155; }
+
+        .stat-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .stat-item {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px 20px;
+            min-width: 140px;
+            text-align: center;
+        }
+        .dark-mode .stat-item { background: #1e293b; border-color: #334155; }
+        .stat-num {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2563eb;
+            line-height: 1;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        .dark-mode .stat-label { color: #94a3b8; }
+
+        .nfs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .nfs-table th {
+            text-align: left;
+            padding: 8px 12px;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 600;
+        }
+        .nfs-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: middle;
+        }
+        .dark-mode .nfs-table th { border-color: #334155; color: #94a3b8; }
+        .dark-mode .nfs-table td { border-color: #334155; color: #e2e8f0; }
+
+        .nav-tabs .nav-link { cursor: pointer; color: #374151; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #2563eb; }
+        .dark-mode .nav-tabs .nav-link { color: #94a3b8; }
+        .dark-mode .nav-tabs .nav-link.active { color: #60a5fa; }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dark-mode .section-title { color: #e2e8f0; }
+
+        .mono { font-family: monospace; font-size: 12px; }
+        .options-cell { max-width: 200px; word-break: break-all; }
+
+        .form-section {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px 24px;
+        }
+        .dark-mode .form-section { background: #1e293b; border-color: #334155; }
+        .dark-mode .form-control,
+        .dark-mode .form-select {
+            background: #0f172a;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        .dark-mode label { color: #cbd5e1; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar" id="sidebar-container"></aside>
+
+        <main class="main-content">
+            <!-- ヘッダー -->
+            <div class="page-header d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h4 mb-1">
+                        <i class="bi bi-hdd-network me-2 text-primary"></i>NFS マウント管理
+                    </h1>
+                    <p class="text-muted mb-0" style="font-size:13px;">
+                        NFSファイルシステムのマウント状況の確認と管理
+                    </p>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" id="refresh-btn" onclick="refreshAll()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>更新
+                </button>
+            </div>
+
+            <!-- アラートエリア -->
+            <div id="alert-area" class="mb-3"></div>
+
+            <!-- ステータスカード -->
+            <div class="stat-row" id="stat-row">
+                <div class="stat-item">
+                    <div class="stat-num" id="stat-active">—</div>
+                    <div class="stat-label">アクティブなマウント</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num" id="stat-fstab">—</div>
+                    <div class="stat-label">fstab NFS エントリ</div>
+                </div>
+                <div class="stat-item" style="min-width:180px;">
+                    <div id="stat-nfs-status">
+                        <span class="status-badge offline"><i class="bi bi-circle-fill" style="font-size:8px;"></i>確認中...</span>
+                    </div>
+                    <div class="stat-label mt-2">NFS クライアント</div>
+                </div>
+            </div>
+
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-3">
+                <li class="nav-item">
+                    <a class="nav-link active" id="tab-mounts" onclick="switchTab('mounts')">
+                        <i class="bi bi-hdd-rack me-1"></i>マウント一覧
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="tab-fstab" onclick="switchTab('fstab')">
+                        <i class="bi bi-file-text me-1"></i>fstab エントリ
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="tab-mount-form" onclick="switchTab('mount-form')">
+                        <i class="bi bi-plus-circle me-1"></i>新規マウント
+                    </a>
+                </li>
+            </ul>
+
+            <!-- タブペイン: マウント一覧 -->
+            <div id="pane-mounts">
+                <div class="nfs-card">
+                    <div class="section-title">
+                        <i class="bi bi-hdd-rack text-primary"></i>現在のNFSマウント一覧
+                    </div>
+                    <div id="mounts-loading" class="text-muted" style="font-size:13px;">
+                        <i class="bi bi-hourglass-split me-1"></i>読み込み中...
+                    </div>
+                    <div id="mounts-empty" class="text-muted" style="display:none;font-size:13px;">
+                        <i class="bi bi-info-circle me-1"></i>現在マウントされているNFSファイルシステムはありません
+                    </div>
+                    <div id="mounts-table-wrap" style="display:none;overflow-x:auto;">
+                        <table class="nfs-table">
+                            <thead>
+                                <tr>
+                                    <th>デバイス</th>
+                                    <th>マウントポイント</th>
+                                    <th>タイプ</th>
+                                    <th>オプション</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mounts-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- タブペイン: fstab -->
+            <div id="pane-fstab" style="display:none;">
+                <div class="nfs-card">
+                    <div class="section-title">
+                        <i class="bi bi-file-text text-primary"></i>/etc/fstab の NFS エントリ
+                    </div>
+                    <div id="fstab-loading" class="text-muted" style="font-size:13px;">
+                        <i class="bi bi-hourglass-split me-1"></i>読み込み中...
+                    </div>
+                    <div id="fstab-empty" class="text-muted" style="display:none;font-size:13px;">
+                        <i class="bi bi-info-circle me-1"></i>/etc/fstab に NFS エントリはありません
+                    </div>
+                    <div id="fstab-table-wrap" style="display:none;overflow-x:auto;">
+                        <table class="nfs-table">
+                            <thead>
+                                <tr>
+                                    <th>デバイス</th>
+                                    <th>マウントポイント</th>
+                                    <th>タイプ</th>
+                                    <th>オプション</th>
+                                    <th>Dump</th>
+                                    <th>Pass</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fstab-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- タブペイン: 新規マウント -->
+            <div id="pane-mount-form" style="display:none;">
+                <div class="form-section">
+                    <div class="section-title mb-3">
+                        <i class="bi bi-plus-circle text-primary"></i>新規 NFS マウント要求
+                    </div>
+                    <p class="text-muted" style="font-size:13px;">
+                        <i class="bi bi-shield-check me-1 text-warning"></i>
+                        マウント操作は承認フロー経由で処理されます。Approver/Admin の承認後に実行されます。
+                    </p>
+                    <form id="mount-form" onsubmit="submitMountRequest(event)">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">NFSサーバー <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="nfs-server"
+                                    placeholder="192.168.1.10 または nfs.example.com"
+                                    pattern="[a-zA-Z0-9._-]+" maxlength="253" required>
+                                <div class="form-text">ホスト名またはIPアドレス</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">エクスポートパス <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="export-path"
+                                    placeholder="/export/data"
+                                    pattern="/[a-zA-Z0-9./_-]*" maxlength="256" required>
+                                <div class="form-text">例: /export/data</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">マウントポイント <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="mount-point"
+                                    placeholder="/mnt/data"
+                                    pattern="/[a-zA-Z0-9./_-]+" maxlength="256" required>
+                                <div class="form-text">
+                                    許可: <code>/mnt/…</code> <code>/media/…</code>
+                                    <code>/srv/nfs/…</code> <code>/data/nfs/…</code>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">マウントオプション</label>
+                                <input type="text" class="form-control" id="mount-options"
+                                    value="ro,noexec,nosuid"
+                                    pattern="[a-zA-Z0-9,=_-]+" maxlength="256">
+                                <div class="form-text">カンマ区切り (例: ro,noexec,nosuid)</div>
+                            </div>
+                        </div>
+                        <div class="mt-4 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" id="mount-submit-btn">
+                                <i class="bi bi-send me-1"></i>マウント要求を送信
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearMountForm()">
+                                クリア
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- アンマウント要求フォーム -->
+                <div class="form-section mt-3">
+                    <div class="section-title mb-3">
+                        <i class="bi bi-x-circle text-danger"></i>NFSアンマウント要求
+                    </div>
+                    <p class="text-muted" style="font-size:13px;">
+                        <i class="bi bi-shield-check me-1 text-warning"></i>
+                        アンマウント操作も承認フロー経由で処理されます。
+                    </p>
+                    <form id="umount-form" onsubmit="submitUmountRequest(event)">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">マウントポイント <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="umount-point"
+                                    placeholder="/mnt/data"
+                                    pattern="/[a-zA-Z0-9./_-]+" maxlength="256" required>
+                                <div class="form-text">アンマウントするパスを入力してください</div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-danger" id="umount-submit-btn">
+                                <i class="bi bi-x-circle me-1"></i>アンマウント要求を送信
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- アンマウント確認モーダル -->
+    <div class="modal fade" id="umount-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">アンマウント確認</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong id="umount-modal-path"></strong> のアンマウント要求を送信しますか？</p>
+                    <p class="text-muted" style="font-size:13px;">
+                        <i class="bi bi-info-circle me-1"></i>承認フロー経由で処理されます。
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-danger" id="umount-modal-confirm">送信</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../js/sidebar.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        /* =====================================================================
+         * NFS マウント管理ページ スクリプト
+         * ===================================================================== */
+
+        let pendingUmountPoint = '';
+
+        // ===================================================================
+        // 初期化
+        // ===================================================================
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+                return;
+            }
+            api.setToken(token);
+            if (typeof loadSidebar === 'function') loadSidebar('nfs');
+            await refreshAll();
+        });
+
+        // ===================================================================
+        // タブ切り替え
+        // ===================================================================
+
+        function switchTab(tab) {
+            ['mounts', 'fstab', 'mount-form'].forEach(t => {
+                document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+                document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
+            });
+            if (tab === 'fstab') loadFstab();
+        }
+
+        // ===================================================================
+        // 全データ更新
+        // ===================================================================
+
+        async function refreshAll() {
+            const btn = document.getElementById('refresh-btn');
+            if (btn) btn.disabled = true;
+            try {
+                await Promise.all([loadStatus(), loadMounts()]);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        // ===================================================================
+        // アラート表示
+        // ===================================================================
+
+        function showAlert(msg, type = 'danger') {
+            const area = document.getElementById('alert-area');
+            area.innerHTML = `<div class="alert alert-${type} alert-dismissible" role="alert">
+                ${escapeHtml(msg)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>`;
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // ===================================================================
+        // NFS ステータス
+        // ===================================================================
+
+        async function loadStatus() {
+            try {
+                const data = await api.get('/nfs/status');
+                document.getElementById('stat-active').textContent = data.active_mounts ?? '—';
+                const statusEl = document.getElementById('stat-nfs-status');
+                if (data.nfs_available) {
+                    statusEl.innerHTML = '<span class="status-badge online"><i class="bi bi-circle-fill" style="font-size:8px;"></i>利用可能</span>';
+                } else {
+                    statusEl.innerHTML = '<span class="status-badge offline"><i class="bi bi-circle-fill" style="font-size:8px;"></i>利用不可</span>';
+                }
+            } catch (e) {
+                console.error('NFS status error:', e);
+            }
+        }
+
+        // ===================================================================
+        // マウント一覧
+        // ===================================================================
+
+        async function loadMounts() {
+            const loading = document.getElementById('mounts-loading');
+            const empty = document.getElementById('mounts-empty');
+            const tableWrap = document.getElementById('mounts-table-wrap');
+            const tbody = document.getElementById('mounts-tbody');
+
+            loading.style.display = '';
+            empty.style.display = 'none';
+            tableWrap.style.display = 'none';
+
+            try {
+                const data = await api.get('/nfs/mounts');
+                loading.style.display = 'none';
+
+                if (!data.mounts || data.mounts.length === 0) {
+                    empty.style.display = '';
+                    return;
+                }
+
+                tbody.innerHTML = data.mounts.map(m => `
+                    <tr>
+                        <td class="mono">${escapeHtml(m.device)}</td>
+                        <td class="mono">${escapeHtml(m.mount_point)}</td>
+                        <td><span class="badge bg-secondary">${escapeHtml(m.fstype)}</span></td>
+                        <td class="options-cell mono" style="font-size:11px;">${escapeHtml(m.options)}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger" onclick="confirmUmount('${escapeHtml(m.mount_point)}')">
+                                <i class="bi bi-x-circle me-1"></i>アンマウント要求
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+                tableWrap.style.display = '';
+            } catch (e) {
+                loading.style.display = 'none';
+                empty.style.display = '';
+                console.error('NFS mounts error:', e);
+            }
+        }
+
+        // ===================================================================
+        // fstab
+        // ===================================================================
+
+        async function loadFstab() {
+            const loading = document.getElementById('fstab-loading');
+            const empty = document.getElementById('fstab-empty');
+            const tableWrap = document.getElementById('fstab-table-wrap');
+            const tbody = document.getElementById('fstab-tbody');
+
+            loading.style.display = '';
+            empty.style.display = 'none';
+            tableWrap.style.display = 'none';
+
+            try {
+                const data = await api.get('/nfs/fstab');
+                loading.style.display = 'none';
+                document.getElementById('stat-fstab').textContent = data.total ?? 0;
+
+                if (!data.entries || data.entries.length === 0) {
+                    empty.style.display = '';
+                    return;
+                }
+
+                tbody.innerHTML = data.entries.map(e => `
+                    <tr>
+                        <td class="mono">${escapeHtml(e.device)}</td>
+                        <td class="mono">${escapeHtml(e.mount_point)}</td>
+                        <td><span class="badge bg-info text-dark">${escapeHtml(e.fstype)}</span></td>
+                        <td class="options-cell mono" style="font-size:11px;">${escapeHtml(e.options)}</td>
+                        <td>${escapeHtml(e.dump)}</td>
+                        <td>${escapeHtml(e.passno)}</td>
+                    </tr>
+                `).join('');
+                tableWrap.style.display = '';
+            } catch (e) {
+                loading.style.display = 'none';
+                empty.style.display = '';
+                console.error('fstab error:', e);
+            }
+        }
+
+        // ===================================================================
+        // マウント要求フォーム送信
+        // ===================================================================
+
+        async function submitMountRequest(evt) {
+            evt.preventDefault();
+            const btn = document.getElementById('mount-submit-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>送信中...';
+
+            const server = document.getElementById('nfs-server').value.trim();
+            const exportPath = document.getElementById('export-path').value.trim();
+            const mountPoint = document.getElementById('mount-point').value.trim();
+            const options = document.getElementById('mount-options').value.trim();
+
+            try {
+                const data = await api.post('/nfs/mount', {
+                    nfs_server: server,
+                    export_path: exportPath,
+                    mount_point: mountPoint,
+                    options: options || 'ro,noexec,nosuid',
+                });
+                showAlert(
+                    `<i class="bi bi-check-circle me-1"></i>承認リクエストを送信しました (ID: ${escapeHtml(data.request_id)})`,
+                    'success'
+                );
+                clearMountForm();
+            } catch (e) {
+                showAlert(`マウント要求の送信に失敗しました: ${e.message || e}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-send me-1"></i>マウント要求を送信';
+            }
+        }
+
+        function clearMountForm() {
+            document.getElementById('mount-form').reset();
+            document.getElementById('mount-options').value = 'ro,noexec,nosuid';
+        }
+
+        // ===================================================================
+        // アンマウント要求
+        // ===================================================================
+
+        function confirmUmount(mountPoint) {
+            pendingUmountPoint = mountPoint;
+            document.getElementById('umount-modal-path').textContent = mountPoint;
+            const modal = new bootstrap.Modal(document.getElementById('umount-modal'));
+            modal.show();
+            document.getElementById('umount-modal-confirm').onclick = async () => {
+                modal.hide();
+                await doUmount(mountPoint);
+            };
+        }
+
+        async function submitUmountRequest(evt) {
+            evt.preventDefault();
+            const mountPoint = document.getElementById('umount-point').value.trim();
+            await doUmount(mountPoint);
+            document.getElementById('umount-form').reset();
+        }
+
+        async function doUmount(mountPoint) {
+            try {
+                const data = await api.post('/nfs/umount', { mount_point: mountPoint });
+                showAlert(
+                    `<i class="bi bi-check-circle me-1"></i>アンマウント要求を送信しました (ID: ${escapeHtml(data.request_id)})`,
+                    'success'
+                );
+                await loadMounts();
+            } catch (e) {
+                showAlert(`アンマウント要求の送信に失敗しました: ${e.message || e}`);
+            }
+        }
+    </script>
+</body>
+</html>

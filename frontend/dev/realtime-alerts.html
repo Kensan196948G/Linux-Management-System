@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>リアルタイムアラート - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* タブ */
+        .tabs { display:flex; gap:0; border-bottom:2px solid #e5e7eb; margin-bottom:20px; }
+        .tab-btn { padding:10px 22px; background:none; border:none; font-size:14px; font-weight:600;
+                   color:#6b7280; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px;
+                   transition:color .2s, border-color .2s; }
+        .tab-btn.active { color:#2563eb; border-bottom-color:#2563eb; }
+        .tab-panel { display:none; }
+        .tab-panel.active { display:block; }
+
+        /* 接続ステータスバッジ */
+        .ws-badge { display:inline-flex; align-items:center; gap:6px; padding:3px 12px;
+                    border-radius:12px; font-size:12px; font-weight:600; }
+        .ws-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+        .ws-connected { background:#dbeafe; color:#1e40af; }
+        .ws-connected .ws-dot { background:#2563eb; animation:ws-pulse 1.5s infinite; }
+        .ws-disconnected { background:#f3f4f6; color:#6b7280; }
+        .ws-disconnected .ws-dot { background:#9ca3af; }
+        .ws-connecting { background:#fef3c7; color:#92400e; }
+        .ws-connecting .ws-dot { background:#f59e0b; }
+        @keyframes ws-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        /* ゲージカード */
+        .gauge-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px; margin-bottom:24px; }
+        .gauge-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:16px; text-align:center;
+                      box-shadow:0 1px 3px rgba(0,0,0,.06); }
+        .gauge-card h4 { margin:0 0 8px; font-size:13px; color:#6b7280; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+        .gauge-value { font-size:36px; font-weight:700; color:#111827; }
+        .gauge-unit { font-size:14px; color:#9ca3af; font-weight:400; }
+        .gauge-bar-wrap { background:#f3f4f6; border-radius:6px; height:8px; margin-top:10px; overflow:hidden; }
+        .gauge-bar { height:8px; border-radius:6px; transition:width .6s ease, background .3s; }
+        .gauge-bar.ok { background:#10b981; }
+        .gauge-bar.warn { background:#f59e0b; }
+        .gauge-bar.crit { background:#ef4444; }
+
+        /* アラートバナー */
+        #alert-banner { display:none; }
+        .alert-item { display:flex; align-items:center; gap:10px; padding:10px 16px;
+                      border-radius:8px; margin-bottom:8px; font-size:13px; font-weight:600; }
+        .alert-item.warning { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+        .alert-item.critical { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; }
+        .alert-item.info { background:#eff6ff; border:1px solid #93c5fd; color:#1e40af; }
+        .alert-icon { font-size:18px; }
+
+        /* ルール管理テーブル */
+        .rules-table { width:100%; border-collapse:collapse; font-size:13px; }
+        .rules-table th { background:#f9fafb; padding:10px 14px; text-align:left;
+                          border-bottom:2px solid #e5e7eb; font-weight:600; color:#374151; }
+        .rules-table td { padding:10px 14px; border-bottom:1px solid #f3f4f6; color:#374151; }
+        .rules-table tr:hover td { background:#f9fafb; }
+        .badge-severity { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+        .badge-info { background:#dbeafe; color:#1e40af; }
+        .badge-warning { background:#fffbeb; color:#92400e; border:1px solid #fde68a; }
+        .badge-critical { background:#fef2f2; color:#991b1b; border:1px solid #fca5a5; }
+        .btn-del { background:#fee2e2; color:#dc2626; border:none; border-radius:6px;
+                   padding:4px 10px; font-size:12px; cursor:pointer; font-weight:600; }
+        .btn-del:hover { background:#fca5a5; }
+
+        /* 追加フォーム */
+        .rule-form { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)) auto; gap:10px;
+                     align-items:end; background:#f9fafb; border:1px solid #e5e7eb;
+                     border-radius:10px; padding:16px; margin-top:16px; }
+        .form-group { display:flex; flex-direction:column; gap:4px; }
+        .form-group label { font-size:12px; font-weight:600; color:#6b7280; }
+        .form-group input, .form-group select {
+            padding:7px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;
+            background:#fff; color:#111827; }
+        .btn-add { background:#2563eb; color:#fff; border:none; border-radius:6px;
+                   padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer;
+                   white-space:nowrap; align-self:end; }
+        .btn-add:hover { background:#1d4ed8; }
+
+        /* 発火履歴タイムライン */
+        .timeline { list-style:none; padding:0; margin:0; }
+        .timeline li { display:flex; gap:14px; padding:12px 0; border-bottom:1px solid #f3f4f6; }
+        .timeline-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+        .timeline-dot.info { background:#3b82f6; }
+        .timeline-dot.warning { background:#f59e0b; }
+        .timeline-dot.critical { background:#ef4444; }
+        .timeline-meta { font-size:11px; color:#9ca3af; margin-top:2px; }
+        .empty-msg { color:#9ca3af; font-size:13px; text-align:center; padding:40px 0; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div id="sidebar-container"></div>
+    <div class="main-content">
+        <div class="page-header">
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                <h1 class="page-title">🔔 リアルタイムアラート</h1>
+                <span id="ws-status" class="ws-badge ws-disconnected">
+                    <span class="ws-dot"></span>切断中
+                </span>
+            </div>
+            <p class="page-subtitle">CPU/メモリ/ディスク閾値超過をリアルタイム検知・配信</p>
+        </div>
+
+        <!-- タブ -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('dashboard', this)">📊 ダッシュボード</button>
+            <button class="tab-btn" onclick="showTab('rules', this)">⚙️ ルール管理</button>
+            <button class="tab-btn" onclick="showTab('history', this)">📜 発火履歴</button>
+        </div>
+
+        <!-- タブ1: ダッシュボード -->
+        <div id="tab-dashboard" class="tab-panel active">
+            <!-- アラートバナー -->
+            <div id="alert-banner"></div>
+
+            <!-- ゲージ -->
+            <div class="gauge-grid">
+                <div class="gauge-card">
+                    <h4>CPU</h4>
+                    <div class="gauge-value" id="val-cpu">--<span class="gauge-unit">%</span></div>
+                    <div class="gauge-bar-wrap"><div class="gauge-bar ok" id="bar-cpu" style="width:0%"></div></div>
+                </div>
+                <div class="gauge-card">
+                    <h4>メモリ</h4>
+                    <div class="gauge-value" id="val-mem">--<span class="gauge-unit">%</span></div>
+                    <div class="gauge-bar-wrap"><div class="gauge-bar ok" id="bar-mem" style="width:0%"></div></div>
+                </div>
+                <div class="gauge-card">
+                    <h4>ディスク</h4>
+                    <div class="gauge-value" id="val-disk">--<span class="gauge-unit">%</span></div>
+                    <div class="gauge-bar-wrap"><div class="gauge-bar ok" id="bar-disk" style="width:0%"></div></div>
+                </div>
+                <div class="gauge-card">
+                    <h4>Load Avg (1m)</h4>
+                    <div class="gauge-value" id="val-load">--</div>
+                    <div class="gauge-bar-wrap"><div class="gauge-bar ok" id="bar-load" style="width:0%"></div></div>
+                </div>
+            </div>
+
+            <!-- アラートログ表示エリア -->
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px;">
+                <h3 style="margin:0 0 12px;font-size:14px;color:#374151;">直近のアラートイベント</h3>
+                <div id="alert-log" style="font-size:13px;color:#6b7280;">アラートデータ待機中...</div>
+            </div>
+        </div>
+
+        <!-- タブ2: ルール管理 -->
+        <div id="tab-rules" class="tab-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;font-size:15px;color:#374151;">登録済みルール</h3>
+                <button class="btn-add" onclick="loadRules()">↺ 更新</button>
+            </div>
+
+            <div style="overflow-x:auto;border-radius:8px;border:1px solid #e5e7eb;">
+                <table class="rules-table">
+                    <thead>
+                        <tr>
+                            <th>ルール名</th>
+                            <th>メトリクス</th>
+                            <th>条件</th>
+                            <th>閾値</th>
+                            <th>重要度</th>
+                            <th>作成日時</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rules-tbody">
+                        <tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:20px;">読み込み中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 追加フォーム -->
+            <div class="rule-form">
+                <div class="form-group">
+                    <label>ルール名</label>
+                    <input type="text" id="f-name" placeholder="例: high_cpu" maxlength="64">
+                </div>
+                <div class="form-group">
+                    <label>メトリクス</label>
+                    <select id="f-metric">
+                        <option value="cpu_percent">CPU (%)</option>
+                        <option value="memory_percent">メモリ (%)</option>
+                        <option value="disk_percent">ディスク (%)</option>
+                        <option value="load1">Load Avg (1m)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>演算子</label>
+                    <select id="f-operator">
+                        <option value="gt">&gt; より大きい</option>
+                        <option value="gte">&ge; 以上</option>
+                        <option value="lt">&lt; より小さい</option>
+                        <option value="lte">&le; 以下</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>閾値</label>
+                    <input type="number" id="f-threshold" value="80" min="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label>重要度</label>
+                    <select id="f-severity">
+                        <option value="info">info</option>
+                        <option value="warning" selected>warning</option>
+                        <option value="critical">critical</option>
+                    </select>
+                </div>
+                <button class="btn-add" onclick="createRule()">＋ 追加</button>
+            </div>
+            <div id="rule-form-msg" style="margin-top:8px;font-size:12px;"></div>
+        </div>
+
+        <!-- タブ3: 発火履歴 -->
+        <div id="tab-history" class="tab-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;font-size:15px;color:#374151;">アラート発火履歴（最新100件）</h3>
+                <button class="btn-add" onclick="loadHistory()">↺ 更新</button>
+            </div>
+            <ul class="timeline" id="history-list">
+                <li><span class="empty-msg">読み込み中...</span></li>
+            </ul>
+        </div>
+    </div><!-- /main-content -->
+</div><!-- /app -->
+
+<script src="../js/common.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+// =====================================================================
+// 定数
+// =====================================================================
+const API_BASE = '/api';
+const WS_PATH = '/api/realtime-alerts/ws';
+
+// =====================================================================
+// タブ切り替え
+// =====================================================================
+function showTab(name, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    btn.classList.add('active');
+
+    if (name === 'rules') loadRules();
+    if (name === 'history') loadHistory();
+}
+
+// =====================================================================
+// 認証ヘルパー
+// =====================================================================
+function getToken() {
+    return localStorage.getItem('token') || '';
+}
+function authHeaders() {
+    return { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' };
+}
+
+// =====================================================================
+// WebSocket 接続
+// =====================================================================
+let ws = null;
+let wsRetryTimer = null;
+const MAX_RETRY_MS = 30000;
+let retryMs = 3000;
+
+function connectWS() {
+    const token = getToken();
+    if (!token) { updateWsBadge('disconnected', 'トークンなし'); return; }
+
+    updateWsBadge('connecting', '接続中...');
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}${WS_PATH}?token=${encodeURIComponent(token)}`);
+
+    ws.onopen = () => {
+        retryMs = 3000;
+        updateWsBadge('connected', '接続中');
+    };
+
+    ws.onmessage = (e) => {
+        try {
+            const data = JSON.parse(e.data);
+            if (data.type === 'metrics') {
+                updateGauges(data.metrics);
+                if (data.alerts && data.alerts.length > 0) {
+                    showAlertBanner(data.alerts);
+                    appendAlertLog(data.alerts, data.timestamp);
+                } else {
+                    clearAlertBanner();
+                }
+            }
+        } catch (err) {
+            console.error('WS parse error', err);
+        }
+    };
+
+    ws.onerror = () => updateWsBadge('disconnected', 'エラー');
+
+    ws.onclose = () => {
+        updateWsBadge('disconnected', '切断中');
+        wsRetryTimer = setTimeout(() => { retryMs = Math.min(retryMs * 1.5, MAX_RETRY_MS); connectWS(); }, retryMs);
+    };
+}
+
+function updateWsBadge(state, label) {
+    const el = document.getElementById('ws-status');
+    el.className = 'ws-badge ws-' + state;
+    el.innerHTML = `<span class="ws-dot"></span>${label}`;
+}
+
+// =====================================================================
+// ゲージ更新
+// =====================================================================
+function updateGauges(m) {
+    setGauge('cpu', m.cpu_percent, '%');
+    setGauge('mem', m.memory_percent, '%');
+    setGauge('disk', m.disk_percent, '%');
+    setGaugeRaw('load', m.load1, '', m.load1 / 8 * 100);
+}
+
+function setGauge(key, val, unit) {
+    const pct = Math.min(100, Math.max(0, val));
+    document.getElementById('val-' + key).innerHTML = val.toFixed(1) + `<span class="gauge-unit">${unit}</span>`;
+    const bar = document.getElementById('bar-' + key);
+    bar.style.width = pct + '%';
+    bar.className = 'gauge-bar ' + (pct >= 90 ? 'crit' : pct >= 75 ? 'warn' : 'ok');
+}
+
+function setGaugeRaw(key, val, unit, pct) {
+    document.getElementById('val-' + key).innerHTML = val.toFixed(2) + `<span class="gauge-unit">${unit}</span>`;
+    const bar = document.getElementById('bar-' + key);
+    bar.style.width = Math.min(100, pct) + '%';
+    bar.className = 'gauge-bar ' + (pct >= 90 ? 'crit' : pct >= 75 ? 'warn' : 'ok');
+}
+
+// =====================================================================
+// アラートバナー
+// =====================================================================
+function showAlertBanner(alerts) {
+    const banner = document.getElementById('alert-banner');
+    banner.style.display = 'block';
+    banner.innerHTML = alerts.map(a => {
+        const icon = a.severity === 'critical' ? '🚨' : a.severity === 'warning' ? '⚠️' : 'ℹ️';
+        return `<div class="alert-item ${a.severity}">
+            <span class="alert-icon">${icon}</span>
+            <span><strong>${a.rule_name}</strong>: ${a.metric} = ${Number(a.value).toFixed(2)} (閾値 ${a.operator} ${a.threshold})</span>
+        </div>`;
+    }).join('');
+}
+
+function clearAlertBanner() {
+    document.getElementById('alert-banner').style.display = 'none';
+}
+
+let alertLogEntries = [];
+function appendAlertLog(alerts, ts) {
+    alerts.forEach(a => alertLogEntries.unshift({ ...a, ts }));
+    if (alertLogEntries.length > 50) alertLogEntries = alertLogEntries.slice(0, 50);
+    const el = document.getElementById('alert-log');
+    if (alertLogEntries.length === 0) { el.textContent = 'アラートなし'; return; }
+    el.innerHTML = alertLogEntries.slice(0, 10).map(e => {
+        const t = new Date(e.ts).toLocaleTimeString('ja-JP');
+        return `<div style="padding:4px 0;border-bottom:1px solid #f3f4f6;">
+            <span style="color:#9ca3af;margin-right:8px;">${t}</span>
+            <span class="badge-severity badge-${e.severity}">${e.severity.toUpperCase()}</span>
+            <span style="margin-left:8px;">${e.rule_name}: ${e.metric} = ${Number(e.value).toFixed(2)}</span>
+        </div>`;
+    }).join('');
+}
+
+// =====================================================================
+// ルール管理
+// =====================================================================
+async function loadRules() {
+    const resp = await fetch(`${API_BASE}/realtime-alerts/rules`, { headers: authHeaders() });
+    if (!resp.ok) { showRuleFormMsg('ルール取得失敗: ' + resp.status, 'red'); return; }
+    const data = await resp.json();
+    renderRules(data.rules);
+}
+
+function renderRules(rules) {
+    const tbody = document.getElementById('rules-tbody');
+    if (!rules || rules.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">ルールが登録されていません</td></tr>';
+        return;
+    }
+    tbody.innerHTML = rules.map(r => `
+        <tr>
+            <td>${escHtml(r.name)}</td>
+            <td><code>${r.metric}</code></td>
+            <td>${operatorLabel(r.operator)}</td>
+            <td>${r.threshold}</td>
+            <td><span class="badge-severity badge-${r.severity}">${r.severity}</span></td>
+            <td style="font-size:11px;color:#9ca3af;">${new Date(r.created_at).toLocaleString('ja-JP')}</td>
+            <td><button class="btn-del" onclick="deleteRule('${r.id}')">削除</button></td>
+        </tr>
+    `).join('');
+}
+
+async function createRule() {
+    const name = document.getElementById('f-name').value.trim();
+    const metric = document.getElementById('f-metric').value;
+    const operator = document.getElementById('f-operator').value;
+    const threshold = parseFloat(document.getElementById('f-threshold').value);
+    const severity = document.getElementById('f-severity').value;
+
+    if (!name) { showRuleFormMsg('ルール名を入力してください', 'red'); return; }
+    if (isNaN(threshold) || threshold < 0) { showRuleFormMsg('閾値は0以上の数値を入力してください', 'red'); return; }
+
+    const resp = await fetch(`${API_BASE}/realtime-alerts/rules`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ name, metric, operator, threshold, severity }),
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        showRuleFormMsg('作成失敗: ' + (err.detail || resp.status), 'red');
+        return;
+    }
+    showRuleFormMsg('✅ ルールを追加しました', 'green');
+    document.getElementById('f-name').value = '';
+    loadRules();
+}
+
+async function deleteRule(id) {
+    if (!confirm('このルールを削除しますか？')) return;
+    const resp = await fetch(`${API_BASE}/realtime-alerts/rules/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (resp.ok) loadRules();
+    else showRuleFormMsg('削除失敗: ' + resp.status, 'red');
+}
+
+function showRuleFormMsg(msg, color) {
+    const el = document.getElementById('rule-form-msg');
+    el.style.color = color;
+    el.textContent = msg;
+    setTimeout(() => { el.textContent = ''; }, 3000);
+}
+
+// =====================================================================
+// 発火履歴
+// =====================================================================
+async function loadHistory() {
+    const resp = await fetch(`${API_BASE}/realtime-alerts/history`, { headers: authHeaders() });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    renderHistory(data.history);
+}
+
+function renderHistory(items) {
+    const ul = document.getElementById('history-list');
+    if (!items || items.length === 0) {
+        ul.innerHTML = '<li><div class="empty-msg">発火履歴はありません</div></li>';
+        return;
+    }
+    ul.innerHTML = items.map(e => `
+        <li>
+            <span class="timeline-dot ${e.severity}"></span>
+            <div>
+                <div style="font-size:13px;font-weight:600;color:#111827;">
+                    ${escHtml(e.rule_name)}
+                    <span class="badge-severity badge-${e.severity}" style="margin-left:6px;">${e.severity}</span>
+                </div>
+                <div class="timeline-meta">${e.metric} = ${Number(e.value).toFixed(2)} (閾値 ${e.operator} ${e.threshold})</div>
+                <div class="timeline-meta">${new Date(e.fired_at).toLocaleString('ja-JP')}</div>
+            </div>
+        </li>
+    `).join('');
+}
+
+// =====================================================================
+// ユーティリティ
+// =====================================================================
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function operatorLabel(op) {
+    return { gt: '> より大きい', lt: '< より小さい', gte: '≥ 以上', lte: '≤ 以下' }[op] || op;
+}
+
+// =====================================================================
+// 初期化
+// =====================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    loadRules();
+    connectWS();
+});
+</script>
+</body>
+</html>

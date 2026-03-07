@@ -300,3 +300,112 @@ async def export_audit_logs(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"エクスポートエラー: {e}",
         )
+
+
+@router.get(
+    "/report/user-activity",
+    summary="ユーザー活動レポート",
+    description="ユーザー別・操作種別の集計レポートを返します（Admin/Approver専用）",
+)
+async def get_user_activity_report(
+    days: int = Query(default=7, ge=1, le=90, description="集計対象日数"),
+    current_user: TokenData = Depends(require_permission("read:audit")),
+) -> dict:
+    """ユーザー別・操作種別・時間帯の活動集計レポートを返す"""
+    from datetime import timedelta
+    from collections import Counter
+
+    # Admin/Approver のみ全ユーザーレポートを閲覧可能
+    if current_user.role.lower() not in ("admin", "approver"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="レポート閲覧にはApprover以上の権限が必要です")
+
+    end_dt = datetime.now(timezone.utc)
+    start_dt = end_dt - timedelta(days=days)
+
+    entries = audit_log.query(
+        user_role=current_user.role,
+        requesting_user_id=current_user.user_id,
+        start_date=start_dt,
+        end_date=end_dt,
+        limit=10000,
+    )
+
+    # 集計
+    user_counter: Counter = Counter()
+    op_counter: Counter = Counter()
+    status_counter: Counter = Counter()
+    hourly: dict = {str(h).zfill(2): 0 for h in range(24)}
+
+    for entry in entries:
+        uid = entry.get("user_id", "unknown")
+        op = entry.get("operation", "unknown")
+        st = entry.get("status", "unknown")
+        ts_str = entry.get("timestamp", "")
+
+        user_counter[uid] += 1
+        op_counter[op] += 1
+        status_counter[st] += 1
+
+        if ts_str:
+            try:
+                ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                hourly[str(ts.hour).zfill(2)] = hourly.get(str(ts.hour).zfill(2), 0) + 1
+            except (ValueError, AttributeError):
+                pass
+
+    return {
+        "status": "success",
+        "period_days": days,
+        "from": start_dt.isoformat(),
+        "to": end_dt.isoformat(),
+        "total_operations": len(entries),
+        "by_user": [{"user_id": uid, "count": cnt} for uid, cnt in user_counter.most_common(20)],
+        "by_operation": [{"operation": op, "count": cnt} for op, cnt in op_counter.most_common(20)],
+        "by_status": dict(status_counter),
+        "by_hour": [{"hour": h, "count": c} for h, c in sorted(hourly.items())],
+    }
+
+
+@router.get(
+    "/report/summary",
+    summary="操作サマリーレポート",
+    description="直近の操作統計サマリー（成功率・エラー率・上位ユーザー）",
+)
+async def get_audit_summary(
+    hours: int = Query(default=24, ge=1, le=720, description="集計対象時間"),
+    current_user: TokenData = Depends(require_permission("read:audit")),
+) -> dict:
+    """操作サマリーレポートを返す（全ロール閲覧可能、自分のデータのみ）"""
+    from datetime import timedelta
+    from collections import Counter
+
+    end_dt = datetime.now(timezone.utc)
+    start_dt = end_dt - timedelta(hours=hours)
+
+    entries = audit_log.query(
+        user_role=current_user.role,
+        requesting_user_id=current_user.user_id,
+        start_date=start_dt,
+        end_date=end_dt,
+        limit=5000,
+    )
+
+    total = len(entries)
+    status_counter: Counter = Counter(e.get("status", "unknown") for e in entries)
+    top_ops = Counter(e.get("operation", "unknown") for e in entries).most_common(10)
+
+    success_count = status_counter.get("success", 0)
+    error_count = status_counter.get("error", 0) + status_counter.get("failure", 0)
+
+    return {
+        "status": "success",
+        "period_hours": hours,
+        "from": start_dt.isoformat(),
+        "to": end_dt.isoformat(),
+        "total": total,
+        "success_count": success_count,
+        "error_count": error_count,
+        "success_rate": round(success_count / total * 100, 1) if total > 0 else 0.0,
+        "top_operations": [{"operation": op, "count": cnt} for op, cnt in top_ops],
+        "by_status": dict(status_counter),
+    }
