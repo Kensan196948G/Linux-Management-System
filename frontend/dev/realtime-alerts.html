@@ -274,9 +274,11 @@ function connectWS() {
 
     updateWsBadge('connecting', '接続中...');
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${proto}://${location.host}${WS_PATH}?token=${encodeURIComponent(token)}`);
+    ws = new WebSocket(`${proto}://${location.host}${WS_PATH}`);
 
     ws.onopen = () => {
+        // トークンを最初のメッセージで送信（URLに含めない＝ログに残らない）
+        ws.send(JSON.stringify({ type: 'auth', token: token }));
         retryMs = 3000;
         updateWsBadge('connected', '接続中');
     };

@@ -25,7 +25,7 @@ class AlertCenter {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
 
         const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const url = `${proto}//${location.host}/api/ws/alerts?token=${encodeURIComponent(token)}`;
+        const url = `${proto}//${location.host}/api/ws/alerts`;
 
         try {
             this.ws = new WebSocket(url);
@@ -36,6 +36,8 @@ class AlertCenter {
         }
 
         this.ws.onopen = () => {
+            // トークンを最初のメッセージで送信（URLに含めない＝ログに残らない）
+            this.ws.send(JSON.stringify({ type: 'auth', token: token }));
             console.info('[AlertCenter] WebSocket 接続確立');
             this.updateStatus(true);
             this._reconnectDelay = 5000;

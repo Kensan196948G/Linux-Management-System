@@ -3,16 +3,18 @@ WebSocket リアルタイム監視モジュール
 
 システム情報・プロセス・アラートのリアルタイム配信を WebSocket で提供する。
 JWT トークンによる認証を必須とし、不正接続は 4001 で切断する。
+セキュリティ: トークンは最初のメッセージで受信する（URLクエリパラメータは使用しない）。
 """
 
 import asyncio
+import json
 import logging
 import time
 from datetime import datetime, timezone
 from typing import Optional
 
 import psutil
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 from jose import JWTError, jwt
 
@@ -21,6 +23,9 @@ from backend.core.config import settings
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["websocket"])
+
+# WebSocket 認証タイムアウト（秒）
+WS_AUTH_TIMEOUT = 10.0
 
 # ===================================================================
 # 接続マネージャー
@@ -112,6 +117,37 @@ def _validate_token(token: str) -> Optional[dict]:
         return payload
     except JWTError as exc:
         logger.warning("WS JWT validation failed: %s", exc)
+        return None
+
+
+async def _ws_authenticate(websocket: WebSocket) -> Optional[dict]:
+    """WebSocket 接続を認証する。
+
+    接続後、最初のメッセージから JWT トークンを受信して検証する。
+    {"type": "auth", "token": "<JWT>"} 形式のメッセージを期待する。
+    タイムアウト（WS_AUTH_TIMEOUT 秒）内に認証メッセージが来ない場合は None を返す。
+
+    Args:
+        websocket: 接続済みの WebSocket
+
+    Returns:
+        認証成功時はJWTペイロード dict、失敗時は None
+    """
+    try:
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=WS_AUTH_TIMEOUT)
+        msg = json.loads(raw)
+        if msg.get("type") != "auth":
+            logger.warning("WS auth: expected type='auth', got type='%s'", msg.get("type"))
+            return None
+        token = msg.get("token", "")
+        return _validate_token(token)
+    except asyncio.TimeoutError:
+        logger.warning("WS auth: timeout waiting for auth message")
+        return None
+    except (json.JSONDecodeError, KeyError) as exc:
+        logger.warning("WS auth: invalid auth message: %s", exc)
+        return None
+    except WebSocketDisconnect:
         return None
 
 
@@ -234,20 +270,25 @@ def _utcnow_iso() -> str:
 @router.websocket("/ws/system")
 async def ws_system(
     websocket: WebSocket,
-    token: Optional[str] = Query(default=None),
-    interval: int = Query(default=5, ge=2, le=60),
+    interval: int = 5,
 ) -> None:
     """
     システム情報 (CPU/メモリ/ディスク/ロード) をリアルタイム配信する WebSocket エンドポイント。
 
+    認証: 接続後、最初のメッセージで {"type": "auth", "token": "<JWT>"} を送信すること。
+
     Args:
         websocket: WebSocket 接続
-        token: JWT 認証トークン (query parameter)
-        interval: 送信間隔秒数 (2〜60、デフォルト 5)
+        interval: 送信間隔秒数 (デフォルト 5)
     """
-    if not token or not _validate_token(token):
+    await websocket.accept()
+    user = await _ws_authenticate(websocket)
+    if not user:
         await websocket.close(code=4001)
         return
+
+    # interval をクライアントから送信された設定で上書き可能（2〜60秒）
+    interval = max(2, min(60, interval))
 
     await manager.connect(websocket, "system")
     try:
@@ -276,20 +317,24 @@ async def ws_system(
 @router.websocket("/ws/processes")
 async def ws_processes(
     websocket: WebSocket,
-    token: Optional[str] = Query(default=None),
-    interval: int = Query(default=5, ge=2, le=60),
+    interval: int = 5,
 ) -> None:
     """
     CPU 使用率上位 10 プロセスをリアルタイム配信する WebSocket エンドポイント。
 
+    認証: 接続後、最初のメッセージで {"type": "auth", "token": "<JWT>"} を送信すること。
+
     Args:
         websocket: WebSocket 接続
-        token: JWT 認証トークン (query parameter)
-        interval: 送信間隔秒数 (2〜60、デフォルト 5)
+        interval: 送信間隔秒数 (デフォルト 5)
     """
-    if not token or not _validate_token(token):
+    await websocket.accept()
+    user = await _ws_authenticate(websocket)
+    if not user:
         await websocket.close(code=4001)
         return
+
+    interval = max(2, min(60, interval))
 
     await manager.connect(websocket, "processes")
     try:
@@ -317,20 +362,24 @@ async def ws_processes(
 @router.websocket("/ws/alerts")
 async def ws_alerts(
     websocket: WebSocket,
-    token: Optional[str] = Query(default=None),
-    interval: int = Query(default=5, ge=2, le=60),
+    interval: int = 5,
 ) -> None:
     """
     システムリソースアラートをリアルタイム配信する WebSocket エンドポイント。
 
+    認証: 接続後、最初のメッセージで {"type": "auth", "token": "<JWT>"} を送信すること。
+
     Args:
         websocket: WebSocket 接続
-        token: JWT 認証トークン (query parameter)
-        interval: 送信間隔秒数 (2〜60、デフォルト 5)
+        interval: 送信間隔秒数 (デフォルト 5)
     """
-    if not token or not _validate_token(token):
+    await websocket.accept()
+    user = await _ws_authenticate(websocket)
+    if not user:
         await websocket.close(code=4001)
         return
+
+    interval = max(2, min(60, interval))
 
     await manager.connect(websocket, "alerts")
     try:

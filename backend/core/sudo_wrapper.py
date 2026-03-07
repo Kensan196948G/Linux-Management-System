@@ -2730,6 +2730,136 @@ class SudoWrapper:
         )
         return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
+    # ===================================================================
+    # 承認フロー auto_execute 用メソッド
+    # ===================================================================
+
+    def container_stop(self, container_name: str) -> Dict[str, Any]:
+        """コンテナを停止する（承認フロー経由）
+
+        Args:
+            container_name: 停止するコンテナ名
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-containers.sh", ["stop", container_name])
+
+    def container_restart(self, container_name: str) -> Dict[str, Any]:
+        """コンテナを再起動する（承認フロー経由）
+
+        Args:
+            container_name: 再起動するコンテナ名
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-containers.sh", ["restart", container_name])
+
+    def container_prune(self) -> Dict[str, Any]:
+        """停止済みコンテナを一括削除する（承認フロー経由）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-containers.sh", ["prune-stopped"])
+
+    def nfs_mount(self, nfs_source: str, mount_point: str) -> Dict[str, Any]:
+        """NFSをマウントする（承認フロー経由）
+
+        Args:
+            nfs_source: NFS共有のパス（例: server:/export/data）
+            mount_point: ローカルマウントポイント（例: /mnt/nfs）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-nfs.sh", ["mount", nfs_source, mount_point])
+
+    def nfs_umount(self, mount_point: str) -> Dict[str, Any]:
+        """NFSをアンマウントする（承認フロー経由）
+
+        Args:
+            mount_point: アンマウントするマウントポイント
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-nfs.sh", ["umount", mount_point])
+
+    def run_backup(self) -> Dict[str, Any]:
+        """バックアップを即時実行する（承認フロー経由）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-backup.sh", ["status"], timeout=300)
+
+    def ansible_run_playbook(self, playbook_name: str) -> Dict[str, Any]:
+        """Ansibleプレイブックを実行する（承認フロー経由）
+
+        Args:
+            playbook_name: 実行するプレイブック名（.ymlファイル名）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-ansible.sh", ["run-playbook", playbook_name], timeout=600)
+
+    def network_set_ip(self, interface: str, ip_address: str, prefix: str, gateway: str = "") -> Dict[str, Any]:
+        """ネットワークインターフェースのIPアドレスを設定する（承認フロー経由）
+
+        Args:
+            interface: インターフェース名（例: eth0）
+            ip_address: IPアドレス
+            prefix: プレフィックス長（例: 24）
+            gateway: ゲートウェイアドレス（省略可）
+
+        Returns:
+            実行結果の辞書
+        """
+        args = ["set-ip", interface, ip_address, prefix]
+        if gateway:
+            args.append(gateway)
+        return self._execute("adminui-network-config.sh", args)
+
+    def network_set_dns(self, dns1: str, dns2: str = "") -> Dict[str, Any]:
+        """DNS設定を変更する（承認フロー経由）
+
+        Args:
+            dns1: プライマリDNSサーバー
+            dns2: セカンダリDNSサーバー（省略可）
+
+        Returns:
+            実行結果の辞書
+        """
+        args = ["set-dns", dns1]
+        if dns2:
+            args.append(dns2)
+        return self._execute("adminui-network-config.sh", args)
+
+    def system_shutdown(self, delay: str = "+1") -> Dict[str, Any]:
+        """システムをシャットダウンする（承認フロー経由）
+
+        Args:
+            delay: 遅延時間（例: "+1" = 1分後、"now" = 即時）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-bootup.sh", ["shutdown", delay])
+
+    def system_reboot(self, delay: str = "+1") -> Dict[str, Any]:
+        """システムを再起動する（承認フロー経由）
+
+        Args:
+            delay: 遅延時間（例: "+1" = 1分後、"now" = 即時）
+
+        Returns:
+            実行結果の辞書
+        """
+        return self._execute("adminui-bootup.sh", ["reboot", delay])
+
 
 # グローバルインスタンス
 

@@ -5,6 +5,7 @@ Linux Management System - FastAPI Backend
 """
 
 import logging
+import os
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -16,6 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
+from ..core.approval_service import ApprovalService
 from .routes import (
     alerts,
     ansible,
@@ -217,6 +219,37 @@ def _clear_rate_limit_state() -> None:
     _login_attempts.clear()
 
 
+# 信頼するプロキシIPのセット（環境変数 TRUSTED_PROXY_IPS で設定可能）
+# 例: TRUSTED_PROXY_IPS="127.0.0.1,10.0.0.1"
+_trusted_proxies: frozenset[str] = frozenset(
+    ip.strip() for ip in os.environ.get("TRUSTED_PROXY_IPS", "127.0.0.1,::1").split(",") if ip.strip()
+)
+
+
+def _get_client_ip(request: Request) -> str:
+    """クライアントIPアドレスを取得する。
+
+    信頼するプロキシ（TRUSTED_PROXY_IPS）からのリクエストに限り
+    X-Forwarded-For ヘッダーを参照する。それ以外は直接接続IPを使用。
+    これにより IP スプーフィングを防止する。
+
+    Args:
+        request: FastAPI リクエストオブジェクト
+
+    Returns:
+        クライアントIPアドレス文字列
+    """
+    direct_ip = request.client.host if request.client else "unknown"
+    if direct_ip in _trusted_proxies:
+        forwarded_for = request.headers.get("X-Forwarded-For", "")
+        if forwarded_for:
+            # X-Forwarded-For: client, proxy1, proxy2 の形式
+            client_ip = forwarded_for.split(",")[0].strip()
+            if client_ip:
+                return client_ip
+    return direct_ip
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     """セキュリティヘッダーを付与"""
@@ -246,7 +279,7 @@ async def rate_limiter(request: Request, call_next):
     if path.startswith("/static") or path == "/api/health":
         return await call_next(request)
 
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _get_client_ip(request)
     now = time.time()
     window_start = now - 60.0
 
@@ -440,6 +473,11 @@ async def startup_event():
 
     # Production環境のセキュリティ検証
     await validate_production_config()
+
+    # ApprovalService DBの初期化（スキーマ作成）
+    _approval_service = ApprovalService(db_path=settings.database.path)
+    await _approval_service.initialize_db()
+    logger.info("✅ ApprovalService DB initialized")
 
     # ログディレクトリの作成
     log_file = Path(settings.logging.file)

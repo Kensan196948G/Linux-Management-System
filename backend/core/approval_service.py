@@ -749,6 +749,74 @@ class ApprovalService:
                     return sudo_wrapper.remove_package(
                         package_name=payload["package_name"],
                     )
+                elif request_type == "container_stop":
+                    return sudo_wrapper.container_stop(
+                        container_name=payload["container_name"],
+                    )
+                elif request_type == "container_restart":
+                    return sudo_wrapper.container_restart(
+                        container_name=payload["container_name"],
+                    )
+                elif request_type == "container_prune":
+                    return sudo_wrapper.container_prune()
+                elif request_type == "nfs_mount":
+                    return sudo_wrapper.nfs_mount(
+                        nfs_source=payload["nfs_source"],
+                        mount_point=payload["mount_point"],
+                    )
+                elif request_type == "nfs_umount":
+                    return sudo_wrapper.nfs_umount(
+                        mount_point=payload["mount_point"],
+                    )
+                elif request_type == "backup_run":
+                    return sudo_wrapper.run_backup()
+                elif request_type == "backup_restore":
+                    return sudo_wrapper.restore_backup_file(
+                        backup_file=payload["backup_file"],
+                        restore_dir=payload.get("restore_target", "/var/tmp/adminui-restore"),
+                    )
+                elif request_type == "ansible_playbook_run":
+                    return sudo_wrapper.ansible_run_playbook(
+                        playbook_name=payload["playbook_name"],
+                    )
+                elif request_type == "network_config_change":
+                    action = payload.get("action", "set-ip")
+                    if action == "set-ip":
+                        return sudo_wrapper.network_set_ip(
+                            interface=payload["interface"],
+                            ip_address=payload["ip_address"],
+                            prefix=str(payload.get("prefix", "24")),
+                            gateway=payload.get("gateway", ""),
+                        )
+                    elif action == "set-dns":
+                        return sudo_wrapper.network_set_dns(
+                            dns1=payload["dns1"],
+                            dns2=payload.get("dns2", ""),
+                        )
+                    else:
+                        raise NotImplementedError(f"network_config_change action '{action}' not supported")
+                elif request_type == "dns_config_change":
+                    return sudo_wrapper.network_set_dns(
+                        dns1=payload["dns1"],
+                        dns2=payload.get("dns2", ""),
+                    )
+                elif request_type == "shutdown":
+                    return sudo_wrapper.system_shutdown(
+                        delay=payload.get("delay", "+1"),
+                    )
+                elif request_type == "reboot":
+                    return sudo_wrapper.system_reboot(
+                        delay=payload.get("delay", "+1"),
+                    )
+                elif request_type in ("multi_ssh_execute", "ssh_keypair_generate"):
+                    # これらの操作はコンテキスト（接続先情報等）が複雑なため
+                    # 自動実行は行わず、承認済みとしてマーク（手動実行案内）
+                    logger.info(f"Operation '{request_type}' approved - requires manual execution by operator")
+                    return {
+                        "status": "success",
+                        "message": f"Operation '{request_type}' approved. Manual execution required.",
+                        "manual_execution_required": True,
+                    }
                 else:
                     raise NotImplementedError(f"No executor defined for operation_type: '{request_type}'")
 

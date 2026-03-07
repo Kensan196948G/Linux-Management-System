@@ -480,14 +480,18 @@ function connectWebSocket() {
     wsEnabled = true;
     setWsBadge('connecting');
     var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var wsUrl = proto + '//' + window.location.host + '/api/ws/system?token=' + encodeURIComponent(token) + '&interval=5';
+    var wsUrl = proto + '//' + window.location.host + '/api/ws/system';
     try {
         wsConn = new WebSocket(wsUrl);
     } catch (e) {
         setWsBadge('error');
         return;
     }
-    wsConn.onopen = function() { setWsBadge('connected'); };
+    wsConn.onopen = function() {
+        // トークンを最初のメッセージで送信（URLに含めない＝ログに残らない）
+        wsConn.send(JSON.stringify({ type: 'auth', token: token }));
+        setWsBadge('connected');
+    };
     wsConn.onmessage = function(e) {
         try {
             var msg = JSON.parse(e.data);
