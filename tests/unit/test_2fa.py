@@ -19,9 +19,9 @@ from fastapi.testclient import TestClient
 from backend.api.main import app
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def client(test_client):
-    """FastAPI テストクライアント（session-scoped conftest の test_client を再利用）"""
+    """FastAPI テストクライアント（module-scoped conftest の test_client を再利用）"""
     return test_client
 
 

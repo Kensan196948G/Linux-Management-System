@@ -41,10 +41,20 @@ class TestAuthEndpoints:
         data = response.json()
         assert data["username"] == "operator"
 
-    def test_logout_endpoint(self, test_client, auth_headers):
-        """ログアウト"""
-        response = test_client.post("/api/auth/logout", headers=auth_headers)
-
+    def test_logout_endpoint(self, test_client):
+        """ログアウト（専用トークンを使用し、共有 auth_headers を無効化しない）"""
+        # セッションスコープの auth_headers を使うとトークンが revoke され、
+        # 以降の全テストで 401 になるため、専用トークンを取得してログアウトする
+        login_resp = test_client.post(
+            "/api/auth/login",
+            json={"email": "operator@example.com", "password": "operator123"},
+        )
+        assert login_resp.status_code == 200
+        logout_token = login_resp.json()["access_token"]
+        response = test_client.post(
+            "/api/auth/logout",
+            headers={"Authorization": f"Bearer {logout_token}"},
+        )
         assert response.status_code == 200
 
 

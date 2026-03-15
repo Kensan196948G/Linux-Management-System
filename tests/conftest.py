@@ -17,18 +17,18 @@ sys.path.insert(0, str(project_root))
 os.environ["ENV"] = "dev"
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def test_client():
-    """FastAPI テストクライアント"""
+    """FastAPI テストクライアント（module スコープ: モジュールごとに再生成）"""
     from backend.api.main import app
 
     with TestClient(app) as client:
         yield client
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def auth_token(test_client):
-    """認証トークンを取得（session スコープ: ログインは1回のみ）"""
+    """認証トークンを取得（module スコープ: モジュールごとにログイン）"""
     response = test_client.post(
         "/api/auth/login",
         json={"email": "operator@example.com", "password": "operator123"},
@@ -37,15 +37,15 @@ def auth_token(test_client):
     return response.json()["access_token"]
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def auth_headers(auth_token):
     """認証ヘッダー"""
     return {"Authorization": f"Bearer {auth_token}"}
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def approver_token(test_client):
-    """Approver ユーザーのトークン（session スコープ）"""
+    """Approver ユーザーのトークン（module スコープ）"""
     response = test_client.post(
         "/api/auth/login",
         json={"email": "approver@example.com", "password": "approver123"},
@@ -54,15 +54,15 @@ def approver_token(test_client):
     return response.json()["access_token"]
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def approver_headers(approver_token):
     """Approver ユーザーの認証ヘッダー"""
     return {"Authorization": f"Bearer {approver_token}"}
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def admin_token(test_client):
-    """Admin ユーザーのトークン（session スコープ）"""
+    """Admin ユーザーのトークン（module スコープ）"""
     response = test_client.post(
         "/api/auth/login",
         json={"email": "admin@example.com", "password": "admin123"},
@@ -71,9 +71,9 @@ def admin_token(test_client):
     return response.json()["access_token"]
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def viewer_token(test_client):
-    """Viewer ユーザーのトークン（session スコープ）"""
+    """Viewer ユーザーのトークン（module スコープ）"""
     response = test_client.post(
         "/api/auth/login",
         json={"email": "viewer@example.com", "password": "viewer123"},
@@ -82,19 +82,19 @@ def viewer_token(test_client):
     return response.json()["access_token"]
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def admin_headers(admin_token):
     """Admin ユーザーの認証ヘッダー"""
     return {"Authorization": f"Bearer {admin_token}"}
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def viewer_headers(viewer_token):
     """Viewer ユーザーの認証ヘッダー"""
     return {"Authorization": f"Bearer {viewer_token}"}
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def operator_headers(auth_token):
     """Operator ユーザーの認証ヘッダー（auth_token はoperatorユーザー）"""
     return {"Authorization": f"Bearer {auth_token}"}

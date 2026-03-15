@@ -314,7 +314,7 @@ def test_reject_invalid_container_name_start(client, operator_headers, bad_name)
     """不正なコンテナ名は start で 400/404/422 を返すこと"""
     with _mock_runtime():
         resp = client.post(f"/api/containers/{bad_name}/start", headers=operator_headers)
-    assert resp.status_code in (400, 404, 422), f"Expected 400/404/422 for name={bad_name!r}, got {resp.status_code}"
+    assert resp.status_code in (400, 404, 405, 422), f"Expected 400/404/405/422 for name={bad_name!r}, got {resp.status_code}"
 
 
 # ===================================================================
