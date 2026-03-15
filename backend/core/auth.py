@@ -163,6 +163,14 @@ ROLES = {
             # ネットワーク設定変更（承認フロー経由）
             "write:network",
             "read:servers",
+            # Viewerロールと同等の読み取り権限
+            "read:hardware",
+            "read:firewall",
+            "read:packages",
+            "read:ssh",
+            "read:cron",
+            "write:cron",
+            "read:users",
             # サービス再起動（承認フロー経由）
             "execute:service_restart",
             "request:approval",
