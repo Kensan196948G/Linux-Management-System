@@ -5,6 +5,7 @@ Slack / Discord / Generic Webhook / SMTP メール通知を提供するコアサ
 シェル起動は絶対禁止。全 HTTP 呼び出しは httpx.AsyncClient を使用。
 """
 
+import copy
 import json
 import logging
 import os
@@ -99,12 +100,12 @@ class NotificationService:
             if self._settings_file.exists():
                 raw = self._settings_file.read_text(encoding="utf-8")
                 data = json.loads(raw)
-                # デフォルト値で不足キーを補完
-                merged = {**DEFAULT_SETTINGS, **data}
+                # デフォルト値で不足キーを補完（deepcopyでリスト共有を防止）
+                merged = {**copy.deepcopy(DEFAULT_SETTINGS), **data}
                 return merged
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("通知設定ファイルの読み込みに失敗しました: %s", exc)
-        return {**DEFAULT_SETTINGS}
+        return copy.deepcopy(DEFAULT_SETTINGS)
 
     async def update_settings(self, settings: dict[str, Any]) -> dict[str, Any]:
         """通知設定を更新する
