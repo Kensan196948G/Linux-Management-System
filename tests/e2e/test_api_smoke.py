@@ -185,7 +185,7 @@ class TestApiRoutesMockRequests:
 
     def test_unauthenticated_processes_returns_401_or_403(self, client):
         """認証なしで /api/processes にアクセスすると 401/403"""
-        response = client.get("/api/processes/")
+        response = client.get("/api/processes")
         assert response.status_code in (401, 403)
 
     def test_unauthenticated_firewall_returns_401_or_403(self, client):
