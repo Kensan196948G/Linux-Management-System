@@ -151,7 +151,7 @@ def _mock_wrapper_error(detail: str = "error", status_code: int = 503):
 
 def test_list_containers_no_auth(client):
     """未認証では 403/401 を返すこと"""
-    resp = client.get("/api/containers/")
+    resp = client.get("/api/containers")
     assert resp.status_code in (401, 403)
 
 
@@ -181,7 +181,7 @@ def test_stop_container_no_auth(client):
 def test_viewer_can_list_containers(client, viewer_headers):
     """Viewer はコンテナ一覧を取得できる"""
     with _mock_runtime(), _mock_wrapper(stdout=SAMPLE_CONTAINER_JSON):
-        resp = client.get("/api/containers/", headers=viewer_headers)
+        resp = client.get("/api/containers", headers=viewer_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "success"
@@ -230,7 +230,7 @@ def test_viewer_cannot_prune(client, viewer_headers):
 def test_list_containers_success(client, admin_headers):
     """コンテナ一覧を正常に取得できること"""
     with _mock_runtime(), _mock_wrapper(stdout=SAMPLE_CONTAINER_JSON):
-        resp = client.get("/api/containers/", headers=admin_headers)
+        resp = client.get("/api/containers", headers=admin_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "success"
@@ -243,7 +243,7 @@ def test_list_containers_success(client, admin_headers):
 def test_list_containers_empty(client, admin_headers):
     """コンテナが存在しない場合は空リストを返す"""
     with _mock_runtime(), _mock_wrapper(stdout="[]"):
-        resp = client.get("/api/containers/", headers=admin_headers)
+        resp = client.get("/api/containers", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["total"] == 0
 
@@ -251,7 +251,7 @@ def test_list_containers_empty(client, admin_headers):
 def test_list_containers_no_runtime(client, admin_headers):
     """docker/podman 不在時は 503 を返すこと"""
     with patch("backend.api.routes.containers._detect_runtime", return_value=None):
-        resp = client.get("/api/containers/", headers=admin_headers)
+        resp = client.get("/api/containers", headers=admin_headers)
     assert resp.status_code == 503
 
 
@@ -500,7 +500,7 @@ def test_parse_json_lines_container_list(client, admin_headers):
         '{"ID":"bbb","Names":"db","Image":"postgres:15","Status":"Exited (0)","State":"exited","CreatedAt":"2024-01-02","Ports":""}\n'
     )
     with _mock_runtime(), _mock_wrapper(stdout=json_lines):
-        resp = client.get("/api/containers/", headers=admin_headers)
+        resp = client.get("/api/containers", headers=admin_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 2
@@ -509,7 +509,7 @@ def test_parse_json_lines_container_list(client, admin_headers):
 def test_runtime_field_in_container_list(client, admin_headers):
     """レスポンスに runtime フィールドが含まれること"""
     with _mock_runtime("podman"), _mock_wrapper(stdout=SAMPLE_CONTAINER_JSON):
-        resp = client.get("/api/containers/", headers=admin_headers)
+        resp = client.get("/api/containers", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["runtime"] == "podman"
 
