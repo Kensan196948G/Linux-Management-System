@@ -22,64 +22,64 @@ class TestUserListEndpoint:
         # sudo が使えない環境では 500 になる場合があるが、403 にはならない
         assert response.status_code != 403
 
-    def test_list_operator_has_read_users_permission(self, test_client, auth_headers):
-        """operator ロールは read:users 権限を持つこと"""
+    def test_list_operator_forbidden(self, test_client, auth_headers):
+        """operator ロールは read:users 権限がないため 403 を返すこと"""
         response = test_client.get("/api/users", headers=auth_headers)
-        assert response.status_code != 403
+        assert response.status_code == 403
 
-    def test_list_invalid_sort_key(self, test_client, auth_headers):
+    def test_list_invalid_sort_key(self, test_client, admin_headers):
         """無効なソートキーは 422 を返すこと"""
         response = test_client.get(
             "/api/users",
             params={"sort_by": "invalid_key"},
-            headers=auth_headers,
+            headers=admin_headers,
         )
         assert response.status_code == 422
 
-    def test_list_valid_sort_keys(self, test_client, auth_headers):
+    def test_list_valid_sort_keys(self, test_client, admin_headers):
         """有効なソートキーは受け付けること"""
         for sort_key in ["username", "uid", "last_login"]:
             response = test_client.get(
                 "/api/users",
                 params={"sort_by": sort_key},
-                headers=auth_headers,
+                headers=admin_headers,
             )
             # バリデーションは通過（sudo 不可環境では 500 になる場合がある）
             assert response.status_code != 422, f"sort_by={sort_key} should be accepted"
 
-    def test_list_invalid_filter_locked(self, test_client, auth_headers):
+    def test_list_invalid_filter_locked(self, test_client, admin_headers):
         """無効な filter_locked は 422 を返すこと"""
         response = test_client.get(
             "/api/users",
             params={"filter_locked": "maybe"},
-            headers=auth_headers,
+            headers=admin_headers,
         )
         assert response.status_code == 422
 
-    def test_list_limit_too_large(self, test_client, auth_headers):
+    def test_list_limit_too_large(self, test_client, admin_headers):
         """上限超えの limit は 422 を返すこと"""
         response = test_client.get(
             "/api/users",
             params={"limit": 501},
-            headers=auth_headers,
+            headers=admin_headers,
         )
         assert response.status_code == 422
 
-    def test_list_limit_zero(self, test_client, auth_headers):
+    def test_list_limit_zero(self, test_client, admin_headers):
         """limit=0 は 422 を返すこと"""
         response = test_client.get(
             "/api/users",
             params={"limit": 0},
-            headers=auth_headers,
+            headers=admin_headers,
         )
         assert response.status_code == 422
 
-    def test_list_invalid_username_filter(self, test_client, auth_headers):
+    def test_list_invalid_username_filter(self, test_client, admin_headers):
         """不正な username_filter は 422 を返すこと"""
         response = test_client.get(
             "/api/users",
             params={"username_filter": "test!user"},
-            headers=auth_headers,
+            headers=admin_headers,
         )
         assert response.status_code == 422
 
@@ -98,14 +98,14 @@ class TestUserDetailEndpoint:
         # sudo が使えない環境では 404/500 になる場合があるが、403 にはならない
         assert response.status_code != 403
 
-    def test_detail_invalid_username_special_chars(self, test_client, auth_headers):
+    def test_detail_invalid_username_special_chars(self, test_client, admin_headers):
         """特殊文字を含むユーザー名は 400/422 を返すこと"""
-        response = test_client.get("/api/users/test%7Cuser", headers=auth_headers)
+        response = test_client.get("/api/users/test%7Cuser", headers=admin_headers)
         assert response.status_code in [400, 422]
 
-    def test_detail_system_user_not_forbidden(self, test_client, auth_headers):
+    def test_detail_system_user_not_forbidden(self, test_client, admin_headers):
         """root ユーザー詳細取得は認可拒否にはならないこと（形式検証は通過）"""
-        response = test_client.get("/api/users/root", headers=auth_headers)
+        response = test_client.get("/api/users/root", headers=admin_headers)
         # root は形式バリデーションを通過し、ラッパー呼び出しへ進む
         # sudo が使えない環境では 404/500 になるが、403 にはならない
         assert response.status_code != 403
@@ -280,7 +280,9 @@ class TestChangePasswordEndpoint:
         )
         assert response.status_code == 403
 
-    def test_change_password_viewer_lacks_write_users(self, test_client, viewer_headers):
+    def test_change_password_viewer_lacks_write_users(
+        self, test_client, viewer_headers
+    ):
         """viewer ロールは write:users 権限がないこと"""
         response = test_client.put(
             "/api/users/testuser/password",
@@ -289,7 +291,9 @@ class TestChangePasswordEndpoint:
         )
         assert response.status_code == 403
 
-    def test_change_password_operator_lacks_write_users(self, test_client, auth_headers):
+    def test_change_password_operator_lacks_write_users(
+        self, test_client, auth_headers
+    ):
         """operator ロールも write:users 権限がないこと"""
         response = test_client.put(
             "/api/users/testuser/password",
@@ -341,22 +345,22 @@ class TestGroupListEndpoint:
         # sudo が使えない環境では 500 になる場合があるが、403 にはならない
         assert response.status_code != 403
 
-    def test_list_groups_invalid_sort_key(self, test_client, auth_headers):
+    def test_list_groups_invalid_sort_key(self, test_client, admin_headers):
         """無効なソートキーは 422 を返すこと"""
         response = test_client.get(
             "/api/users/groups/list",
             params={"sort_by": "invalid"},
-            headers=auth_headers,
+            headers=admin_headers,
         )
         assert response.status_code == 422
 
-    def test_list_groups_valid_sort_keys(self, test_client, auth_headers):
+    def test_list_groups_valid_sort_keys(self, test_client, admin_headers):
         """有効なソートキーは受け付けること"""
         for sort_key in ["name", "gid", "member_count"]:
             response = test_client.get(
                 "/api/users/groups/list",
                 params={"sort_by": sort_key},
-                headers=auth_headers,
+                headers=admin_headers,
             )
             assert response.status_code != 422, f"sort_by={sort_key} should be accepted"
 
@@ -534,7 +538,9 @@ class TestUsersSecurityPrinciples:
 
         system_accounts = ["bin", "daemon", "nobody", "www-data"]
         for account in system_accounts:
-            assert account in FORBIDDEN_USERNAMES, f"System account {account} must be forbidden"
+            assert (
+                account in FORBIDDEN_USERNAMES
+            ), f"System account {account} must be forbidden"
 
     def test_forbidden_groups_include_root(self):
         """FORBIDDEN_GROUPS に root が含まれること"""
@@ -585,7 +591,7 @@ class TestUsersSecurityPrinciples:
 class TestUserListWithMocks:
     """GET /api/users - sudo_wrapper モックを使ったカバレッジ向上テスト"""
 
-    def test_list_users_success_path(self, test_client, auth_headers):
+    def test_list_users_success_path(self, test_client, admin_headers):
         """list_users が成功レスポンスを返すパスを網羅（lines 174-182）"""
         from unittest.mock import patch
 
@@ -600,24 +606,30 @@ class TestUserListWithMocks:
             ],
             "timestamp": "2026-02-21T00:00:00Z",
         }
-        with patch("backend.api.routes.users.sudo_wrapper.list_users", return_value=mock_result):
-            response = test_client.get("/api/users", headers=auth_headers)
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.list_users", return_value=mock_result
+        ):
+            response = test_client.get("/api/users", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert data["total_users"] == 2
 
-    def test_list_users_error_status_returns_403(self, test_client, auth_headers):
+    def test_list_users_error_status_returns_403(self, test_client, admin_headers):
         """list_users がエラーレスポンスを返す場合 403 を返すこと（lines 161-172）"""
         from unittest.mock import patch
 
         mock_result = {"status": "error", "message": "Permission denied by wrapper"}
-        with patch("backend.api.routes.users.sudo_wrapper.list_users", return_value=mock_result):
-            response = test_client.get("/api/users", headers=auth_headers)
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.list_users", return_value=mock_result
+        ):
+            response = test_client.get("/api/users", headers=admin_headers)
         assert response.status_code == 403
         assert "Permission denied" in response.json()["message"]
 
-    def test_list_users_sudo_wrapper_error_returns_500(self, test_client, auth_headers):
+    def test_list_users_sudo_wrapper_error_returns_500(
+        self, test_client, admin_headers
+    ):
         """list_users で SudoWrapperError が発生する場合 500 を返すこと"""
         from unittest.mock import patch
         from backend.core.sudo_wrapper import SudoWrapperError
@@ -626,11 +638,11 @@ class TestUserListWithMocks:
             "backend.api.routes.users.sudo_wrapper.list_users",
             side_effect=SudoWrapperError("Wrapper script not found"),
         ):
-            response = test_client.get("/api/users", headers=auth_headers)
+            response = test_client.get("/api/users", headers=admin_headers)
         assert response.status_code == 500
         assert "User list retrieval failed" in response.json()["message"]
 
-    def test_list_users_with_filter_and_sort(self, test_client, auth_headers):
+    def test_list_users_with_filter_and_sort(self, test_client, admin_headers):
         """フィルタ・ソートパラメータ付きで list_users が呼ばれること"""
         from unittest.mock import patch
 
@@ -642,11 +654,18 @@ class TestUserListWithMocks:
             "users": [{"username": "alice", "uid": 1001}],
             "timestamp": "2026-02-21T00:00:00Z",
         }
-        with patch("backend.api.routes.users.sudo_wrapper.list_users", return_value=mock_result) as mock_call:
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.list_users", return_value=mock_result
+        ) as mock_call:
             response = test_client.get(
                 "/api/users",
-                params={"sort_by": "uid", "limit": 10, "filter_locked": "false", "username_filter": "alice"},
-                headers=auth_headers,
+                params={
+                    "sort_by": "uid",
+                    "limit": 10,
+                    "filter_locked": "false",
+                    "username_filter": "alice",
+                },
+                headers=admin_headers,
             )
         assert response.status_code == 200
         mock_call.assert_called_once_with(
@@ -660,7 +679,7 @@ class TestUserListWithMocks:
 class TestUserDetailWithMocks:
     """GET /api/users/{username} - sudo_wrapper モックを使ったカバレッジ向上テスト"""
 
-    def test_get_user_detail_success_path(self, test_client, auth_headers):
+    def test_get_user_detail_success_path(self, test_client, admin_headers):
         """get_user_detail が成功レスポンスを返すパスを網羅（lines 251-259）"""
         from unittest.mock import patch
 
@@ -669,23 +688,31 @@ class TestUserDetailWithMocks:
             "user": {"username": "alice", "uid": 1001, "shell": "/bin/bash"},
             "timestamp": "2026-02-21T00:00:00Z",
         }
-        with patch("backend.api.routes.users.sudo_wrapper.get_user_detail", return_value=mock_result):
-            response = test_client.get("/api/users/alice", headers=auth_headers)
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.get_user_detail",
+            return_value=mock_result,
+        ):
+            response = test_client.get("/api/users/alice", headers=admin_headers)
         assert response.status_code == 200
         assert response.json()["status"] == "success"
         assert response.json()["user"]["username"] == "alice"
 
-    def test_get_user_detail_not_found_returns_404(self, test_client, auth_headers):
+    def test_get_user_detail_not_found_returns_404(self, test_client, admin_headers):
         """get_user_detail がエラーレスポンスを返す場合 404 を返すこと（lines 238-249）"""
         from unittest.mock import patch
 
         mock_result = {"status": "error", "message": "User not found: nouser"}
-        with patch("backend.api.routes.users.sudo_wrapper.get_user_detail", return_value=mock_result):
-            response = test_client.get("/api/users/nouser", headers=auth_headers)
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.get_user_detail",
+            return_value=mock_result,
+        ):
+            response = test_client.get("/api/users/nouser", headers=admin_headers)
         assert response.status_code == 404
         assert "not found" in response.json()["message"].lower()
 
-    def test_get_user_detail_sudo_wrapper_error_returns_500(self, test_client, auth_headers):
+    def test_get_user_detail_sudo_wrapper_error_returns_500(
+        self, test_client, admin_headers
+    ):
         """get_user_detail で SudoWrapperError が発生する場合 500 を返すこと"""
         from unittest.mock import patch
         from backend.core.sudo_wrapper import SudoWrapperError
@@ -694,7 +721,7 @@ class TestUserDetailWithMocks:
             "backend.api.routes.users.sudo_wrapper.get_user_detail",
             side_effect=SudoWrapperError("Execution failed"),
         ):
-            response = test_client.get("/api/users/alice", headers=auth_headers)
+            response = test_client.get("/api/users/alice", headers=admin_headers)
         assert response.status_code == 500
         assert "User detail retrieval failed" in response.json()["message"]
 
@@ -706,8 +733,14 @@ class TestCreateUserWithMocks:
         """ユーザー作成が成功するパスを網羅（lines 382-394）"""
         from unittest.mock import patch
 
-        mock_result = {"status": "success", "message": "User created", "username": "newuser"}
-        with patch("backend.api.routes.users.sudo_wrapper.add_user", return_value=mock_result):
+        mock_result = {
+            "status": "success",
+            "message": "User created",
+            "username": "newuser",
+        }
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.add_user", return_value=mock_result
+        ):
             response = test_client.post(
                 "/api/users",
                 json={
@@ -724,7 +757,9 @@ class TestCreateUserWithMocks:
         from unittest.mock import patch
 
         mock_result = {"status": "error", "message": "User already exists"}
-        with patch("backend.api.routes.users.sudo_wrapper.add_user", return_value=mock_result):
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.add_user", return_value=mock_result
+        ):
             response = test_client.post(
                 "/api/users",
                 json={
@@ -737,7 +772,9 @@ class TestCreateUserWithMocks:
         assert response.status_code == 400
         assert "already exists" in response.json()["message"]
 
-    def test_create_user_sudo_wrapper_error_returns_500(self, test_client, admin_headers):
+    def test_create_user_sudo_wrapper_error_returns_500(
+        self, test_client, admin_headers
+    ):
         """add_user で SudoWrapperError が発生する場合 500 を返すこと"""
         from unittest.mock import patch
         from backend.core.sudo_wrapper import SudoWrapperError
@@ -758,7 +795,9 @@ class TestCreateUserWithMocks:
         assert response.status_code == 500
         assert "User creation failed" in response.json()["message"]
 
-    def test_create_user_invalid_username_validation_error(self, test_client, admin_headers):
+    def test_create_user_invalid_username_validation_error(
+        self, test_client, admin_headers
+    ):
         """validate_username が ValidationError を上げる場合 400 を返すこと（lines 294-295）"""
         from unittest.mock import patch
         from backend.core.validation import ValidationError
@@ -778,7 +817,9 @@ class TestCreateUserWithMocks:
         assert response.status_code == 400
         assert "Invalid username" in response.json()["message"]
 
-    def test_create_user_invalid_group_name_validation_error(self, test_client, admin_headers):
+    def test_create_user_invalid_group_name_validation_error(
+        self, test_client, admin_headers
+    ):
         """グループ名が ValidationError を上げる場合 400 を返すこと（lines 330-333）"""
         from unittest.mock import patch
         from backend.core.validation import ValidationError
@@ -804,7 +845,9 @@ class TestCreateUserWithMocks:
         from unittest.mock import patch
 
         mock_result = {"status": "success", "username": "groupuser"}
-        with patch("backend.api.routes.users.sudo_wrapper.add_user", return_value=mock_result):
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.add_user", return_value=mock_result
+        ):
             response = test_client.post(
                 "/api/users",
                 json={
@@ -825,8 +868,15 @@ class TestDeleteUserWithMocks:
         """ユーザー削除が成功するパスを網羅（lines 480-490）"""
         from unittest.mock import patch
 
-        mock_result = {"status": "success", "message": "User deleted", "username": "olduser"}
-        with patch("backend.api.routes.users.sudo_wrapper.delete_user", return_value=mock_result):
+        mock_result = {
+            "status": "success",
+            "message": "User deleted",
+            "username": "olduser",
+        }
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.delete_user",
+            return_value=mock_result,
+        ):
             response = test_client.delete("/api/users/olduser", headers=admin_headers)
         assert response.status_code == 200
 
@@ -835,12 +885,17 @@ class TestDeleteUserWithMocks:
         from unittest.mock import patch
 
         mock_result = {"status": "error", "message": "User is currently logged in"}
-        with patch("backend.api.routes.users.sudo_wrapper.delete_user", return_value=mock_result):
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.delete_user",
+            return_value=mock_result,
+        ):
             response = test_client.delete("/api/users/olduser", headers=admin_headers)
         assert response.status_code == 400
         assert "logged in" in response.json()["message"]
 
-    def test_delete_user_sudo_wrapper_error_returns_500(self, test_client, admin_headers):
+    def test_delete_user_sudo_wrapper_error_returns_500(
+        self, test_client, admin_headers
+    ):
         """delete_user で SudoWrapperError が発生する場合 500 を返すこと"""
         from unittest.mock import patch
         from backend.core.sudo_wrapper import SudoWrapperError
@@ -858,10 +913,17 @@ class TestDeleteUserWithMocks:
         from unittest.mock import patch
 
         mock_result = {"status": "success", "message": "User deleted with home"}
-        with patch("backend.api.routes.users.sudo_wrapper.delete_user", return_value=mock_result) as mock_call:
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.delete_user",
+            return_value=mock_result,
+        ) as mock_call:
             response = test_client.delete(
                 "/api/users/olduser",
-                params={"remove_home": True, "backup_home": False, "force_logout": True},
+                params={
+                    "remove_home": True,
+                    "backup_home": False,
+                    "force_logout": True,
+                },
                 headers=admin_headers,
             )
         assert response.status_code == 200
@@ -881,7 +943,10 @@ class TestChangePasswordWithMocks:
         from unittest.mock import patch
 
         mock_result = {"status": "success", "message": "Password changed"}
-        with patch("backend.api.routes.users.sudo_wrapper.change_user_password", return_value=mock_result):
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.change_user_password",
+            return_value=mock_result,
+        ):
             response = test_client.put(
                 "/api/users/targetuser/password",
                 json={"password": "NewSecurePass123!"},
@@ -889,12 +954,17 @@ class TestChangePasswordWithMocks:
             )
         assert response.status_code == 200
 
-    def test_change_password_wrapper_returns_error_400(self, test_client, admin_headers):
+    def test_change_password_wrapper_returns_error_400(
+        self, test_client, admin_headers
+    ):
         """change_user_password がエラーレスポンスを返す場合 400 を返すこと（lines 554-565）"""
         from unittest.mock import patch
 
         mock_result = {"status": "error", "message": "User not found"}
-        with patch("backend.api.routes.users.sudo_wrapper.change_user_password", return_value=mock_result):
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.change_user_password",
+            return_value=mock_result,
+        ):
             response = test_client.put(
                 "/api/users/nouser/password",
                 json={"password": "NewSecurePass123!"},
@@ -903,7 +973,9 @@ class TestChangePasswordWithMocks:
         assert response.status_code == 400
         assert "User not found" in response.json()["message"]
 
-    def test_change_password_sudo_wrapper_error_returns_500(self, test_client, admin_headers):
+    def test_change_password_sudo_wrapper_error_returns_500(
+        self, test_client, admin_headers
+    ):
         """change_user_password で SudoWrapperError が発生する場合 500 を返すこと"""
         from unittest.mock import patch
         from backend.core.sudo_wrapper import SudoWrapperError
@@ -920,7 +992,9 @@ class TestChangePasswordWithMocks:
         assert response.status_code == 500
         assert "Password change failed" in response.json()["message"]
 
-    def test_change_password_invalid_username_validation_error(self, test_client, admin_headers):
+    def test_change_password_invalid_username_validation_error(
+        self, test_client, admin_headers
+    ):
         """validate_username が ValidationError を上げる場合 400 を返すこと（lines 526-527）"""
         from unittest.mock import patch
         from backend.core.validation import ValidationError
@@ -941,7 +1015,7 @@ class TestChangePasswordWithMocks:
 class TestGroupListWithMocks:
     """GET /api/users/groups/list - sudo_wrapper モックを使ったカバレッジ向上テスト"""
 
-    def test_list_groups_success_path(self, test_client, auth_headers):
+    def test_list_groups_success_path(self, test_client, admin_headers):
         """list_groups が成功レスポンスを返すパスを網羅（lines 647-655）"""
         from unittest.mock import patch
 
@@ -957,21 +1031,29 @@ class TestGroupListWithMocks:
             ],
             "timestamp": "2026-02-21T00:00:00Z",
         }
-        with patch("backend.api.routes.users.sudo_wrapper.list_groups", return_value=mock_result):
-            response = test_client.get("/api/users/groups/list", headers=auth_headers)
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.list_groups",
+            return_value=mock_result,
+        ):
+            response = test_client.get("/api/users/groups/list", headers=admin_headers)
         assert response.status_code == 200
         assert response.json()["total_groups"] == 3
 
-    def test_list_groups_error_status_returns_403(self, test_client, auth_headers):
+    def test_list_groups_error_status_returns_403(self, test_client, admin_headers):
         """list_groups がエラーレスポンスを返す場合 403 を返すこと（lines 634-645）"""
         from unittest.mock import patch
 
         mock_result = {"status": "error", "message": "Permission denied"}
-        with patch("backend.api.routes.users.sudo_wrapper.list_groups", return_value=mock_result):
-            response = test_client.get("/api/users/groups/list", headers=auth_headers)
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.list_groups",
+            return_value=mock_result,
+        ):
+            response = test_client.get("/api/users/groups/list", headers=admin_headers)
         assert response.status_code == 403
 
-    def test_list_groups_sudo_wrapper_error_returns_500(self, test_client, auth_headers):
+    def test_list_groups_sudo_wrapper_error_returns_500(
+        self, test_client, admin_headers
+    ):
         """list_groups で SudoWrapperError が発生する場合 500 を返すこと"""
         from unittest.mock import patch
         from backend.core.sudo_wrapper import SudoWrapperError
@@ -980,7 +1062,7 @@ class TestGroupListWithMocks:
             "backend.api.routes.users.sudo_wrapper.list_groups",
             side_effect=SudoWrapperError("Execution failed"),
         ):
-            response = test_client.get("/api/users/groups/list", headers=auth_headers)
+            response = test_client.get("/api/users/groups/list", headers=admin_headers)
         assert response.status_code == 500
         assert "Group list retrieval failed" in response.json()["message"]
 
@@ -992,8 +1074,14 @@ class TestCreateGroupWithMocks:
         """グループ作成が成功するパスを網羅（lines 745-755）"""
         from unittest.mock import patch
 
-        mock_result = {"status": "success", "message": "Group created", "name": "newgroup"}
-        with patch("backend.api.routes.users.sudo_wrapper.add_group", return_value=mock_result):
+        mock_result = {
+            "status": "success",
+            "message": "Group created",
+            "name": "newgroup",
+        }
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.add_group", return_value=mock_result
+        ):
             response = test_client.post(
                 "/api/users/groups",
                 json={"name": "newgroup"},
@@ -1006,7 +1094,9 @@ class TestCreateGroupWithMocks:
         from unittest.mock import patch
 
         mock_result = {"status": "error", "message": "Group already exists"}
-        with patch("backend.api.routes.users.sudo_wrapper.add_group", return_value=mock_result):
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.add_group", return_value=mock_result
+        ):
             response = test_client.post(
                 "/api/users/groups",
                 json={"name": "existinggroup"},
@@ -1015,7 +1105,9 @@ class TestCreateGroupWithMocks:
         assert response.status_code == 400
         assert "already exists" in response.json()["message"]
 
-    def test_create_group_sudo_wrapper_error_returns_500(self, test_client, admin_headers):
+    def test_create_group_sudo_wrapper_error_returns_500(
+        self, test_client, admin_headers
+    ):
         """add_group で SudoWrapperError が発生する場合 500 を返すこと"""
         from unittest.mock import patch
         from backend.core.sudo_wrapper import SudoWrapperError
@@ -1032,7 +1124,9 @@ class TestCreateGroupWithMocks:
         assert response.status_code == 500
         assert "Group creation failed" in response.json()["message"]
 
-    def test_create_group_validation_error_returns_400(self, test_client, admin_headers):
+    def test_create_group_validation_error_returns_400(
+        self, test_client, admin_headers
+    ):
         """validate_groupname が ValidationError を上げる場合 400 を返すこと（lines 689-690）"""
         from unittest.mock import patch
         from backend.core.validation import ValidationError
@@ -1059,6 +1153,7 @@ class TestCreateGroupWithMocks:
             if name not in FORBIDDEN_GROUPS and len(name) >= 1 and name[0].islower():
                 # Pydantic の pattern バリデーション ^[a-z_][a-z0-9_-]{0,31}$ を通過する名前
                 import re
+
                 if re.match(r"^[a-z_][a-z0-9_-]{0,31}$", name):
                     collision_name = name
                     break
@@ -1081,9 +1176,18 @@ class TestDeleteGroupWithMocks:
         """グループ削除が成功するパスを網羅（lines 821-831）"""
         from unittest.mock import patch
 
-        mock_result = {"status": "success", "message": "Group deleted", "name": "oldgroup"}
-        with patch("backend.api.routes.users.sudo_wrapper.delete_group", return_value=mock_result):
-            response = test_client.delete("/api/users/groups/oldgroup", headers=admin_headers)
+        mock_result = {
+            "status": "success",
+            "message": "Group deleted",
+            "name": "oldgroup",
+        }
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.delete_group",
+            return_value=mock_result,
+        ):
+            response = test_client.delete(
+                "/api/users/groups/oldgroup", headers=admin_headers
+            )
         assert response.status_code == 200
 
     def test_delete_group_wrapper_returns_error_400(self, test_client, admin_headers):
@@ -1091,12 +1195,19 @@ class TestDeleteGroupWithMocks:
         from unittest.mock import patch
 
         mock_result = {"status": "error", "message": "Group has active members"}
-        with patch("backend.api.routes.users.sudo_wrapper.delete_group", return_value=mock_result):
-            response = test_client.delete("/api/users/groups/activegroup", headers=admin_headers)
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.delete_group",
+            return_value=mock_result,
+        ):
+            response = test_client.delete(
+                "/api/users/groups/activegroup", headers=admin_headers
+            )
         assert response.status_code == 400
         assert "active members" in response.json()["message"]
 
-    def test_delete_group_sudo_wrapper_error_returns_500(self, test_client, admin_headers):
+    def test_delete_group_sudo_wrapper_error_returns_500(
+        self, test_client, admin_headers
+    ):
         """delete_group で SudoWrapperError が発生する場合 500 を返すこと"""
         from unittest.mock import patch
         from backend.core.sudo_wrapper import SudoWrapperError
@@ -1105,11 +1216,15 @@ class TestDeleteGroupWithMocks:
             "backend.api.routes.users.sudo_wrapper.delete_group",
             side_effect=SudoWrapperError("Execution failed"),
         ):
-            response = test_client.delete("/api/users/groups/oldgroup", headers=admin_headers)
+            response = test_client.delete(
+                "/api/users/groups/oldgroup", headers=admin_headers
+            )
         assert response.status_code == 500
         assert "Group deletion failed" in response.json()["message"]
 
-    def test_delete_group_validation_error_returns_400(self, test_client, admin_headers):
+    def test_delete_group_validation_error_returns_400(
+        self, test_client, admin_headers
+    ):
         """validate_groupname が ValidationError を上げる場合 400 を返すこと（lines 789-790）"""
         from unittest.mock import patch
         from backend.core.validation import ValidationError
@@ -1118,7 +1233,9 @@ class TestDeleteGroupWithMocks:
             "backend.api.routes.users.validate_groupname",
             side_effect=ValidationError("Invalid group name"),
         ):
-            response = test_client.delete("/api/users/groups/validname", headers=admin_headers)
+            response = test_client.delete(
+                "/api/users/groups/validname", headers=admin_headers
+            )
         assert response.status_code == 400
         assert "Invalid group name" in response.json()["message"]
 
@@ -1131,7 +1248,10 @@ class TestModifyGroupMembershipWithMocks:
         from unittest.mock import patch
 
         mock_result = {"status": "success", "message": "User added to group"}
-        with patch("backend.api.routes.users.sudo_wrapper.modify_group_membership", return_value=mock_result):
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.modify_group_membership",
+            return_value=mock_result,
+        ):
             response = test_client.put(
                 "/api/users/groups/mygroup/members",
                 json={"action": "add", "user": "alice"},
@@ -1144,7 +1264,10 @@ class TestModifyGroupMembershipWithMocks:
         from unittest.mock import patch
 
         mock_result = {"status": "success", "message": "User removed from group"}
-        with patch("backend.api.routes.users.sudo_wrapper.modify_group_membership", return_value=mock_result):
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.modify_group_membership",
+            return_value=mock_result,
+        ):
             response = test_client.put(
                 "/api/users/groups/mygroup/members",
                 json={"action": "remove", "user": "alice"},
@@ -1152,12 +1275,17 @@ class TestModifyGroupMembershipWithMocks:
             )
         assert response.status_code == 200
 
-    def test_modify_membership_wrapper_returns_error_400(self, test_client, admin_headers):
+    def test_modify_membership_wrapper_returns_error_400(
+        self, test_client, admin_headers
+    ):
         """modify_group_membership がエラーレスポンスを返す場合 400 を返すこと（lines 916-927）"""
         from unittest.mock import patch
 
         mock_result = {"status": "error", "message": "User is not a member"}
-        with patch("backend.api.routes.users.sudo_wrapper.modify_group_membership", return_value=mock_result):
+        with patch(
+            "backend.api.routes.users.sudo_wrapper.modify_group_membership",
+            return_value=mock_result,
+        ):
             response = test_client.put(
                 "/api/users/groups/mygroup/members",
                 json={"action": "remove", "user": "alice"},
@@ -1166,7 +1294,9 @@ class TestModifyGroupMembershipWithMocks:
         assert response.status_code == 400
         assert "not a member" in response.json()["message"]
 
-    def test_modify_membership_sudo_wrapper_error_returns_500(self, test_client, admin_headers):
+    def test_modify_membership_sudo_wrapper_error_returns_500(
+        self, test_client, admin_headers
+    ):
         """modify_group_membership で SudoWrapperError が発生する場合 500 を返すこと"""
         from unittest.mock import patch
         from backend.core.sudo_wrapper import SudoWrapperError
@@ -1183,7 +1313,9 @@ class TestModifyGroupMembershipWithMocks:
         assert response.status_code == 500
         assert "Group membership modification failed" in response.json()["message"]
 
-    def test_modify_membership_forbidden_group_returns_400(self, test_client, admin_headers):
+    def test_modify_membership_forbidden_group_returns_400(
+        self, test_client, admin_headers
+    ):
         """FORBIDDEN_GROUPS のグループへのメンバーシップ変更は 400 を返すこと（lines 882-887）"""
         # "sudo" は FORBIDDEN_GROUPS に含まれている
         response = test_client.put(
@@ -1194,7 +1326,9 @@ class TestModifyGroupMembershipWithMocks:
         assert response.status_code == 400
         assert "forbidden" in response.json()["message"].lower()
 
-    def test_modify_membership_invalid_groupname_validation_error(self, test_client, admin_headers):
+    def test_modify_membership_invalid_groupname_validation_error(
+        self, test_client, admin_headers
+    ):
         """validate_groupname が ValidationError を上げる場合 400 を返すこと（lines 867-868）"""
         from unittest.mock import patch
         from backend.core.validation import ValidationError
@@ -1211,13 +1345,14 @@ class TestModifyGroupMembershipWithMocks:
         assert response.status_code == 400
         assert "Invalid group name" in response.json()["message"]
 
-    def test_modify_membership_invalid_username_validation_error(self, test_client, admin_headers):
+    def test_modify_membership_invalid_username_validation_error(
+        self, test_client, admin_headers
+    ):
         """validate_username が ValidationError を上げる場合 400 を返すこと（lines 875-876）"""
         from unittest.mock import patch
         from backend.core.validation import ValidationError
 
         # validate_groupname は通過させ、validate_username のみ失敗させる
-        orig_validate_groupname_pass = True
 
         call_count = {"n": 0}
 
