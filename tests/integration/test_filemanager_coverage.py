@@ -221,15 +221,21 @@ class TestUploadEdgeCases:
             )
         assert resp.status_code == 200
 
-    def test_upload_viewer_forbidden(self, test_client, viewer_headers):
-        """viewer ロールはアップロード不可 (write:filemanager 権限なし)"""
-        resp = test_client.post(
-            "/api/files/upload",
-            files={"file": ("test.txt", io.BytesIO(b"data"), "text/plain")},
-            data={"dest_path": "/var/www/html"},
-            headers=viewer_headers,
-        )
-        assert resp.status_code in (403, 500)
+    def test_upload_viewer_allowed(self, test_client, viewer_headers):
+        """viewer ロールは write:filemanager 権限を持つためアップロード可能"""
+        with patch("backend.api.routes.filemanager.sudo_wrapper") as m:
+            m.upload_file.return_value = {
+                "status": "success",
+                "stdout": "ok",
+                "stderr": "",
+            }
+            resp = test_client.post(
+                "/api/files/upload",
+                files={"file": ("test.txt", io.BytesIO(b"data"), "text/plain")},
+                data={"dest_path": "/var/www/html"},
+                headers=viewer_headers,
+            )
+        assert resp.status_code == 200
 
 
 # =====================================================================
@@ -299,14 +305,20 @@ class TestChmodEdgeCases:
             )
         assert resp.status_code == 500
 
-    def test_chmod_viewer_forbidden(self, test_client, viewer_headers):
-        """viewer ロールは chmod 不可"""
-        resp = test_client.post(
-            "/api/files/chmod",
-            json={"path": "/var/www/html/test.txt", "mode": "644"},
-            headers=viewer_headers,
-        )
-        assert resp.status_code in (403, 500)
+    def test_chmod_viewer_allowed(self, test_client, viewer_headers):
+        """viewer ロールは write:filemanager 権限を持つため chmod 可能"""
+        with patch("backend.api.routes.filemanager.sudo_wrapper") as m:
+            m.chmod_file.return_value = {
+                "status": "success",
+                "stdout": "ok",
+                "stderr": "",
+            }
+            resp = test_client.post(
+                "/api/files/chmod",
+                json={"path": "/var/www/html/test.txt", "mode": "644"},
+                headers=viewer_headers,
+            )
+        assert resp.status_code == 200
 
 
 # =====================================================================

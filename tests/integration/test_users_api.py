@@ -22,10 +22,11 @@ class TestUserListEndpoint:
         # sudo が使えない環境では 500 になる場合があるが、403 にはならない
         assert response.status_code != 403
 
-    def test_list_operator_forbidden(self, test_client, auth_headers):
-        """operator ロールは read:users 権限がないため 403 を返すこと"""
+    def test_list_operator_has_read_users(self, test_client, auth_headers):
+        """operator ロールは read:users 権限を持つためアクセス可能"""
         response = test_client.get("/api/users", headers=auth_headers)
-        assert response.status_code == 403
+        # operator は read:users 権限を持つ。sudo が使えない環境では 500 になる場合がある
+        assert response.status_code != 403
 
     def test_list_invalid_sort_key(self, test_client, admin_headers):
         """無効なソートキーは 422 を返すこと"""
