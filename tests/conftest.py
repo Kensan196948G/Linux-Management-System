@@ -207,3 +207,40 @@ def reset_rate_limits():
         _clear_rate_limit_state()
     except ImportError:
         pass
+
+
+@pytest.fixture
+def isolated_notification_service(tmp_path):
+    """テスト用 NotificationService（tmp_path 配下のファイルを使用）"""
+    from backend.core.notification_service import NotificationService
+
+    return NotificationService(
+        settings_file=tmp_path / "settings.json",
+        history_file=tmp_path / "history.json",
+    )
+
+
+@pytest.fixture
+def isolated_rate_limiter(tmp_path, monkeypatch):
+    """テスト用 RateLimiter（tmp_path 配下の DB を使用）"""
+    import backend.core.rate_limiter as rl_module
+    from backend.core.rate_limiter import RateLimiter
+
+    test_db = tmp_path / "rate_limit_test.db"
+    monkeypatch.setattr(rl_module, "RATE_LIMIT_DB", test_db)
+    limiter = RateLimiter()
+    monkeypatch.setattr(rl_module, "rate_limiter", limiter)
+    return limiter
+
+
+@pytest.fixture
+def isolated_session_store(tmp_path, monkeypatch):
+    """テスト用 SessionStore（tmp_path 配下の DB を使用）"""
+    import backend.core.session_store as ss_module
+    from backend.core.session_store import SessionStore
+
+    test_db = tmp_path / "sessions_test.db"
+    monkeypatch.setattr(ss_module, "SESSIONS_DB", test_db)
+    store = SessionStore()
+    monkeypatch.setattr(ss_module, "session_store", store)
+    return store

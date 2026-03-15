@@ -244,15 +244,26 @@ class TestClearRateLimit:
         resp = test_client.delete("/api/sessions/rate-limit/192.168.1.1")
         assert resp.status_code in (401, 403)
 
-    def test_admin_can_clear_existing_rate_limit(self, test_client, admin_token):
+    def test_admin_can_clear_existing_rate_limit(self, test_client, admin_token, tmp_path, monkeypatch):
         """Admin は既存のレート制限を解除できる"""
-        from backend.core.rate_limiter import rate_limiter
+        import backend.core.rate_limiter as rl_module
+        from backend.core.rate_limiter import RateLimiter
+
+        # テスト専用DBを使用
+        test_db = tmp_path / "rate_limit_clear_test.db"
+        monkeypatch.setattr(rl_module, "RATE_LIMIT_DB", test_db)
+        test_limiter = RateLimiter()
+        monkeypatch.setattr(rl_module, "rate_limiter", test_limiter)
+
+        # backend.api.routes.sessions の rate_limiter もパッチ
+        import backend.api.routes.sessions as sessions_routes
+        monkeypatch.setattr(sessions_routes, "rate_limiter", test_limiter)
 
         # テスト用のロックを作成
         test_ip = "10.0.0.100"
         test_email = "locktest@example.com"
         for _ in range(6):
-            rate_limiter.check_and_record(test_ip, test_email)
+            test_limiter.check_and_record(test_ip, test_email)
 
         # 解除
         resp = test_client.delete(

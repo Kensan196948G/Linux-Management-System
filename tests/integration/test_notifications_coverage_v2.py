@@ -455,18 +455,21 @@ class TestHistoryV2:
         resp = test_client.get("/api/notifications/history?limit=-1", headers=admin_headers)
         assert resp.status_code == 422
 
-    def test_history_limit_1(self, test_client, admin_headers):
+    def test_history_limit_1(self, test_client, admin_headers, tmp_path, monkeypatch):
         """limit=1 は成功"""
+        _monkeypatch_notification_service(monkeypatch, tmp_path)
         resp = test_client.get("/api/notifications/history?limit=1", headers=admin_headers)
         assert resp.status_code == 200
 
-    def test_history_limit_200(self, test_client, admin_headers):
+    def test_history_limit_200(self, test_client, admin_headers, tmp_path, monkeypatch):
         """limit=200 は成功"""
+        _monkeypatch_notification_service(monkeypatch, tmp_path)
         resp = test_client.get("/api/notifications/history?limit=200", headers=admin_headers)
         assert resp.status_code == 200
 
-    def test_history_default_limit(self, test_client, admin_headers):
+    def test_history_default_limit(self, test_client, admin_headers, tmp_path, monkeypatch):
         """デフォルト limit=50 で成功"""
+        _monkeypatch_notification_service(monkeypatch, tmp_path)
         resp = test_client.get("/api/notifications/history", headers=admin_headers)
         assert resp.status_code == 200
         data = resp.json()

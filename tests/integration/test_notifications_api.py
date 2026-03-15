@@ -43,18 +43,35 @@ class TestNotificationsUnauthorized:
 class TestGetNotificationSettings:
     """GET /api/notifications/settings"""
 
-    def test_viewer_can_read_settings(self, test_client, viewer_headers):
+    @staticmethod
+    def _patch_notification_service(monkeypatch, tmp_path):
+        """通知サービスをテスト用に差し替えるヘルパー"""
+        from backend.core import notification_service as ns_module
+        import backend.api.routes.notifications as notif_routes
+
+        svc = ns_module.NotificationService(
+            settings_file=tmp_path / "settings.json",
+            history_file=tmp_path / "history.json",
+        )
+        monkeypatch.setattr(ns_module, "notification_service", svc)
+        monkeypatch.setattr(notif_routes, "notification_service", svc)
+        return svc
+
+    def test_viewer_can_read_settings(self, test_client, viewer_headers, tmp_path, monkeypatch):
         """viewer ロールは設定を取得できること"""
+        self._patch_notification_service(monkeypatch, tmp_path)
         response = test_client.get("/api/notifications/settings", headers=viewer_headers)
         assert response.status_code == 200
 
-    def test_admin_can_read_settings(self, test_client, admin_headers):
+    def test_admin_can_read_settings(self, test_client, admin_headers, tmp_path, monkeypatch):
         """admin ロールは設定を取得できること"""
+        self._patch_notification_service(monkeypatch, tmp_path)
         response = test_client.get("/api/notifications/settings", headers=admin_headers)
         assert response.status_code == 200
 
-    def test_settings_structure(self, test_client, admin_headers):
+    def test_settings_structure(self, test_client, admin_headers, tmp_path, monkeypatch):
         """設定レスポンスに必須キーが含まれること"""
+        self._patch_notification_service(monkeypatch, tmp_path)
         response = test_client.get("/api/notifications/settings", headers=admin_headers)
         data = response.json()
         assert data["status"] == "success"
@@ -67,8 +84,9 @@ class TestGetNotificationSettings:
         assert "notification_levels" in s
         assert "event_types" in s
 
-    def test_settings_no_smtp_password(self, test_client, admin_headers):
+    def test_settings_no_smtp_password(self, test_client, admin_headers, tmp_path, monkeypatch):
         """smtp_password がレスポンスに含まれないこと（機密情報マスク）"""
+        self._patch_notification_service(monkeypatch, tmp_path)
         response = test_client.get("/api/notifications/settings", headers=admin_headers)
         data = response.json()
         assert "smtp_password" not in data.get("settings", {})
@@ -192,8 +210,18 @@ class TestSendTestNotification:
 class TestListWebhooks:
     """GET /api/notifications/webhooks"""
 
-    def test_admin_can_list_webhooks(self, test_client, admin_headers):
+    def test_admin_can_list_webhooks(self, test_client, admin_headers, tmp_path, monkeypatch):
         """admin ロールは Webhook 一覧を取得できること"""
+        from backend.core import notification_service as ns_module
+        import backend.api.routes.notifications as notif_routes
+
+        svc = ns_module.NotificationService(
+            settings_file=tmp_path / "settings.json",
+            history_file=tmp_path / "history.json",
+        )
+        monkeypatch.setattr(ns_module, "notification_service", svc)
+        monkeypatch.setattr(notif_routes, "notification_service", svc)
+
         response = test_client.get("/api/notifications/webhooks", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
@@ -346,8 +374,18 @@ class TestDeleteWebhook:
         assert data["status"] == "success"
         assert data["deleted_id"] == webhook_id
 
-    def test_delete_nonexistent_webhook_returns_404(self, test_client, admin_headers):
+    def test_delete_nonexistent_webhook_returns_404(self, test_client, admin_headers, tmp_path, monkeypatch):
         """存在しない Webhook ID は 404 を返すこと"""
+        from backend.core import notification_service as ns_module
+        import backend.api.routes.notifications as notif_routes
+
+        svc = ns_module.NotificationService(
+            settings_file=tmp_path / "settings.json",
+            history_file=tmp_path / "history.json",
+        )
+        monkeypatch.setattr(ns_module, "notification_service", svc)
+        monkeypatch.setattr(notif_routes, "notification_service", svc)
+
         response = test_client.delete("/api/notifications/webhooks/nonexistent-id-12345", headers=admin_headers)
         assert response.status_code == 404
 
@@ -365,8 +403,18 @@ class TestDeleteWebhook:
 class TestNotificationHistory:
     """GET /api/notifications/history"""
 
-    def test_admin_can_get_history(self, test_client, admin_headers):
+    def test_admin_can_get_history(self, test_client, admin_headers, tmp_path, monkeypatch):
         """admin ロールは通知履歴を取得できること"""
+        from backend.core import notification_service as ns_module
+        import backend.api.routes.notifications as notif_routes
+
+        svc = ns_module.NotificationService(
+            settings_file=tmp_path / "settings.json",
+            history_file=tmp_path / "history.json",
+        )
+        monkeypatch.setattr(ns_module, "notification_service", svc)
+        monkeypatch.setattr(notif_routes, "notification_service", svc)
+
         response = test_client.get("/api/notifications/history", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
