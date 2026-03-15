@@ -63,8 +63,15 @@ class TestGetSettings:
     """get_settings の全分岐"""
 
     @pytest.mark.asyncio
-    async def test_default_settings_when_no_file(self, svc):
+    async def test_default_settings_when_no_file(self, tmp_path):
         """設定ファイルなしの場合はデフォルト設定を返す"""
+        # 独立したディレクトリで他テストの影響を排除
+        isolated = tmp_path / "isolated_default"
+        isolated.mkdir()
+        svc = NotificationService(
+            settings_file=isolated / "settings.json",
+            history_file=isolated / "history.json",
+        )
         settings = await svc.get_settings()
         assert settings["enabled"] is True
         assert settings["slack_webhooks"] == []
@@ -111,8 +118,15 @@ class TestUpdateSettings:
     """update_settings の分岐"""
 
     @pytest.mark.asyncio
-    async def test_update_merges_with_current(self, svc):
+    async def test_update_merges_with_current(self, tmp_path):
         """既存設定とマージされる"""
+        # 独立したディレクトリで他テストの影響を排除
+        isolated = tmp_path / "isolated_update"
+        isolated.mkdir()
+        svc = NotificationService(
+            settings_file=isolated / "settings.json",
+            history_file=isolated / "history.json",
+        )
         result = await svc.update_settings({"enabled": False, "smtp_port": 465})
         assert result["enabled"] is False
         assert result["smtp_port"] == 465
