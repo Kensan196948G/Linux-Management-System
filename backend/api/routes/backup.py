@@ -440,7 +440,7 @@ async def run_schedule_now(
 
         return {
             "status": "accepted",
-            "message": f"バックアップ実行リクエストを承認待ちに追加しました",
+            "message": "バックアップ実行リクエストを承認待ちに追加しました",
             "schedule_id": schedule_id,
             "request_id": result.get("request_id"),
         }

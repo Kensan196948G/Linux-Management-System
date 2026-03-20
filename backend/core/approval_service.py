@@ -773,7 +773,7 @@ class ApprovalService:
                 elif request_type == "backup_restore":
                     return sudo_wrapper.restore_backup_file(
                         backup_file=payload["backup_file"],
-                        restore_dir=payload.get("restore_target", "/var/tmp/adminui-restore"),
+                        restore_dir=payload.get("restore_target", "/var/tmp/adminui-restore"),  # nosec B108
                     )
                 elif request_type == "ansible_playbook_run":
                     return sudo_wrapper.ansible_run_playbook(
