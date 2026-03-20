@@ -182,18 +182,19 @@ class TestTwoFAVerify:
         """有効な TOTP コードで 200 を返す"""
         token = _get_token(client, "operator@example.com", "operator123")
         secret = pyotp.random_base32()
-        valid_code = pyotp.TOTP(secret).now()
+        valid_code = "123456"  # ダミーコード（verify をモックするため値は不問）
         # user_002 (operator) のエントリをモック
         stored = {"user_002": {"secret": secret, "enabled": False, "verified": False}}
 
         with patch("backend.api.routes.auth._load_2fa_secrets", return_value=stored):
             with patch("backend.api.routes.auth._save_2fa_secrets"):
-                resp = client.post(
-                    "/api/auth/2fa/verify",
-                    json={"code": valid_code},
-                    headers=_auth_headers(token),
-                )
-                assert resp.status_code == 200
+                with patch("pyotp.TOTP.verify", return_value=True):
+                    resp = client.post(
+                        "/api/auth/2fa/verify",
+                        json={"code": valid_code},
+                        headers=_auth_headers(token),
+                    )
+                    assert resp.status_code == 200
 
     def test_verify_invalid_code_returns_400(self, client):
         """無効な TOTP コードで 400 を返す"""
