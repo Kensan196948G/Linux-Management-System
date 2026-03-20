@@ -6,7 +6,7 @@
 
 ---
 
-## 📊 現在の実装状況 (v0.47.0)
+## 📊 現在の実装状況 (v0.48.0)
 
 ### フロントエンド
 - **55 dev pages / 46 prod pages** — 全サイドバー動作確認済み
@@ -15,13 +15,13 @@
 ### テスト
 | 種別 | 件数 | 状態 |
 |------|------|------|
-| unit | 1275件+ | ✅ 全合格（約62秒） |
-| integration | 実装中 | 🔄 |
-| security | 実装中 | 🔄 |
-| e2e | 実装中 | 🔄 |
+| unit + integration | 7,179件+ | ✅ 全合格 |
+| e2e (Playwright) | 347件 | ✅ 全合格 |
+| カバレッジ | 98%+ | ✅ |
+| テストファイル | 179 | ✅ 全ルートモジュールにテスト存在 |
 
-### API（全エンドポイント 200 OK）
-`/api/system` / `/api/services` / `/api/logs` / `/api/routing` / `/api/logsearch` / `/api/security` / `/api/users` / `/api/approval`
+### API（58ルートモジュール・全エンドポイント 200 OK）
+Phase 1–6 全モジュール実装完了（system, services, logs, routing, security, users, approval, cron, firewall, packages, nginx, apache, mysql, postgresql, containers, nfs, backup, fail2ban, ansible 等）
 
 ### WebSocket
 - `ws-reconnect.js` — 自動再接続ライブラリ実装済み
@@ -687,25 +687,23 @@ CLAUDE.md のセキュリティ原則を厳守してください。
 ### モジュール優先度
 
 ```
-Phase 1 (v0.1) - 完了:
-  ✅ System Status
-  ✅ Service Restart
-  ✅ Log Viewing
+Phase 1 (v0.1–v0.3) - 完了:
+  ✅ System Status / Service Restart / Log Viewing
+  ✅ JWT認証 / RBAC / 承認ワークフロー
 
-Phase 2 (v0.2) - 完了:
-  ✅ Running Processes（実装済み - 179 test cases）
-  ✅ Users API（実装済み）
-  🔴 Cron Jobs（次期実装）
-  🔴 Network Configuration（次期実装）
+Phase 2 (v0.4–v0.47) - 完了:
+  ✅ Running Processes / Users API / Cron / Network
+  ✅ File Manager / Security / Dashboard
 
-Phase 3 (v0.3):
-  🟡 Approval Workflow（実装済み）
-  🔴 MySQL/PostgreSQL（未）
-  🔴 Firewall UI（未）
+Phase 3–6 (v0.48) - 完了:
+  ✅ Firewall / Packages / DHCP / Routing
+  ✅ MySQL / PostgreSQL / Nginx / Apache / SSL
+  ✅ Docker / NFS / SMART / Sensors / Fail2ban
+  ✅ Backup / SSH Keys / Ansible / 2FA(TOTP)
 
-Phase 4-5 (v0.4-v0.5):
-  🟢 Advanced Server Management
-  🟢 Cluster Management
+Phase 7 (v1.0) - 予定:
+  🔴 Cluster Management
+  🔴 API Key Management
 ```
 
 ### 例：新モジュール実装チェックリスト
