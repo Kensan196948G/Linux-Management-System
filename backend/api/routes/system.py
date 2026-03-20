@@ -22,9 +22,7 @@ logger = logging.getLogger(__name__)
 # ===================================================================
 
 
-def _score_for_usage(
-    value: float, warn_threshold: float, critical_threshold: float
-) -> int:
+def _score_for_usage(value: float, warn_threshold: float, critical_threshold: float) -> int:
     """使用率からスコア（0-100）を計算する。
 
     Args:
@@ -296,9 +294,7 @@ async def get_health_score(
     # ディスク使用率（ルートパーティション）
     disk = psutil.disk_usage("/")
     disk_pct = disk.percent
-    disk_score = _score_for_usage(
-        disk_pct, warn_threshold=80.0, critical_threshold=95.0
-    )
+    disk_score = _score_for_usage(disk_pct, warn_threshold=80.0, critical_threshold=95.0)
 
     # アクティブアラート数（CPU/メモリ/ディスクの閾値超過をカウント）
     alerts_count = sum(
@@ -315,13 +311,7 @@ async def get_health_score(
     services_score = _score_for_failed_services(failed_count)
 
     # 合成スコア（重み付け平均）
-    overall_score = int(
-        0.30 * cpu_score
-        + 0.25 * mem_score
-        + 0.25 * disk_score
-        + 0.10 * alerts_score
-        + 0.10 * services_score
-    )
+    overall_score = int(0.30 * cpu_score + 0.25 * mem_score + 0.25 * disk_score + 0.10 * alerts_score + 0.10 * services_score)
 
     audit_log.record(
         operation="health_score_view",

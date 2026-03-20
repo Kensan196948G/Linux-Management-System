@@ -46,9 +46,7 @@ MAX_RESULT_LINES = 1000
 MAX_REGEX_LENGTH = 200
 FORBIDDEN_CHARS_ADV = [";", "|", "&", "$", "`", ">", "<"]
 
-SAVED_FILTERS_PATH = (
-    Path(__file__).parent.parent.parent.parent / "data" / "saved_log_filters.json"
-)
+SAVED_FILTERS_PATH = Path(__file__).parent.parent.parent.parent / "data" / "saved_log_filters.json"
 
 # タイムライン用: 月略称 -> 数字マッピング
 _MONTH_MAP: Dict[str, int] = {
@@ -71,9 +69,7 @@ _ISO_TS_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2})")
 
 # ログレベル検出パターン
 _LEVEL_PATTERNS = {
-    "ERROR": re.compile(
-        r"\b(error|err|critical|crit|emerg|alert|fatal)\b", re.IGNORECASE
-    ),
+    "ERROR": re.compile(r"\b(error|err|critical|crit|emerg|alert|fatal)\b", re.IGNORECASE),
     "WARN": re.compile(r"\b(warn|warning)\b", re.IGNORECASE),
     "INFO": re.compile(r"\b(info|notice)\b", re.IGNORECASE),
     "DEBUG": re.compile(r"\b(debug)\b", re.IGNORECASE),
@@ -208,9 +204,7 @@ def _parse_log_hour(line: str, now: datetime) -> Optional[int]:
     if m:
         month = _MONTH_MAP.get(m.group(1), 0)
         try:
-            log_dt = datetime(
-                now.year, month, int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc
-            )
+            log_dt = datetime(now.year, month, int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
         except ValueError:
             return None
     else:
@@ -339,9 +333,7 @@ async def search_logs(
     _validate_query(q)
     _validate_query(file)
 
-    logger.info(
-        f"Log search requested: q={q!r}, file={file}, lines={lines}, user={current_user.username}"
-    )
+    logger.info(f"Log search requested: q={q!r}, file={file}, lines={lines}, user={current_user.username}")
 
     audit_log.record(
         operation="log_search",
@@ -883,9 +875,7 @@ async def delete_saved_filter(
 
 @router.get("/{service_name}", response_model=LogsResponse)
 async def get_service_logs(
-    service_name: str = FPath(
-        ..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$"
-    ),
+    service_name: str = FPath(..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$"),
     lines: int = Query(100, ge=1, le=1000, description="取得行数（1-1000）"),
     current_user: TokenData = Depends(require_permission("read:logs")),
 ):
@@ -903,9 +893,7 @@ async def get_service_logs(
     Raises:
         HTTPException: ログ取得失敗時
     """
-    logger.info(
-        f"Log view requested: service={service_name}, lines={lines}, user={current_user.username}"
-    )
+    logger.info(f"Log view requested: service={service_name}, lines={lines}, user={current_user.username}")
 
     # 監査ログ記録（試行）
     audit_log.record(
