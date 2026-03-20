@@ -46,11 +46,34 @@ MAX_RESULT_LINES = 1000
 MAX_REGEX_LENGTH = 200
 FORBIDDEN_CHARS_ADV = [";", "|", "&", "$", "`", ">", "<"]
 
-SAVED_FILTERS_PATH = Path(__file__).parent.parent.parent.parent / "data" / "saved_log_filters.json"
+SAVED_FILTERS_PATH = (
+    Path(__file__).parent.parent.parent.parent / "data" / "saved_log_filters.json"
+)
+
+# タイムライン用: 月略称 -> 数字マッピング
+_MONTH_MAP: Dict[str, int] = {
+    "Jan": 1,
+    "Feb": 2,
+    "Mar": 3,
+    "Apr": 4,
+    "May": 5,
+    "Jun": 6,
+    "Jul": 7,
+    "Aug": 8,
+    "Sep": 9,
+    "Oct": 10,
+    "Nov": 11,
+    "Dec": 12,
+}
+# タイムライン用: syslog 形式 / ISO 形式のタイムスタンプ正規表現
+_SYSLOG_TS_RE = re.compile(r"^(\w{3})\s+(\d+)\s+(\d{2}):(\d{2}):(\d{2})")
+_ISO_TS_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2})")
 
 # ログレベル検出パターン
 _LEVEL_PATTERNS = {
-    "ERROR": re.compile(r"\b(error|err|critical|crit|emerg|alert|fatal)\b", re.IGNORECASE),
+    "ERROR": re.compile(
+        r"\b(error|err|critical|crit|emerg|alert|fatal)\b", re.IGNORECASE
+    ),
     "WARN": re.compile(r"\b(warn|warning)\b", re.IGNORECASE),
     "INFO": re.compile(r"\b(info|notice)\b", re.IGNORECASE),
     "DEBUG": re.compile(r"\b(debug)\b", re.IGNORECASE),
@@ -171,6 +194,47 @@ def _detect_level(line: str) -> str:
     return "UNKNOWN"
 
 
+def _parse_log_hour(line: str, now: datetime) -> Optional[int]:
+    """ログ行からタイムスタンプを解析し、直近24時間内なら時刻バケット(0-23)を返す。
+
+    Args:
+        line: ログ行テキスト
+        now: 現在時刻 (UTC)
+
+    Returns:
+        時刻バケット (0-23) or None (解析失敗/24時間外)
+    """
+    m = _SYSLOG_TS_RE.match(line)
+    if m:
+        month = _MONTH_MAP.get(m.group(1), 0)
+        try:
+            log_dt = datetime(
+                now.year, month, int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc
+            )
+        except ValueError:
+            return None
+    else:
+        m = _ISO_TS_RE.match(line)
+        if not m:
+            return None
+        try:
+            log_dt = datetime(
+                int(m.group(1)),
+                int(m.group(2)),
+                int(m.group(3)),
+                int(m.group(4)),
+                tzinfo=timezone.utc,
+            )
+        except ValueError:
+            return None
+
+    diff_hours = int((now - log_dt).total_seconds() // 3600)
+    if not (0 <= diff_hours < 24):
+        return None
+    hour = (now.hour - diff_hours) % 24
+    return hour
+
+
 def _load_saved_filters() -> dict:
     """saved_log_filters.json を読み込む。
 
@@ -275,7 +339,9 @@ async def search_logs(
     _validate_query(q)
     _validate_query(file)
 
-    logger.info(f"Log search requested: q={q!r}, file={file}, lines={lines}, user={current_user.username}")
+    logger.info(
+        f"Log search requested: q={q!r}, file={file}, lines={lines}, user={current_user.username}"
+    )
 
     audit_log.record(
         operation="log_search",
@@ -473,7 +539,11 @@ async def advanced_search_logs(
         user_id=current_user.user_id,
         target=str(request.files),
         status="attempt",
-        details={"query": request.query, "regex": request.regex, "limit": request.limit},
+        details={
+            "query": request.query,
+            "regex": request.regex,
+            "limit": request.limit,
+        },
     )
 
     results: List[Dict[str, Any]] = []
@@ -496,7 +566,14 @@ async def advanced_search_logs(
                         )
         except PermissionError:
             logger.warning("Permission denied reading log file: %s", filepath)
-            results.append({"file": filepath, "lineno": 0, "level": "ERROR", "message": f"[Permission denied: {filepath}]"})
+            results.append(
+                {
+                    "file": filepath,
+                    "lineno": 0,
+                    "level": "ERROR",
+                    "message": f"[Permission denied: {filepath}]",
+                }
+            )
         except FileNotFoundError:
             logger.warning("Log file not found: %s", filepath)
 
@@ -572,7 +649,13 @@ async def get_log_stats(
         details={},
     )
 
-    totals: Dict[str, int] = {"ERROR": 0, "WARN": 0, "INFO": 0, "DEBUG": 0, "UNKNOWN": 0}
+    totals: Dict[str, int] = {
+        "ERROR": 0,
+        "WARN": 0,
+        "INFO": 0,
+        "DEBUG": 0,
+        "UNKNOWN": 0,
+    }
     per_file: Dict[str, Dict[str, int]] = {}
     SCAN_LINES = 5000
 
@@ -580,7 +663,13 @@ async def get_log_stats(
         p = Path(filepath)
         if not p.exists():
             continue
-        counts: Dict[str, int] = {"ERROR": 0, "WARN": 0, "INFO": 0, "DEBUG": 0, "UNKNOWN": 0}
+        counts: Dict[str, int] = {
+            "ERROR": 0,
+            "WARN": 0,
+            "INFO": 0,
+            "DEBUG": 0,
+            "UNKNOWN": 0,
+        }
         try:
             with open(filepath, "r", encoding="utf-8", errors="replace") as fh:
                 lines_buf: List[str] = []
@@ -635,31 +724,9 @@ async def get_log_timeline(
     )
 
     now = datetime.now(timezone.utc)
-    # 0〜23 の各時刻バケット（24時間分）
     hourly: Dict[int, int] = {h: 0 for h in range(24)}
 
-    # 月略称 -> 数字マッピング
-    MONTH_MAP = {
-        "Jan": 1,
-        "Feb": 2,
-        "Mar": 3,
-        "Apr": 4,
-        "May": 5,
-        "Jun": 6,
-        "Jul": 7,
-        "Aug": 8,
-        "Sep": 9,
-        "Oct": 10,
-        "Nov": 11,
-        "Dec": 12,
-    }
-    # syslog 形式: "Jan  1 12:34:56 ..." or ISO 形式
-    _syslog_re = re.compile(r"^(\w{3})\s+(\d+)\s+(\d{2}):(\d{2}):(\d{2})")
-    _iso_re = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2})")
-
-    scan_files = ["/var/log/syslog", "/var/log/auth.log"]
-
-    for filepath in scan_files:
+    for filepath in ["/var/log/syslog", "/var/log/auth.log"]:
         if filepath not in ADVANCED_ALLOWED_LOG_FILES:
             continue
         p = Path(filepath)
@@ -668,52 +735,17 @@ async def get_log_timeline(
         try:
             with open(filepath, "r", encoding="utf-8", errors="replace") as fh:
                 for line in fh:
-                    lvl = _detect_level(line)
-                    if lvl not in ("ERROR", "WARN"):
+                    if _detect_level(line) not in ("ERROR", "WARN"):
                         continue
-                    # タイムスタンプ解析
-                    hour: Optional[int] = None
-                    m = _syslog_re.match(line)
-                    if m:
-                        month = MONTH_MAP.get(m.group(1), 0)
-                        day = int(m.group(2))
-                        h = int(m.group(3))
-                        try:
-                            log_dt = datetime(now.year, month, day, h, tzinfo=timezone.utc)
-                            diff_hours = int((now - log_dt).total_seconds() // 3600)
-                            if 0 <= diff_hours < 24:
-                                hour = now.hour - diff_hours
-                                if hour < 0:
-                                    hour += 24
-                        except ValueError:
-                            pass
-                    else:
-                        m2 = _iso_re.match(line)
-                        if m2:
-                            try:
-                                log_dt = datetime(
-                                    int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4)), tzinfo=timezone.utc
-                                )
-                                diff_hours = int((now - log_dt).total_seconds() // 3600)
-                                if 0 <= diff_hours < 24:
-                                    hour = now.hour - diff_hours
-                                    if hour < 0:
-                                        hour += 24
-                            except ValueError:
-                                pass
+                    hour = _parse_log_hour(line, now)
                     if hour is not None:
                         hourly[hour] = hourly.get(hour, 0) + 1
         except PermissionError:
             logger.warning("Permission denied reading %s for timeline", filepath)
-            continue
 
     # Chart.js 用ラベルと値を生成（過去24時間順）
-    labels = []
-    data_values = []
-    for h in range(24):
-        slot = (now.hour - 23 + h) % 24
-        labels.append(f"{slot:02d}:00")
-        data_values.append(hourly.get(slot, 0))
+    labels = [f"{(now.hour - 23 + h) % 24:02d}:00" for h in range(24)]
+    data_values = [hourly.get((now.hour - 23 + h) % 24, 0) for h in range(24)]
 
     audit_log.record(
         operation="log_timeline",
@@ -851,7 +883,9 @@ async def delete_saved_filter(
 
 @router.get("/{service_name}", response_model=LogsResponse)
 async def get_service_logs(
-    service_name: str = FPath(..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$"),
+    service_name: str = FPath(
+        ..., min_length=1, max_length=64, pattern="^[a-zA-Z0-9_-]+$"
+    ),
     lines: int = Query(100, ge=1, le=1000, description="取得行数（1-1000）"),
     current_user: TokenData = Depends(require_permission("read:logs")),
 ):
@@ -869,7 +903,9 @@ async def get_service_logs(
     Raises:
         HTTPException: ログ取得失敗時
     """
-    logger.info(f"Log view requested: service={service_name}, lines={lines}, user={current_user.username}")
+    logger.info(
+        f"Log view requested: service={service_name}, lines={lines}, user={current_user.username}"
+    )
 
     # 監査ログ記録（試行）
     audit_log.record(
