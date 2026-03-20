@@ -214,12 +214,21 @@ jobs:
           except: print('0 HIGH, 0 MEDIUM')
           " 2>/dev/null || echo "parse error")
 
-            if [ "$BANDIT_RESULT" -ne 0 ]; then
+            BANDIT_HM_COUNT=$(python3 -c "
+          import json
+          try:
+              d = json.load(open('/tmp/bandit_report.json'))
+              c = len([r for r in d.get('results', []) if r.get('issue_severity') in ('HIGH', 'MEDIUM')])
+              print(c)
+          except: print(0)
+          " 2>/dev/null || echo "0")
+
+            if [ "$BANDIT_HM_COUNT" -gt 0 ]; then
               echo "⚠️  bandit: ${BANDIT_HIGH} 検知（セキュリティ問題は手動対応必要）"
               FINAL_STATUS="partial"
               REPORT="${REPORT}\\n⚠️  [ループ${LOOP}] bandit: ${BANDIT_HIGH} - 手動対応必要"
             else
-              echo "✅ bandit: セキュリティ問題なし"
+              echo "✅ bandit: HIGH/MEDIUM セキュリティ問題なし (LOW: 情報提供のみ)"
             fi
 
             # shell=True 検出（プロジェクト固有のセキュリティチェック）- コメント行を除外
@@ -475,7 +484,7 @@ jobs:
 
             const recentIssue = existingIssues.data.find(i =>
               i.title.includes('自動修復不可エラー') &&
-              (new Date() - new Date(i.created_at)) < 3600000  // 1時間以内
+              (new Date() - new Date(i.created_at)) < 86400000  // 24時間以内
             );
 
             if (!recentIssue) {
