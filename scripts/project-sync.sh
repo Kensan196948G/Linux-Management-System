@@ -4,7 +4,8 @@
 # ============================================================
 # Usage: ./project-sync.sh <ISSUE_OR_PR_URL> <STATUS>
 #
-# STATUS: Todo | "In Progress" | Done
+# STATUS: Inbox | Backlog | Ready | Design | Development |
+#         Verify | "Deploy Gate" | Done | Blocked
 #
 # 環境変数:
 #   GH_TOKEN or GITHUB_TOKEN — GitHub API トークン（project スコープ必須）
@@ -33,17 +34,25 @@ fi
 PROJECT_NUMBER="${PROJECT_NUMBER:-5}"
 OWNER="${OWNER:-Kensan196948G}"
 PROJECT_ID="${PROJECT_ID:-PVT_kwHOClgkIc4BSSPy}"
-STATUS_FIELD_ID="${STATUS_FIELD_ID:-PVTSSF_lAHOClgkIc4BSSPyzg_3XAY}"
+# Phase フィールド（カスタム: ClaudeOS ステータス）
+PHASE_FIELD_ID="${PHASE_FIELD_ID:-PVTSSF_lAHOClgkIc4BSSPyzg_3aa0}"
 
-# --- ステータスマッピング ---
+# --- ステータスマッピング（Phase フィールド） ---
 declare -A STATUS_MAP
-STATUS_MAP["Todo"]="f75ad846"
-STATUS_MAP["In Progress"]="47fc9ee4"
-STATUS_MAP["Done"]="98236657"
+STATUS_MAP["Inbox"]="d484a4ba"
+STATUS_MAP["Backlog"]="22ca697a"
+STATUS_MAP["Ready"]="f90a0adc"
+STATUS_MAP["Design"]="af2f18a9"
+STATUS_MAP["Development"]="94e34be0"
+STATUS_MAP["Verify"]="d99dd000"
+STATUS_MAP["Deploy Gate"]="4a292afd"
+STATUS_MAP["Done"]="454a2945"
+STATUS_MAP["Blocked"]="b57b06f6"
 
 OPTION_ID="${STATUS_MAP[$STATUS_NAME]:-}"
 if [ -z "$OPTION_ID" ]; then
-    echo "Error: Unknown status '$STATUS_NAME'. Valid: Todo, 'In Progress', Done" >&2
+    echo "Error: Unknown status '$STATUS_NAME'" >&2
+    echo "  Valid: Inbox, Backlog, Ready, Design, Development, Verify, 'Deploy Gate', Done, Blocked" >&2
     exit 1
 fi
 
@@ -72,7 +81,7 @@ echo "Setting status to '$STATUS_NAME'..."
 gh project item-edit \
     --project-id "$PROJECT_ID" \
     --id "$ITEM_ID" \
-    --field-id "$STATUS_FIELD_ID" \
+    --field-id "$PHASE_FIELD_ID" \
     --single-select-option-id "$OPTION_ID"
 
 echo "Done: $ITEM_URL → $STATUS_NAME"
