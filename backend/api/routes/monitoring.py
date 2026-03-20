@@ -644,7 +644,7 @@ async def get_prometheus_metrics(
             resource = alert.get("resource", "unknown").replace(" ", "_").lower()
             severity_val = 2 if alert.get("level") == "critical" else 1
             lines.append(
-                f'linux_mgmt_alert_severity{{resource="{resource}",level="{alert.get("level","unknown")}"}} '
+                f'linux_mgmt_alert_severity{{resource="{resource}", level="{alert.get("level", "unknown")}"}} '
                 f"{severity_val} {ts_ms}"
             )
         lines.append("")
