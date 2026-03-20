@@ -88,9 +88,12 @@ def live_server():
 
     yield E2E_BASE_URL
 
-    # クリーンアップ
-    server.should_exit = True
-    thread.join(timeout=5)
+    # クリーンアップ: サーバーを安全に停止
+    try:
+        server.should_exit = True
+        thread.join(timeout=5)
+    except Exception:
+        pass  # daemon スレッドのため、停止失敗は無視して良い
 
 
 @pytest.fixture(scope="session")
